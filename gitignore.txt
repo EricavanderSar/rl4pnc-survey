@@ -20,7 +20,6 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -38,6 +37,7 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Unit test / coverage reports
+test-report.xml
 htmlcov/
 .tox/
 .nox/
@@ -50,6 +50,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+cover/
 
 # Translations
 *.mo
@@ -72,6 +73,7 @@ instance/
 docs/_build/
 
 # PyBuilder
+.pybuilder/
 target/
 
 # Jupyter Notebook
@@ -82,7 +84,9 @@ profile_default/
 ipython_config.py
 
 # pyenv
-.python-version
+#   For a library or package, you might want to ignore these files since the code is
+#   intended to run in multiple environments; otherwise, check them in:
+# .python-version
 
 # pipenv
 #   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
@@ -102,6 +106,17 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+.env
+.env_*
+!.env_template
+.venv
+env/
+env_old/
+venv/
+ENV/
+env.bak/
+env_old.bak/
+venv.bak/
 venv_mahrl/
 
 # Spyder project settings
@@ -114,6 +129,11 @@ venv_mahrl/
 # mkdocs documentation
 /site
 
+# Linting
+flake8-report.txt
+flake8-report.xml
+**flycheck_**
+
 # mypy
 .mypy_cache/
 .dmypy.json
@@ -122,23 +142,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Log files
-/log_files
-/wandb
-settings.json
-/agents_log
-/runner_log
-*/eval_results
-*/figures
+# pytype static type analyzer
+.pytype/
 
-# SLURM outputs
-*.out
-
-# precommit
-.pre-commit-config.yaml
-
-#Job files
-*.job
-eval_sac_lines_paths.txt
-
-# local files
+# Cython debug symbols
+cython_debug/
