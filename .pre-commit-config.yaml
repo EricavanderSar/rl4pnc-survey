@@ -1,0 +1,79 @@
+default_stages: [commit, push]
+fail_fast: true
+
+repos:
+  - repo: local
+    hooks:
+      - id: check-case-conflict
+        name: check-case-conflict
+        entry: check-case-conflict
+        files: "^(src|test|scripts)"
+        language: python
+        types: [ python ]
+      - id: check-merge-conflict
+        name: check-merge-conflict
+        entry: check-merge-conflict
+        files: "^(src|test|scripts)"
+        language: python
+        types: [ python ]
+      - id: end-of-file-fixer
+        name: end-of-file-fixer
+        entry: end-of-file-fixer
+        files: "^(src|test|scripts)"
+        language: python
+        types: [ python ]
+      - id: fix-byte-order-marker
+        name: fix-byte-order-marker
+        entry: fix-byte-order-marker
+        files: "^(src|test|scripts)"
+        language: python
+        types: [ python ]
+      - id: trailing-whitespace-fixer
+        name: trailing-whitespace-fixer
+        entry: trailing-whitespace-fixer
+        files: "^(src|test|scripts)"
+        language: python
+        types: [ python ]
+      - id: black
+        name: formatting
+        entry: black
+        files: "^(src|test|scripts)"
+        language: python
+        types: [ python ]
+      - id: isort
+        name: import-fixing
+        entry: isort
+        files: "^(src|test|scripts)"
+        language: python
+        types: [ python ]
+      - id: autoflake
+        name: lint-fixing
+        entry: autoflake
+        args:
+          - --in-place
+          - --remove-all-unused-imports
+          - --remove-unused-variables
+          - --expand-star-imports
+          - --ignore-init-module-imports
+          - --recursive
+        files: "^(src|test|scripts)"
+        language: python
+        types: [ python ]
+      - id: pylint
+        name: lint-checking-pylint
+        entry: pylint
+        files: "^(src|scripts)"
+        language: python
+        types: [ python ]
+      - id: flake8
+        name: lint-checking-flake8
+        entry: flake8
+        files: "^(src|test|scripts)"
+        language: python
+        types: [ python ]
+      - id: mypy
+        name: type-checking
+        entry: mypy src
+        pass_filenames: false
+        language: python
+        types: [ python ]
