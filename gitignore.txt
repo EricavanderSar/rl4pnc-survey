@@ -118,6 +118,7 @@ env.bak/
 env_old.bak/
 venv.bak/
 venv_mahrl/
+venv_mahrl/*
 
 # Spyder project settings
 .spyderproject
