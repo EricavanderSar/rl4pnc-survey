@@ -12,10 +12,16 @@ from grid2op.gym_compat import GymEnv
 from ray import train, tune
 from ray.rllib.algorithms import ppo  # import the type of agents
 
-from mahrl.grid2op_env import utils
+from mahrl.grid2op_env.utils import (
+    CustomDiscreteActions,
+    get_possible_topologies,
+    setup_converter,
+)
 
 ENV_NAME = "rte_case5_example"
-LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/venv_mahrl/lib/python3.10/site-packages/grid2op/data/"
+ENV_IS_TEST = True
+# LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/venv_mahrl/lib/python3.10/site-packages/grid2op/data/"
+LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/lib/python3.10/site-packages/grid2op/data"
 NB_STEP_TRAIN = 10
 RHO_THRESHOLD = 0.95
 CHANGEABLE_SUBSTATIONS = [0, 2, 3]
@@ -35,23 +41,23 @@ class CustomizedGrid2OpEnvironment(gymnasium.Env):
                 "The configuration for RLLIB should provide the env name"
             )
         nm_env = env_config.pop("env_name", None)
-        self.env_glop = grid2op.make(nm_env, **env_config)
+        self.env_glop = grid2op.make(nm_env, **env_config["grid2op_kwargs"])
 
         # 1.a. Setting up custom action space
-        possible_substation_actions = utils.get_possible_topologies(
+        possible_substation_actions = get_possible_topologies(
             self.env_glop, CHANGEABLE_SUBSTATIONS
         )
 
         # 2. create the gym environment
         self.env_gym = GymEnv(self.env_glop)
-        _, _ = self.env_gym.reset()
+        self.env_gym.reset()
 
         # 3. customize action and observation space space to only change bus
         # create converter
-        converter = utils.setup_converter(self.env_glop, possible_substation_actions)
+        converter = setup_converter(self.env_glop, possible_substation_actions)
 
         # set gym action space to discrete
-        self.env_gym.action_space = utils.CustomDiscreteActions(
+        self.env_gym.action_space = CustomDiscreteActions(
             converter, self.env_glop.action_space()
         )
 
@@ -64,9 +70,10 @@ class CustomizedGrid2OpEnvironment(gymnasium.Env):
         self.env_gym.observation_space = ob_space
 
         # 4. specific to rllib
-        # self.action_space = gym.spaces.Discrete(converter.n)
-        self.action_space = self.env_gym.action_space
-        self.observation_space = self.env_gym.observation_space
+        self.action_space = gymnasium.spaces.Discrete(len(possible_substation_actions))
+        self.observation_space = gymnasium.spaces.Dict(
+            {k: v for k, v in self.env_gym.observation_space.spaces.items()}
+        )
 
         self.last_rho = 0  # below threshold TODO
 
@@ -93,8 +100,8 @@ class CustomizedGrid2OpEnvironment(gymnasium.Env):
         raise NotImplementedError
 
 
-utils.make_train_test_val_split(LIB_DIR, ENV_NAME, 5.0, 5.0, Reward.L2RPNReward)
-env = CustomizedGrid2OpEnvironment({"env_name": LIB_DIR + ENV_NAME + "_train"})
+# utils.make_train_test_val_split(LIB_DIR, ENV_NAME, 5.0, 5.0, Reward.L2RPNReward)
+# env = CustomizedGrid2OpEnvironment({"env_name": LIB_DIR + ENV_NAME + "_train"})
 config = ppo.PPOConfig()
 config = config.training(
     gamma=0.95,
@@ -109,8 +116,11 @@ config = config.training(
 config = config.environment(
     env=CustomizedGrid2OpEnvironment,
     env_config={
-        "env_name": LIB_DIR + ENV_NAME + "_train",
-        "reward_class": Reward.L2RPNReward,
+        "env_name": ENV_NAME,
+        "grid2op_kwargs": {
+            "test": ENV_IS_TEST,
+            "reward_class": Reward.L2RPNReward,
+        }
     },
 )
 
@@ -124,7 +134,7 @@ if NB_STEP_TRAIN:
                 checkpoint_frequency=1000, checkpoint_at_end=True
             ),
             verbose=1,
-            local_dir="/Users/barberademol/Documents/GitHub/mahrl_grid2op/notebooks/results",
+            local_dir="/home/daddabarba/Downloads/barbera_test_out",
         )
     finally:
         # shutdown ray
