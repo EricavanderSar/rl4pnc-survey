@@ -20,8 +20,8 @@ from mahrl.grid2op_env.utils import (
 
 ENV_NAME = "rte_case5_example"
 ENV_IS_TEST = True
-# LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/venv_mahrl/lib/python3.10/site-packages/grid2op/data/"
-LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/lib/python3.10/site-packages/grid2op/data"
+LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/"
+# LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/lib/python3.10/site-packages/grid2op/data"
 NB_STEP_TRAIN = 10
 RHO_THRESHOLD = 0.95
 CHANGEABLE_SUBSTATIONS = [0, 2, 3]
@@ -72,7 +72,7 @@ class CustomizedGrid2OpEnvironment(gymnasium.Env):
         # 4. specific to rllib
         self.action_space = gymnasium.spaces.Discrete(len(possible_substation_actions))
         self.observation_space = gymnasium.spaces.Dict(
-            {k: v for k, v in self.env_gym.observation_space.spaces.items()}
+            dict(self.env_gym.observation_space.spaces.items())
         )
 
         self.last_rho = 0  # below threshold TODO
@@ -100,42 +100,55 @@ class CustomizedGrid2OpEnvironment(gymnasium.Env):
         raise NotImplementedError
 
 
-# utils.make_train_test_val_split(LIB_DIR, ENV_NAME, 5.0, 5.0, Reward.L2RPNReward)
-# env = CustomizedGrid2OpEnvironment({"env_name": LIB_DIR + ENV_NAME + "_train"})
-config = ppo.PPOConfig()
-config = config.training(
-    gamma=0.95,
-    lr=0.003,
-    vf_loss_coeff=0.5,
-    entropy_coeff=0.01,
-    clip_param=0.2,
-    lambda_=0.95,
-    sgd_minibatch_size=4,
-    train_batch_size=32,
-)
-config = config.environment(
-    env=CustomizedGrid2OpEnvironment,
-    env_config={
-        "env_name": ENV_NAME,
-        "grid2op_kwargs": {
-            "test": ENV_IS_TEST,
-            "reward_class": Reward.L2RPNReward,
-        }
-    },
-)
+def run_training(config: dict[str, Any]) -> None:
+    """
+    Function that runs the training script.
+    """
+    if NB_STEP_TRAIN:
+        try:
+            _ = tune.run(
+                ppo.PPO,
+                config=config,
+                stop={"timesteps_total": 100000},
+                checkpoint_config=train.CheckpointConfig(
+                    checkpoint_frequency=1000, checkpoint_at_end=True
+                ),
+                verbose=1,
+                local_dir="/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/",
+            )
+        finally:
+            # shutdown ray
+            ray.shutdown()
 
-if NB_STEP_TRAIN:
-    try:
-        analysis = tune.run(
-            ppo.PPO,
-            config=config.to_dict(),
-            stop={"timesteps_total": 10000},
-            checkpoint_config=train.CheckpointConfig(
-                checkpoint_frequency=1000, checkpoint_at_end=True
-            ),
-            verbose=1,
-            local_dir="/home/daddabarba/Downloads/barbera_test_out",
-        )
-    finally:
-        # shutdown ray
-        ray.shutdown()
+
+if __name__ == "__main__":
+    # make_train_test_val_split(
+    #     os.path.join(LIB_DIR, "environments"), ENV_NAME, 5.0, 5.0, Reward.L2RPNReward
+    # )
+    ppo_config = ppo.PPOConfig()
+    ppo_config = ppo_config.training(
+        gamma=0.95,
+        lr=0.003,
+        vf_loss_coeff=0.5,
+        entropy_coeff=0.01,
+        clip_param=0.2,
+        lambda_=0.95,
+        sgd_minibatch_size=4,
+        train_batch_size=32,
+        seed=14,
+    )
+    ppo_config = ppo_config.environment(
+        env=CustomizedGrid2OpEnvironment,
+        env_config={
+            "env_name": ENV_NAME,
+            "grid2op_kwargs": {
+                "test": ENV_IS_TEST,
+                "reward_class": Reward.L2RPNReward,
+            },
+        },
+    )
+
+    # config = load_config(os.path.join(LIB_DIR, "experiments", "ppo_baseline.yaml"))
+    # print(config)
+    # run_training(config["tune_config"])
+    run_training(ppo_config)

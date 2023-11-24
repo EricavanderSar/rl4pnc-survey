@@ -61,8 +61,10 @@ def make_train_test_val_split(
     """
     Function that splits an environment into a train, test and validation set.
     """
-    if not os.path.exists(library_directory + env_name + "_train"):
-        env = grid2op.make(library_directory + env_name, reward_class=reward_class)
+    if not os.path.exists(os.path.join(library_directory, env_name, "_train")):
+        env = grid2op.make(
+            os.path.join(library_directory, env_name), reward_class=reward_class
+        )
 
         # extract 5% of the "chronics" to be used in the validation environment, 5% for testing,
         # 80% for training
