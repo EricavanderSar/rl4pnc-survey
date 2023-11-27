@@ -158,45 +158,45 @@ env.reset()
 # %% [markdown]
 # # # Train agent
 
+# %%
+config = ppo.PPOConfig()
+config = config.training(
+    gamma=0.99,
+    lr=0.001,
+    vf_loss_coeff=0.5,
+)
+config = config.environment(
+    env=MyEnv, env_config={"env_name": LIBRARY_DIRECTORY + ENV_NAME + "_train"}
+)
+# config = {
+#     "env": MyEnv,
+#     "env_config": {
+#         "env_name": LIBRARY_DIRECTORY + ENV_NAME + "_train"},
+#     "framework": "torch",
+# }
+
+
+if NB_STEP_TRAIN:
+    try:
+        analysis = tune.run(
+            ppo.PPO,
+            config=config.to_dict(),
+            stop={"timesteps_total": 10000},  # Adjust the stopping criterion
+            verbose=1,
+            local_dir="/Users/barberademol/Documents/GitHub/mahrl_grid2op/notebooks/results",
+        )
+    finally:
+        # shutdown ray
+        ray.shutdown()
+
 # # %%
-# config = ppo.PPOConfig()
-# config = config.training(
-#     gamma=0.99,
-#     lr=0.001,
-#     vf_loss_coeff=0.5,
-# )
-# config = config.environment(
-#     env=MyEnv, env_config={"env_name": LIBRARY_DIRECTORY + ENV_NAME + "_train"}
-# )
-# # config = {
-# #     "env": MyEnv,
-# #     "env_config": {
-# #         "env_name": LIBRARY_DIRECTORY + ENV_NAME + "_train"},
-# #     "framework": "torch",
-# # }
+env = MyEnv({"env_name": LIBRARY_DIRECTORY + ENV_NAME + "_train"}).get_env()
 
-
-# if NB_STEP_TRAIN:
-#     try:
-#         analysis = tune.run(
-#             ppo.PPO,
-#             config=config.to_dict(),
-#             stop={"timesteps_total": 1000000},  # Adjust the stopping criterion
-#             verbose=1,
-#             local_dir="/Users/barberademol/Documents/GitHub/mahrl_grid2op/notebooks/results",
-#         )
-#     finally:
-#         # shutdown ray
-#         ray.shutdown()
-
-# # %%
-# env = MyEnv({"env_name": LIBRARY_DIRECTORY + ENV_NAME + "_train"}).get_env()
-
-# print(
-#     "Total maximum number of timesteps possible: {}".format(
-#         env.chronics_handler.max_timestep()
-#     )
-# )
+print(
+    "Total maximum number of timesteps possible: {}".format(
+        env.chronics_handler.max_timestep()
+    )
+)
 
 # # %%
 # print(ppo.PPOConfig().to_dict())

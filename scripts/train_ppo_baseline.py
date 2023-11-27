@@ -83,11 +83,17 @@ class CustomizedGrid2OpEnvironment(gymnasium.Env):
         seed: int | None = None,
         options: dict[str, Any] | None = None,
     ) -> tuple[OBSTYPE, dict[str, Any]]:  # type: ignore
+        """
+        This function resets the environment.
+        """
         obs, info = self.env_gym.reset()
         self.last_rho = np.max(obs["rho"])
         return obs, info
 
     def step(self, action: int) -> tuple[OBSTYPE, float, bool, bool, dict[str, Any]]:
+        """
+        This function performs a single step in the environment.
+        """
         # for the first action or whenever the lines are not near overloading, do nothing
         if self.last_rho < RHO_THRESHOLD:
             action = -1
@@ -97,6 +103,9 @@ class CustomizedGrid2OpEnvironment(gymnasium.Env):
         return obs, reward, done, truncated, info
 
     def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
+        """
+        Not implemented.
+        """
         raise NotImplementedError
 
 
@@ -133,9 +142,9 @@ if __name__ == "__main__":
         entropy_coeff=0.01,
         clip_param=0.2,
         lambda_=0.95,
-        sgd_minibatch_size=4,
-        train_batch_size=32,
-        seed=14,
+        # sgd_minibatch_size=4,
+        # train_batch_size=32,
+        # seed=14,
     )
     ppo_config = ppo_config.environment(
         env=CustomizedGrid2OpEnvironment,
