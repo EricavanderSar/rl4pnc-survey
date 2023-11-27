@@ -9,7 +9,7 @@ import numpy as np
 import ray
 from grid2op import Reward
 from grid2op.gym_compat import GymEnv
-from ray import train, tune
+from ray import air, tune
 from ray.rllib.algorithms import ppo  # import the type of agents
 
 from mahrl.grid2op_env.utils import (
@@ -22,9 +22,11 @@ ENV_NAME = "rte_case5_example"
 ENV_IS_TEST = True
 LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/"
 # LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/lib/python3.10/site-packages/grid2op/data"
-NB_STEP_TRAIN = 10
 RHO_THRESHOLD = 0.95
 CHANGEABLE_SUBSTATIONS = [0, 2, 3]
+NB_TSTEPS = 100000
+CHECKPOINT_FREQ = 1000
+VERBOSE = 1
 
 OBSTYPE = TypeVar("OBSTYPE")
 ACTTYPE = TypeVar("ACTTYPE")
@@ -113,21 +115,28 @@ def run_training(config: dict[str, Any]) -> None:
     """
     Function that runs the training script.
     """
-    if NB_STEP_TRAIN:
-        try:
-            _ = tune.run(
-                ppo.PPO,
-                config=config,
-                stop={"timesteps_total": 100000},
-                checkpoint_config=train.CheckpointConfig(
-                    checkpoint_frequency=1000, checkpoint_at_end=True
-                ),
-                verbose=1,
-                local_dir="/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/",
-            )
-        finally:
-            # shutdown ray
-            ray.shutdown()
+    # Create tuner
+    tuner = tune.Tuner(
+        ppo.PPO,
+        param_space=config,
+        run_config=air.RunConfig(
+            stop={"timesteps_total": NB_TSTEPS},
+            storage_path="/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/",
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=CHECKPOINT_FREQ,
+                checkpoint_at_end=True,
+                checkpoint_score_attribute="evaluation/episode_reward_mean",
+            ),
+            verbose=VERBOSE,
+        ),
+    )
+
+    # Launch tuning
+    try:
+        tuner.fit()
+    finally:
+        # Close ray instance
+        ray.shutdown()
 
 
 if __name__ == "__main__":
