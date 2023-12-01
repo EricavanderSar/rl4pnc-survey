@@ -169,12 +169,6 @@ output_compress_columns:
 output_config: {}
 output_max_file_size: 67108864
 placement_strategy: PACK
-policies:
-  default_policy: !!python/object:ray.rllib.policy.policy.PolicySpec
-    action_space: null
-    config: null
-    observation_space: null
-    policy_class: null
 policies_to_train: null
 policy_map_cache: -1
 policy_map_capacity: 100
