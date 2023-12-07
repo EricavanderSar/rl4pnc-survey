@@ -4,9 +4,12 @@ Defines agent policies.
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import torch
 from ray.actor import ActorHandle
 from ray.rllib.models.action_dist import ActionDistribution
 from ray.rllib.models.modelv2 import ModelV2
+from ray.rllib.models import ModelCatalog
+from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.policy.policy import Policy
 from ray.rllib.policy.sample_batch import SampleBatch
 from ray.rllib.utils.typing import (
@@ -16,6 +19,46 @@ from ray.rllib.utils.typing import (
     TensorStructType,
     TensorType,
 )
+from torch import nn
+
+
+class RecordingTorchModel(TorchModelV2, nn.Module):
+    def __init__(self, obs_space, action_space, num_outputs, model_config, name):
+        nn.Module.__init__(self)
+        TorchModelV2.__init__(
+            self, obs_space, action_space, num_outputs, model_config, name
+        )
+
+        self.out_file = model_config["custom_model_config"]["out_file"]
+
+        self.layer = nn.Linear(2, 2)
+
+    def forward(self, input_dict, state, seq_lens):
+        with open(self.out_file, "at", encoding="utf-8") as f:
+            f.write(f"Action performed at {seq_lens}\n")
+
+        obs = input_dict["obs_flat"]
+        self.last_batch_size = obs.shape[0]
+
+        # act = torch.argmax(obs, axis=1, keepdim=True).to(torch.long)
+        act = (obs - 1) * 2
+        # act = self.layer(obs)
+        # self._value = act[:, 0]
+
+        return act, state
+
+    def value_function(self):
+        return torch.from_numpy(np.zeros(shape=(self.last_batch_size,)))
+        # return self._value
+
+    def set_weights(self) -> None:
+        pass
+
+    def load_state_dict(self, state_dict) -> None:
+        pass
+
+
+ModelCatalog.register_custom_model("RecordingTorchModel", RecordingTorchModel)
 
 RHO_THRESHOLD = 0.95  # TODO include in obs?
 
@@ -40,7 +83,12 @@ class DoNothingPolicy(Policy):
     """
 
     def __init__(self, observation_space, action_space, config):
-        Policy.__init__(self, observation_space, action_space, config)
+        Policy.__init__(
+            self,
+            observation_space=observation_space,
+            action_space=action_space,
+            config=config,
+        )
 
     def compute_actions(
         self,
@@ -71,7 +119,7 @@ class DoNothingPolicy(Policy):
                 with shape like
                 {"f1": [BATCH_SIZE, ...], "f2": [BATCH_SIZE, ...]}.
         """
-        return [-1], [], {}
+        return [0], [], {}
 
     def get_weights(self) -> ModelWeights:
         """No weights to save."""
@@ -219,7 +267,12 @@ class SelectAgentPolicy(Policy):
     """
 
     def __init__(self, observation_space, action_space, config):
-        Policy.__init__(self, observation_space, action_space, config)
+        Policy.__init__(
+            self,
+            observation_space=observation_space,
+            action_space=action_space,
+            config=config,
+        )
 
     def compute_actions(
         self,
@@ -252,18 +305,23 @@ class SelectAgentPolicy(Policy):
         """
         # TODO how to implement this? How to make sure batch size = 1?
         for obs in obs_batch:
+            rho = obs["rho"]
+            print(f"OBS: {rho}")
             if np.max(obs["rho"]) > RHO_THRESHOLD:
                 # Set results for do something agent
-                actions_result = ["reinforcement_learning_policy"]
+                actions_result = 0  # ["reinforcement_learning_policy"]
                 state_outs_result = []
                 info_result = {}
                 break  # exit the loop since we have a result
-            if np.max(obs["rho"]) <= RHO_THRESHOLD:
+            elif np.max(obs["rho"]) <= RHO_THRESHOLD:
                 # Set results for do nothing agent
                 actions_result = ["do_nothing_policy"]
                 state_outs_result = []
                 info_result = {}
                 break  # exit the loop since we have a result
+            else:
+                actions_result = 1  # ["do_nothing_policy"]
+                break
 
         return actions_result, state_outs_result, info_result
 

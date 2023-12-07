@@ -43,7 +43,7 @@ def calculate_action_topology_spaces(environments: list[str]) -> None:
             )
             nr_non_lines = sum(
                 1
-                for row in env.observation_space.get_obj_substations(substation_id=2)
+                for row in env.observation_space.get_obj_substations(substation_id=sub)
                 if row[1] != -1 or row[2] != -1
             )
             alpha = 2 ** (nr_elements - 1)
@@ -64,7 +64,7 @@ def calculate_action_topology_spaces(environments: list[str]) -> None:
             )
             nr_non_lines = sum(
                 1
-                for row in env.observation_space.get_obj_substations(substation_id=2)
+                for row in env.observation_space.get_obj_substations(substation_id=sub)
                 if row[1] != -1 or row[2] != -1
             )
             nr_lines = nr_elements - nr_non_lines
