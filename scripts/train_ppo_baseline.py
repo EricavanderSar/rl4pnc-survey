@@ -1,7 +1,6 @@
 """
 Trains PPO baseline agent.
 """
-import os
 from typing import Any
 
 import ray
@@ -49,8 +48,6 @@ def run_training(config: dict[str, Any]) -> None:
         ),
     )
 
-    print("I AM BEFORE TUNING")
-
     # Launch tuning
     try:
         tuner.fit()
@@ -64,36 +61,6 @@ if __name__ == "__main__":
     #     os.path.join(LIB_DIR, "environments"), ENV_NAME, 5.0, 5.0, Reward.L2RPNReward
     # )
 
-    agent_config = AlgorithmConfig()
-    agent_config.framework(framework="torch")
-    agent_config.training(_enable_learner_api=False)
-    agent_config.rl_module(_enable_rl_module_api=False)
-    agent_config.exploration(
-        exploration_config={
-            "type": "EpsilonGreedy",
-        }
-    )
-    #     .training(
-    #         model={
-    #             "custom_model": "RecordingTorchModel",
-    #             "custom_model_config": {
-    #                 "out_file": os.path.join(
-    #                     "/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs",
-    #                     "reinforcement_learning_policy",
-    #                 ),
-    #             },
-    #             "use_lstm": False,
-    #             "use_attention": False,
-    #         },
-    #         _enable_learner_api=False,
-    #     )
-    #     .exploration(
-    #         exploration_config={
-    #             "type": "EpsilonGreedy",
-    #         }
-    #     )
-    # )
-
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             # policy_class=ppo.PPO,  # infer automatically from Algorithm --TODO not actually needed
@@ -101,13 +68,32 @@ if __name__ == "__main__":
             observation_space=None,  # infer automatically from env --TODO only rho needed
             action_space=Discrete(2),  # choose one of agents
             # action_space=None,  # choose one of agents
-            config=agent_config,
+            config=(
+                AlgorithmConfig()
+                .training(_enable_learner_api=False)
+                .rl_module(_enable_rl_module_api=False)
+                .exploration(
+                    exploration_config={
+                        "type": "EpsilonGreedy",
+                    }
+                )
+                .rollouts(preprocessor_pref=None)
+            ),
         ),
         "reinforcement_learning_policy": PolicySpec(  # performs RL topology
-            policy_class=ppo.PPO,  # use PPO
+            policy_class=None,  # use default policy PPO
             observation_space=None,  # infer automatically from env
             action_space=None,  # infer automatically from env
-            config=agent_config,
+            config=(
+                AlgorithmConfig()
+                .training(_enable_learner_api=False)
+                .rl_module(_enable_rl_module_api=False)
+                .exploration(
+                    exploration_config={
+                        "type": "EpsilonGreedy",
+                    }
+                )
+            ),
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             # policy_class=ppo.PPO,  # infer automatically from Algorithm --TODO not actually needed
@@ -115,7 +101,16 @@ if __name__ == "__main__":
             observation_space=None,  # infer automatically from env --TODO not actually needed
             action_space=Discrete(1),  # only perform do-nothing
             # action_space=None,  # only perform do-nothing
-            config=agent_config,
+            config=(
+                AlgorithmConfig()
+                .training(_enable_learner_api=False)
+                .rl_module(_enable_rl_module_api=False)
+                .exploration(
+                    exploration_config={
+                        "type": "EpsilonGreedy",
+                    }
+                )
+            ),
         ),
     }
 

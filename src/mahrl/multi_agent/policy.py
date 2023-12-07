@@ -5,20 +5,10 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from ray.actor import ActorHandle
-from ray.rllib.models.action_dist import ActionDistribution
-from ray.rllib.models.modelv2 import ModelV2
 from ray.rllib.models import ModelCatalog
 from ray.rllib.models.torch.torch_modelv2 import TorchModelV2
 from ray.rllib.policy.policy import Policy
-from ray.rllib.policy.sample_batch import SampleBatch
-from ray.rllib.utils.typing import (
-    ModelGradients,
-    ModelWeights,
-    PolicyID,
-    TensorStructType,
-    TensorType,
-)
+from ray.rllib.utils.typing import ModelWeights, TensorStructType, TensorType
 from torch import nn
 
 
@@ -63,13 +53,13 @@ ModelCatalog.register_custom_model("RecordingTorchModel", RecordingTorchModel)
 RHO_THRESHOLD = 0.95  # TODO include in obs?
 
 
-def policy_mapping_fn(agent_id: str) -> str:
+def policy_mapping_fn(agent_id: str, episode=None, worker=None) -> str:
     """Maps each agent to a policy."""
-    if agent_id.startswith("reinforcement_learning_"):
+    if agent_id.startswith("agent_0"):
         return "reinforcement_learning_policy"
-    if agent_id.startswith("high_level_"):
+    if agent_id.startswith("agent_1"):
         return "high_level_policy"
-    if agent_id.startswith("do_nothing_"):
+    if agent_id.startswith("agent_2"):
         return "do_nothing_policy"
     raise NotImplementedError
 
@@ -303,25 +293,17 @@ class SelectAgentPolicy(Policy):
                 with shape like
                 {"f1": [BATCH_SIZE, ...], "f2": [BATCH_SIZE, ...]}.
         """
-        # TODO how to implement this? How to make sure batch size = 1?
-        for obs in obs_batch:
-            rho = obs["rho"]
-            print(f"OBS: {rho}")
-            if np.max(obs["rho"]) > RHO_THRESHOLD:
-                # Set results for do something agent
-                actions_result = 0  # ["reinforcement_learning_policy"]
-                state_outs_result = []
-                info_result = {}
-                break  # exit the loop since we have a result
-            elif np.max(obs["rho"]) <= RHO_THRESHOLD:
-                # Set results for do nothing agent
-                actions_result = ["do_nothing_policy"]
-                state_outs_result = []
-                info_result = {}
-                break  # exit the loop since we have a result
-            else:
-                actions_result = 1  # ["do_nothing_policy"]
-                break
+        state_outs_result = []
+        info_result = {}
+
+        max_rho = np.max(obs_batch["rho"])
+        print(f"max_rho={max_rho}")
+        if np.max(max_rho) > RHO_THRESHOLD:
+            # Set results for do something agent
+            actions_result = [0]  # ["reinforcement_learning_policy"]
+        else:  # np.max(max_rho) <= RHO_THRESHOLD:
+            # Set results for do nothing agent
+            actions_result = [1]
 
         return actions_result, state_outs_result, info_result
 

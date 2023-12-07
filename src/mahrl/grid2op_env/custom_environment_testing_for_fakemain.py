@@ -1,15 +1,11 @@
-from collections import OrderedDict
-from typing import Any, Optional, Tuple, TypeVar
-
 import random
+from collections import OrderedDict
+from typing import Any, TypeVar
+
 import grid2op
-import numpy as np
 import gymnasium
 from grid2op.gym_compat import GymEnv
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
-from ray.rllib.utils.typing import (
-    MultiAgentDict,
-)
 from ray.tune.registry import register_env
 
 from mahrl.grid2op_env.utils import (
@@ -30,9 +26,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
     def __init__(self, env_config: dict[str, Any]):
         super().__init__()
-
-        print("IN INIT CUSTOM")
-        print(env_config)
 
         self._agents_list = [f"agent_{i}" for i in range(3)]
         self.agents = set(self._agents_list)
