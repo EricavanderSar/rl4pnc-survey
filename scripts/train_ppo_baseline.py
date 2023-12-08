@@ -1,6 +1,7 @@
 """
 Trains PPO baseline agent.
 """
+import os
 from typing import Any
 
 import ray
@@ -26,6 +27,9 @@ RHO_THRESHOLD = 0.95
 NB_TSTEPS = 100000
 CHECKPOINT_FREQ = 1000
 VERBOSE = 1
+AGENT_OUT_DIR = (
+    "/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/multi_agent/AgentActions"
+)
 
 
 def run_training(config: dict[str, Any]) -> None:
@@ -70,7 +74,19 @@ if __name__ == "__main__":
             # action_space=None,  # choose one of agents
             config=(
                 AlgorithmConfig()
-                .training(_enable_learner_api=False)
+                .training(
+                    model={
+                        "custom_model": "RecordingTorchModel",
+                        "custom_model_config": {
+                            "out_file": os.path.join(
+                                AGENT_OUT_DIR, "high_level_policy"
+                            ),
+                        },
+                        "use_lstm": False,
+                        "use_attention": False,
+                    },
+                    _enable_learner_api=False,
+                )
                 .rl_module(_enable_rl_module_api=False)
                 .exploration(
                     exploration_config={

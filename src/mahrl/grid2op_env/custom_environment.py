@@ -55,6 +55,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             self.env_glop, CHANGEABLE_SUBSTATIONS
         )
 
+        # Add the do-nothing action at index 0
+        do_nothing_action = self.env_glop.action_space({})
+        possible_substation_actions.insert(0, do_nothing_action)
+
         # 2. create the gym environment
         self.env_gym = GymEnv(self.env_glop)
         self.env_gym.reset()
@@ -117,20 +121,24 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             "__all__": False,
         }
 
+        print(f"ACTION_DICT = {action_dict}")
+
         if "agent_1" in action_dict.keys():
             action = action_dict["agent_1"]
             if action == 0:
                 # do something
                 print("AGENT 1 SAYS: DO SOMETHING")
                 observations = {"agent_0": self.previous_obs}
-                rewards = {"agent_0": 0}
+                # rewards = {"agent_0": 0}
+                rewards = {}
                 infos = {}
             elif action == 1:
                 # if np.max(self.previous_obs["rho"]) < RHO_THRESHOLD:
                 # do nothing
                 print("AGENT 1 SAYS: DO NOTHING")
                 observations = {"agent_2": self.previous_obs}
-                rewards = {"agent_0": 0}
+                # rewards = {"agent_0": 0}
+                rewards = {}
                 infos = {}
             else:
                 raise ValueError("A invalid agent is selected by the policy in step().")
@@ -138,7 +146,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             # do nothing
             print("AGENT 2 IS CALLED: DO NOTHING")
             # overwrite action in action_dict to nothing
-            action = 0  # TODO SET TO DO-NOTHING, empty, -1, 0?
+            action = action_dict["agent_2"]
             (
                 self.previous_obs,
                 reward,
@@ -152,7 +160,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {}
-        elif "agent_0" in action_dict.keys():
+
             # perform action
             print("AGENT 0 IS CALLED: DO SOMETHING")
             action = action_dict["agent_0"]
@@ -171,8 +179,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             infos = {}
         elif bool(action_dict) is False:
             print("Caution: Empty action dictionary!")
-            rewards = {"agent_0": 0}
-            observations = {"agent_1": self.previous_obs}
+            # rewards = {"agent_0": 0}
+            rewards = {}
+            # observations = {"agent_1": self.previous_obs}
+            observations = {}
             infos = {}
         else:
             print(f"ACTION_DICT={action_dict}")
