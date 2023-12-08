@@ -133,8 +133,8 @@ if __name__ == "__main__":
     ppo_config = ppo.PPOConfig()
     ppo_config = ppo_config.training(
         _enable_learner_api=False,
-        gamma=0.95,
-        lr=0.003,
+        gamma=tune.grid_search([0.9, 0.99, 0.999]),
+        lr=tune.grid_search([0.0003, 0.003, 0.0003]),
         vf_loss_coeff=0.5,
         entropy_coeff=0.01,
         clip_param=0.2,

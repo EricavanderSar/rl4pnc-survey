@@ -160,7 +160,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {}
-
+        elif "agent_0" in action_dict.keys():
             # perform action
             print("AGENT 0 IS CALLED: DO SOMETHING")
             action = action_dict["agent_0"]
