@@ -1,5 +1,9 @@
+"""
+Class that defines the custom Grid2op to gym environment with the set observation and action spaces.
+"""
+import logging
 from collections import OrderedDict
-from typing import Any, Optional, Tuple, TypeVar
+from typing import Any, Dict, Optional, Tuple, TypeVar
 
 import grid2op
 import gymnasium
@@ -8,11 +12,8 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
-from mahrl.grid2op_env.utils import (
-    CustomDiscreteActions,
-    get_possible_topologies,
-    setup_converter,
-)
+from mahrl.experiments.action_spaces import get_TenneT_action_space
+from mahrl.grid2op_env.utils import CustomDiscreteActions, setup_converter
 
 # TODO: Investigate why all agents are always called
 
@@ -44,10 +45,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.env_glop = grid2op.make(nm_env, **env_config["grid2op_kwargs"])
 
         # 1.a. Setting up custom action space
-        possible_substation_actions = get_possible_topologies(
-            self.env_glop, CHANGEABLE_SUBSTATIONS
-        )
-        print(f"LEN ACTIONS={len(possible_substation_actions)}")
+        # possible_substation_actions = get_asymmetrical_action_space(self.env_glop)
+        # possible_substation_actions = get_medha_action_space(self.env_glop)
+        possible_substation_actions = get_TenneT_action_space(self.env_glop)
+
+        logging.info(f"LEN ACTIONS={len(possible_substation_actions)}")
         # Add the do-nothing action at index 0
         do_nothing_action = self.env_glop.action_space({})
         possible_substation_actions.insert(0, do_nothing_action)
@@ -78,14 +80,16 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             dict(self.env_gym.observation_space.spaces.items())
         )
 
-        self.previous_obs = OrderedDict()  # TODO: How to initalize?
+        self.previous_obs: OrderedDict[
+            str, Any
+        ] = OrderedDict()  # TODO: How to initalize?
         self.step_nb = 0
 
     def reset(
         self,
         *,
         seed: Optional[int] = None,
-        options: Optional[dict] = None,
+        options: Optional[Dict[str, Any]] = None,
     ) -> Tuple[MultiAgentDict, MultiAgentDict]:
         """
         This function resets the environment.
@@ -114,30 +118,33 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             "__all__": False,
         }
 
-        print(f"ACTION_DICT = {action_dict}")
+        rewards: Dict[str, Any] = {}
+        infos: Dict[str, Any] = {}
+
+        logging.info(f"ACTION_DICT = {action_dict}")
 
         if "high_level_agent" in action_dict.keys():
             action = action_dict["high_level_agent"]
             if action == 0:
                 # do something
-                print("high_level_agent SAYS: DO SOMETHING")
+                logging.info("high_level_agent SAYS: DO SOMETHING")
                 observations = {"reinforcement_learning_agent": self.previous_obs}
                 # rewards = {"reinforcement_learning_agent": 0}
-                rewards = {}
-                infos = {}
+                # rewards: Dict[str, Any] = {}
+                # infos: Dict[str, Any] = {}
             elif action == 1:
                 # if np.max(self.previous_obs["rho"]) < RHO_THRESHOLD:
                 # do nothing
-                print("AGENT 1 SAYS: DO NOTHING")
+                logging.info("AGENT 1 SAYS: DO NOTHING")
                 observations = {"do_nothing_agent": self.previous_obs}
                 # rewards = {"reinforcement_learning_agent": 0}
-                rewards = {}
-                infos = {}
+                # rewards: Dict[str, Any] = {}
+                # infos: Dict[str, Any] = {}
             else:
                 raise ValueError("A invalid agent is selected by the policy in step().")
         elif "do_nothing_agent" in action_dict.keys():
             # do nothing
-            print("do_nothing_agent IS CALLED: DO NOTHING")
+            logging.info("do_nothing_agent IS CALLED: DO NOTHING")
             # overwrite action in action_dict to nothing
             action = action_dict["do_nothing_agent"]
             (
@@ -145,7 +152,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 reward,
                 terminated,
                 truncated,
-                info,
+                infos,
             ) = self.env_gym.step(action)
             # give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
@@ -156,14 +163,14 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             infos = {}
         elif "reinforcement_learning_agent" in action_dict.keys():
             # perform action
-            print("reinforcement_learning_agent IS CALLED: DO SOMETHING")
+            logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
             action = action_dict["reinforcement_learning_agent"]
             (
                 self.previous_obs,
                 reward,
                 terminated,
                 truncated,
-                info,
+                infos,
             ) = self.env_gym.step(action)
             # give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
@@ -173,14 +180,14 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             truncateds = {"__all__": truncated}
             infos = {}
         elif bool(action_dict) is False:
-            print("Caution: Empty action dictionary!")
+            logging.info("Caution: Empty action dictionary!")
             # rewards = {"reinforcement_learning_agent": 0}
             rewards = {}
             # observations = {"high_level_agent": self.previous_obs}
             observations = {}
             infos = {}
         else:
-            print(f"ACTION_DICT={action_dict}")
+            logging.info(f"ACTION_DICT={action_dict}")
             raise ValueError("No agent found in action dictionary in step().")
         return observations, rewards, terminateds, truncateds, infos
 

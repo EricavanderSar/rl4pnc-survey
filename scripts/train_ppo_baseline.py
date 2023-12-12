@@ -1,7 +1,6 @@
 """
 Trains PPO baseline agent.
 """
-import os
 from typing import Any
 
 import ray
@@ -24,7 +23,7 @@ ENV_IS_TEST = True
 LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/"
 # LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/lib/python3.10/site-packages/grid2op/data"
 RHO_THRESHOLD = 0.95
-NB_TSTEPS = 1000000
+NB_TSTEPS = 100000
 CHECKPOINT_FREQ = 1000
 VERBOSE = 1
 AGENT_OUT_DIR = (
@@ -121,10 +120,10 @@ if __name__ == "__main__":
     ppo_config = ppo.PPOConfig()
     ppo_config = ppo_config.training(
         _enable_learner_api=False,
-        gamma=0.99,
-        lr=0.0003,
-        # gamma=tune.grid_search([0.9, 0.99, 0.999]),
-        # lr=tune.grid_search([0.0003, 0.003, 0.03]),
+        # gamma=0.99,
+        # lr=0.0003,
+        gamma=tune.grid_search([0.9, 0.99, 0.999]),
+        lr=tune.grid_search([0.0003, 0.003, 0.03]),
         vf_loss_coeff=0.5,
         entropy_coeff=0.01,
         clip_param=0.2,
