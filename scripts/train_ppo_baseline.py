@@ -137,6 +137,7 @@ if __name__ == "__main__":
         env_config={
             "env_name": ENV_NAME,
             "num_agents": len(policies),
+            "action_space": "Tennet",
             "grid2op_kwargs": {
                 "test": ENV_IS_TEST,
                 "reward_class": Reward.L2RPNReward,

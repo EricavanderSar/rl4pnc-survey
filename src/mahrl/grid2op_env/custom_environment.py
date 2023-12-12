@@ -12,7 +12,11 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
-from mahrl.experiments.action_spaces import get_TenneT_action_space
+from mahrl.experiments.action_spaces import (
+    get_asymmetrical_action_space,
+    get_medha_action_space,
+    get_TenneT_action_space,
+)
 from mahrl.grid2op_env.utils import CustomDiscreteActions, setup_converter
 
 # TODO: Investigate why all agents are always called
@@ -45,9 +49,15 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.env_glop = grid2op.make(nm_env, **env_config["grid2op_kwargs"])
 
         # 1.a. Setting up custom action space
-        # possible_substation_actions = get_asymmetrical_action_space(self.env_glop)
-        # possible_substation_actions = get_medha_action_space(self.env_glop)
-        possible_substation_actions = get_TenneT_action_space(self.env_glop)
+        if env_config["action_space"] == "symmetry":
+            possible_substation_actions = get_asymmetrical_action_space(self.env_glop)
+        if env_config["action_space"] == "medha":
+            possible_substation_actions = get_medha_action_space(self.env_glop)
+        elif env_config["action_space"] == "tennet":
+            possible_substation_actions = get_TenneT_action_space(self.env_glop)
+        else:
+            possible_substation_actions = get_asymmetrical_action_space(self.env_glop)
+            logging.info("No action space is defined, using asymmetrical action space.")
 
         logging.info(f"LEN ACTIONS={len(possible_substation_actions)}")
         # Add the do-nothing action at index 0
