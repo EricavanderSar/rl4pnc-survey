@@ -55,11 +55,11 @@ RHO_THRESHOLD = 0.95  # TODO include in obs?
 
 def policy_mapping_fn(agent_id: str, episode=None, worker=None) -> str:
     """Maps each agent to a policy."""
-    if agent_id.startswith("agent_0"):
+    if agent_id.startswith("reinforcement_learning_agent"):
         return "reinforcement_learning_policy"
-    if agent_id.startswith("agent_1"):
+    if agent_id.startswith("high_level_agent"):
         return "high_level_policy"
-    if agent_id.startswith("agent_2"):
+    if agent_id.startswith("do_nothing_agent"):
         return "do_nothing_policy"
     raise NotImplementedError
 

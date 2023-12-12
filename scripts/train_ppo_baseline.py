@@ -24,7 +24,7 @@ ENV_IS_TEST = True
 LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/"
 # LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/lib/python3.10/site-packages/grid2op/data"
 RHO_THRESHOLD = 0.95
-NB_TSTEPS = 100000
+NB_TSTEPS = 1000000
 CHECKPOINT_FREQ = 1000
 VERBOSE = 1
 AGENT_OUT_DIR = (
@@ -67,24 +67,12 @@ if __name__ == "__main__":
 
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
-            # policy_class=ppo.PPO,  # infer automatically from Algorithm --TODO not actually needed
-            policy_class=SelectAgentPolicy,  # infer automatically from Algorithm --TODO not actually needed
-            observation_space=None,  # infer automatically from env --TODO only rho needed
+            policy_class=SelectAgentPolicy,
+            observation_space=None,  # infer automatically from env
             action_space=Discrete(2),  # choose one of agents
-            # action_space=None,  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
-                    model={
-                        "custom_model": "RecordingTorchModel",
-                        "custom_model_config": {
-                            "out_file": os.path.join(
-                                AGENT_OUT_DIR, "high_level_policy"
-                            ),
-                        },
-                        "use_lstm": False,
-                        "use_attention": False,
-                    },
                     _enable_learner_api=False,
                 )
                 .rl_module(_enable_rl_module_api=False)
@@ -97,12 +85,14 @@ if __name__ == "__main__":
             ),
         ),
         "reinforcement_learning_policy": PolicySpec(  # performs RL topology
-            policy_class=None,  # use default policy PPO
+            policy_class=None,  # use default policy of PPO
             observation_space=None,  # infer automatically from env
             action_space=None,  # infer automatically from env
             config=(
                 AlgorithmConfig()
-                .training(_enable_learner_api=False)
+                .training(
+                    _enable_learner_api=False,
+                )
                 .rl_module(_enable_rl_module_api=False)
                 .exploration(
                     exploration_config={
@@ -112,11 +102,9 @@ if __name__ == "__main__":
             ),
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
-            # policy_class=ppo.PPO,  # infer automatically from Algorithm --TODO not actually needed
-            policy_class=DoNothingPolicy,  # infer automatically from Algorithm --TODO not actually needed
+            policy_class=DoNothingPolicy,
             observation_space=None,  # infer automatically from env --TODO not actually needed
             action_space=Discrete(1),  # only perform do-nothing
-            # action_space=None,  # only perform do-nothing
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
@@ -133,8 +121,10 @@ if __name__ == "__main__":
     ppo_config = ppo.PPOConfig()
     ppo_config = ppo_config.training(
         _enable_learner_api=False,
-        gamma=tune.grid_search([0.9, 0.99, 0.999]),
-        lr=tune.grid_search([0.0003, 0.003, 0.0003]),
+        gamma=0.99,
+        lr=0.0003,
+        # gamma=tune.grid_search([0.9, 0.99, 0.999]),
+        # lr=tune.grid_search([0.0003, 0.003, 0.03]),
         vf_loss_coeff=0.5,
         entropy_coeff=0.01,
         clip_param=0.2,
@@ -146,7 +136,6 @@ if __name__ == "__main__":
     ppo_config = ppo_config.environment(
         env=CustomizedGrid2OpEnvironment,
         env_config={
-            # AlgorithmConfig(),
             "env_name": ENV_NAME,
             "num_agents": len(policies),
             "grid2op_kwargs": {

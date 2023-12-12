@@ -30,17 +30,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         super().__init__()
 
         self._agent_ids = [
-            "agent_1",
-            "agent_0",
-            "agent_2",
+            "high_level_agent",
+            "reinforcement_learning_agent",
+            "do_nothing_agent",
         ]
-        self._agents_list = [
-            f"agent_{i}" for i in range(len(self._agent_ids))
-        ]  # NOTE ADDED
-        self.agents = set(self._agents_list)  # NOTE ADDED
-        # self.reward_space = gymnasium.spaces.Box(
-        #     low=0.0, high=1.0, shape=(), dtype=np.float32
-        # )  # NOTE DUMMY ADDED
 
         # 1. create the grid2op environment
         if "env_name" not in env_config:
@@ -54,7 +47,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         possible_substation_actions = get_possible_topologies(
             self.env_glop, CHANGEABLE_SUBSTATIONS
         )
-
+        print(f"LEN ACTIONS={len(possible_substation_actions)}")
         # Add the do-nothing action at index 0
         do_nothing_action = self.env_glop.action_space({})
         possible_substation_actions.insert(0, do_nothing_action)
@@ -98,7 +91,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         This function resets the environment.
         """
         self.previous_obs, infos = self.env_gym.reset()
-        observations = {"agent_1": self.previous_obs}
+        observations = {"high_level_agent": self.previous_obs}
         return observations, infos
 
     def step(
@@ -123,30 +116,30 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         print(f"ACTION_DICT = {action_dict}")
 
-        if "agent_1" in action_dict.keys():
-            action = action_dict["agent_1"]
+        if "high_level_agent" in action_dict.keys():
+            action = action_dict["high_level_agent"]
             if action == 0:
                 # do something
-                print("AGENT 1 SAYS: DO SOMETHING")
-                observations = {"agent_0": self.previous_obs}
-                # rewards = {"agent_0": 0}
+                print("high_level_agent SAYS: DO SOMETHING")
+                observations = {"reinforcement_learning_agent": self.previous_obs}
+                # rewards = {"reinforcement_learning_agent": 0}
                 rewards = {}
                 infos = {}
             elif action == 1:
                 # if np.max(self.previous_obs["rho"]) < RHO_THRESHOLD:
                 # do nothing
                 print("AGENT 1 SAYS: DO NOTHING")
-                observations = {"agent_2": self.previous_obs}
-                # rewards = {"agent_0": 0}
+                observations = {"do_nothing_agent": self.previous_obs}
+                # rewards = {"reinforcement_learning_agent": 0}
                 rewards = {}
                 infos = {}
             else:
                 raise ValueError("A invalid agent is selected by the policy in step().")
-        elif "agent_2" in action_dict.keys():
+        elif "do_nothing_agent" in action_dict.keys():
             # do nothing
-            print("AGENT 2 IS CALLED: DO NOTHING")
+            print("do_nothing_agent IS CALLED: DO NOTHING")
             # overwrite action in action_dict to nothing
-            action = action_dict["agent_2"]
+            action = action_dict["do_nothing_agent"]
             (
                 self.previous_obs,
                 reward,
@@ -155,15 +148,16 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 info,
             ) = self.env_gym.step(action)
             # give reward to RL agent
-            rewards = {"agent_0": reward}
-            observations = {"agent_1": self.previous_obs}
+            rewards = {"reinforcement_learning_agent": reward}
+            # rewards = {}
+            observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {}
-        elif "agent_0" in action_dict.keys():
+        elif "reinforcement_learning_agent" in action_dict.keys():
             # perform action
-            print("AGENT 0 IS CALLED: DO SOMETHING")
-            action = action_dict["agent_0"]
+            print("reinforcement_learning_agent IS CALLED: DO SOMETHING")
+            action = action_dict["reinforcement_learning_agent"]
             (
                 self.previous_obs,
                 reward,
@@ -172,16 +166,17 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 info,
             ) = self.env_gym.step(action)
             # give reward to RL agent
-            rewards = {"agent_0": reward}
-            observations = {"agent_1": self.previous_obs}
+            rewards = {"reinforcement_learning_agent": reward}
+            # rewards = {}
+            observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {}
         elif bool(action_dict) is False:
             print("Caution: Empty action dictionary!")
-            # rewards = {"agent_0": 0}
+            # rewards = {"reinforcement_learning_agent": 0}
             rewards = {}
-            # observations = {"agent_1": self.previous_obs}
+            # observations = {"high_level_agent": self.previous_obs}
             observations = {}
             infos = {}
         else:

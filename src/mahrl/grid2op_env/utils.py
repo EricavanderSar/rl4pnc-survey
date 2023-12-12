@@ -5,7 +5,7 @@ import os
 
 import grid2op
 import gymnasium
-from grid2op.Action import BaseAction, PlayableAction
+from grid2op.Action import BaseAction
 from grid2op.Converter import IdToAct
 from grid2op.Converter.Converters import Converter
 from grid2op.Environment import BaseEnv
@@ -42,8 +42,8 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
         """
         Function that converts a gym action into a grid2op action.
         """
-        if gym_action == -1:
-            return self.do_nothing
+        # if gym_action == -1:
+        #     return self.do_nothing
         return self.converter.convert_act(gym_action)
 
     # def close(self):  # copied from gym_act_space
@@ -75,7 +75,7 @@ def make_train_test_val_split(
 
 def get_possible_topologies(
     env: BaseEnv, substations_list: list[int]
-) -> list[PlayableAction]:
+) -> list[BaseAction]:
     """
     Function that returns all possible topologies when only keeping in mind a certain number of substations.
     """
@@ -85,11 +85,10 @@ def get_possible_topologies(
             env.action_space, idx
         )
     return possible_substation_actions
-    # reduce further TODO
 
 
 def setup_converter(
-    env: BaseEnv, possible_substation_actions: list[PlayableAction]
+    env: BaseEnv, possible_substation_actions: list[BaseAction]
 ) -> Converter:
     """
     Function that initializes and returns converter for gym to grid2op actions.
