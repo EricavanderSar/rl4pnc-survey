@@ -17,7 +17,11 @@ from mahrl.experiments.action_spaces import (
     get_medha_action_space,
     get_TenneT_action_space,
 )
-from mahrl.grid2op_env.utils import CustomDiscreteActions, setup_converter
+from mahrl.grid2op_env.utils import (
+    CustomDiscreteActions,
+    get_possible_topologies,
+    setup_converter,
+)
 
 # TODO: Investigate why all agents are always called
 
@@ -26,6 +30,9 @@ CHANGEABLE_SUBSTATIONS = [0, 2, 3]
 OBSTYPE = TypeVar("OBSTYPE")
 ACTTYPE = TypeVar("ACTTYPE")
 RENDERFRAME = TypeVar("RENDERFRAME")
+
+# Configure the logging module
+logging.basicConfig(filename="example.log", level=logging.INFO)
 
 
 class CustomizedGrid2OpEnvironment(MultiAgentEnv):
@@ -45,6 +52,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             raise RuntimeError(
                 "The configuration for RLLIB should provide the env name"
             )
+        self.max_tsteps = env_config["max_tsteps"]
         nm_env = env_config["env_name"]
         self.env_glop = grid2op.make(nm_env, **env_config["grid2op_kwargs"])
 
@@ -55,6 +63,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             possible_substation_actions = get_medha_action_space(self.env_glop)
         elif env_config["action_space"] == "tennet":
             possible_substation_actions = get_TenneT_action_space(self.env_glop)
+        elif env_config["action_space"] == "erica":
+            possible_substation_actions = get_possible_topologies(
+                self.env_glop, CHANGEABLE_SUBSTATIONS
+            )
         else:
             possible_substation_actions = get_asymmetrical_action_space(self.env_glop)
             logging.info("No action space is defined, using asymmetrical action space.")
@@ -121,7 +133,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         # Build termination dict
         terminateds = {
-            "__all__": self.step_nb >= 100000,  # TODO ADJUST
+            "__all__": self.step_nb >= self.max_tsteps,  # TODO ADJUST
         }
 
         truncateds = {

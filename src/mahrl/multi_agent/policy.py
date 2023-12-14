@@ -22,7 +22,7 @@ from ray.rllib.utils.typing import (
     TensorType,
 )
 
-RHO_THRESHOLD = 0.95  # TODO include in obs?
+RHO_THRESHOLD = 0.9  # TODO include in obs?
 
 
 def policy_mapping_fn(
