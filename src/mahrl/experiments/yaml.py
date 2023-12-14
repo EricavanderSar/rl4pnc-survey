@@ -2,7 +2,7 @@
 Implements yaml config loading.
 """
 
-from typing import Any, Callable, Union
+from typing import Any, Callable, Dict, Union
 
 import yaml
 from gymnasium.spaces import Discrete
@@ -13,7 +13,7 @@ from ray.rllib.evaluation.rollout_worker import RolloutWorker
 from ray.rllib.policy.policy import PolicySpec
 from yaml.constructor import BaseConstructor
 from yaml.loader import FullLoader, Loader, UnsafeLoader
-from yaml.nodes import Node
+from yaml.nodes import MappingNode, ScalarNode
 
 from mahrl.experiments.callback import CustomMetricsCallback
 from mahrl.experiments.rewards import LossReward
@@ -26,72 +26,72 @@ from mahrl.multi_agent.policy import (
 
 
 def discrete_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: Node
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: ScalarNode
 ) -> Discrete:
     """Custom constructor for Discrete"""
-    return Discrete(int(loader.construct_object(node) or 0))
+    return Discrete(int(loader.construct_scalar(node) or 0))
 
 
 def algorithm_config_constructor(
-    loader: BaseConstructor, node: Node
+    loader: BaseConstructor, node: MappingNode
 ) -> AlgorithmConfig:
     """Custom constructor for AlgorithmConfig"""
-    loader.construct_object(node)
+    loader.construct_mapping(node)
     return AlgorithmConfig()
 
 
 def policy_spec_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: Node
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> PolicySpec:
     """Custom constructor for PolicySpec"""
-    loader.construct_object(node)
+    loader.construct_mapping(node)
     return PolicySpec()
 
 
 def customized_environment_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: Node
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> CustomizedGrid2OpEnvironment:
     """Custom constructor for CustomizedGrid2OpEnvironment"""
-    fields = loader.construct_object(node, deep=True)
+    fields = loader.construct_mapping(node, deep=True)
     env_config = fields.get("env_config", {})  # Extract env_config explicitly
     fields["env_config"] = env_config
     return CustomizedGrid2OpEnvironment(**fields)
 
 
 def loss_reward_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: Node
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> LossReward:
     """Custom constructor for LossReward"""
     return LossReward()
 
 
 def policy_mapping_fn_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: Node
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> Callable[[str, EpisodeV2, RolloutWorker], str]:
     """Custom constructor for policy_mapping_fn"""
     return policy_mapping_fn
 
 
 def custom_metrics_callback_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: Node
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> DefaultCallbacks:
     """Custom constructor for CustomMetricsCallback"""
     return CustomMetricsCallback
 
 
 def select_agent_policy_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: Node
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> SelectAgentPolicy:
     """Custom constructor for SelectAgentPolicy"""
-    fields = loader.construct_object(node)
+    fields = loader.construct_mapping(node)
     return SelectAgentPolicy(**fields)
 
 
 def do_nothing_policy_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: Node
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> DoNothingPolicy:
     """Custom constructor for DoNothingPolicy"""
-    fields = loader.construct_object(node)
+    fields = loader.construct_mapping(node)
     return DoNothingPolicy(**fields)
 
 
