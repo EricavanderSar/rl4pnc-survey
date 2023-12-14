@@ -1,5 +1,5 @@
 # Byte-compiled / optimized / DLL files
-*__pycache__/
+*__pycache__/*
 *.py[cod]
 *$py.class
 
@@ -149,7 +149,7 @@ dmypy.json
 cython_debug/
 
 # Mac stuff
-*.DS_Store
+*.DS_Store*
 
 # Precommit
 .pre-commit-config.yaml

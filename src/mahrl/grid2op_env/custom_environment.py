@@ -1,22 +1,20 @@
 """
 Class that defines the custom Grid2op to gym environment with the set observation and action spaces.
 """
+import json
 import logging
+import os
 from collections import OrderedDict
-from typing import Any, Dict, Optional, Tuple, TypeVar
+from typing import Any, Dict, List, Optional, Tuple, TypeVar
 
 import grid2op
 import gymnasium
+from grid2op.Action import BaseAction
 from grid2op.gym_compat import GymEnv
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
-from mahrl.experiments.action_spaces import (
-    get_asymmetrical_action_space,
-    get_medha_action_space,
-    get_TenneT_action_space,
-)
 from mahrl.grid2op_env.utils import (
     CustomDiscreteActions,
     get_possible_topologies,
@@ -53,22 +51,35 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 "The configuration for RLLIB should provide the env name"
             )
         self.max_tsteps = env_config["max_tsteps"]
+        self.lib_dir = env_config["lib_dir"]
         nm_env = env_config["env_name"]
         self.env_glop = grid2op.make(nm_env, **env_config["grid2op_kwargs"])
 
         # 1.a. Setting up custom action space
-        if env_config["action_space"] == "symmetry":
-            possible_substation_actions = get_asymmetrical_action_space(self.env_glop)
+        if env_config["action_space"] == "asymmetry":
+            path = os.path.join(
+                self.lib_dir, "experiments", "action_spaces", nm_env, "asymmetry.json"
+            )
+            possible_substation_actions = self.load_action_space(path)
         if env_config["action_space"] == "medha":
-            possible_substation_actions = get_medha_action_space(self.env_glop)
+            path = os.path.join(
+                self.lib_dir, "experiments", "action_spaces", nm_env, "medha.json"
+            )
+            possible_substation_actions = self.load_action_space(path)
         elif env_config["action_space"] == "tennet":
-            possible_substation_actions = get_TenneT_action_space(self.env_glop)
+            path = os.path.join(
+                self.lib_dir, "experiments", "action_spaces", nm_env, "tennet.json"
+            )
+            possible_substation_actions = self.load_action_space(path)
         elif env_config["action_space"] == "erica":
             possible_substation_actions = get_possible_topologies(
                 self.env_glop, CHANGEABLE_SUBSTATIONS
             )
         else:
-            possible_substation_actions = get_asymmetrical_action_space(self.env_glop)
+            path = os.path.join(
+                self.lib_dir, "experiments", "action_spaces", nm_env, "asymmetry.json"
+            )
+            possible_substation_actions = self.load_action_space(path)
             logging.info("No action space is defined, using asymmetrical action space.")
 
         logging.info(f"LEN ACTIONS={len(possible_substation_actions)}")
@@ -218,6 +229,18 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         Not implemented.
         """
         raise NotImplementedError
+
+    def load_action_space(self, path: str) -> List[BaseAction]:
+        """
+        Loads the action space from a specified folder.
+        """
+        with open(path, "rt", encoding="utf-8") as action_set_file:
+            return list(
+                (
+                    self.env_glop.action_space(action_dict)
+                    for action_dict in json.load(action_set_file)
+                )
+            )
 
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)

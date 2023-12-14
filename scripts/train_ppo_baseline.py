@@ -142,6 +142,7 @@ if __name__ == "__main__":
             "env_name": ENV_NAME,
             "num_agents": len(policies),
             "action_space": "tennet",
+            "lib_dir": LIB_DIR,
             "max_tsteps": NB_TSTEPS,
             "grid2op_kwargs": {
                 "test": ENV_IS_TEST,
