@@ -1,0 +1,174 @@
+########################
+# Ray Algorithm config #
+########################
+policies_config: &policies_config
+  reinforcement_learning_policy: !PolicySpec
+    policy_class: None
+    action_space: None
+    observation_space: None
+    config: !AlgorithmConfig
+      training:
+        _enable_learner_api: False
+      rl.module:
+        _enable_rl_module_api: False
+      exploration:
+        exploration_config:
+          type: EpsilonGreedy
+      rollouts:
+        preprocessor_pref: None
+  high_level_policy: !PolicySpec
+    policy_class: 
+      type: !SelectAgentPolicy
+        action_space: !Discrete 2
+        observation_space: None
+        config: !AlgorithmConfig
+          training:
+            _enable_learner_api: False
+          rl.module:
+            _enable_rl_module_api: False
+          exploration:
+            exploration_config:
+              type: EpsilonGreedy
+          rollouts:
+            preprocessor_pref: None
+  do_nothing_policy: !PolicySpec
+    policy_class: 
+      type: !DoNothingPolicy
+        action_space: !Discrete 1
+        observation_space: None
+        config: !AlgorithmConfig
+          training:
+            _enable_learner_api: False
+          rl.module:
+            _enable_rl_module_api: False
+          exploration:
+            exploration_config:
+              type: EpsilonGreedy
+          rollouts:
+            preprocessor_pref: None
+
+env: 
+  type: !CustomizedGrid2OpEnvironment
+    env_config:
+      env_name: rte_case5_example
+      num_agents: 3
+      action_space: tennet
+      lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/
+      max_tsteps: 50000
+      grid2op_kwargs:
+        test: True
+        reward_class: !LossReward
+
+_enable_learner_api: False
+gamma: 0.99
+lr: 0.00005
+vf_loss_coeff: 0.5
+entropy_coeff: 0.01
+clip_param: 0.2
+lambda_: 0.95
+sgd_minibatch_size: 32
+train_batch_size: 128
+model:
+  fcnet_hiddens:
+  - 256
+  - 256
+policies: *policies_config
+policy_mapping_fn: !policy_mapping_fn
+policies_to_train: ["reinforcement_learning_policy"]
+framework: torch
+_enable_rl_module_api: False
+exploration_config:
+  type: EpsilonGreedy
+callbacks: !CustomMetricsCallback
+
+# environment:
+#   env: 
+#     type: !CustomizedGrid2OpEnvironment
+#       env_config:
+#         env_name: rte_case5_example
+#         num_agents: 3
+#         action_space: tennet
+#         lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/
+#         max_tsteps: 50000
+#         grid2op_kwargs:
+#           test: True
+#           reward_class: !LossReward
+
+# training:
+#   _enable_learner_api: False
+#   gamma: 0.99
+#   lr: 0.00005
+#   vf_loss_coeff: 0.5
+#   entropy_coeff: 0.01
+#   clip_param: 0.2
+#   lambda_: 0.95
+#   sgd_minibatch_size: 32
+#   train_batch_size: 128
+#   model:
+#     fcnet_hiddens:
+#     - 256
+#     - 256
+
+# policies_config: &policies_config
+#   reinforcement_learning_policy: !PolicySpec
+#     policy_class: None
+#     action_space: None
+#     observation_space: None
+#     config: !AlgorithmConfig
+#       training:
+#         _enable_learner_api: False
+#       rl.module:
+#         _enable_rl_module_api: False
+#       exploration:
+#         exploration_config:
+#           type: EpsilonGreedy
+#       rollouts:
+#         preprocessor_pref: None
+#   high_level_policy: !PolicySpec
+#     policy_class: 
+#       type: !SelectAgentPolicy
+#         action_space: !Discrete 2
+#         observation_space: None
+#         config: !AlgorithmConfig
+#           training:
+#             _enable_learner_api: False
+#           rl.module:
+#             _enable_rl_module_api: False
+#           exploration:
+#             exploration_config:
+#               type: EpsilonGreedy
+#           rollouts:
+#             preprocessor_pref: None
+#   do_nothing_policy: !PolicySpec
+#     policy_class: 
+#       type: !DoNothingPolicy
+#         action_space: !Discrete 1
+#         observation_space: None
+#         config: !AlgorithmConfig
+#           training:
+#             _enable_learner_api: False
+#           rl.module:
+#             _enable_rl_module_api: False
+#           exploration:
+#             exploration_config:
+#               type: EpsilonGreedy
+#           rollouts:
+#             preprocessor_pref: None
+
+# multi_agent:
+#   policies: *policies_config
+#   policy_mapping_fn: !policy_mapping_fn
+#   policies_to_train: ["reinforcement_learning_policy"]
+
+# framework:
+#   framework: torch
+
+# rl_module:
+#   _enable_rl_module_api: False
+
+# exploration:
+#   exploration_config:
+#     type: EpsilonGreedy
+  
+# callbacks:
+#  !CustomMetricsCallback
