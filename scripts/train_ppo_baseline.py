@@ -1,6 +1,7 @@
 """
 Trains PPO baseline agent.
 """
+import os
 from typing import Any
 
 import ray
@@ -22,8 +23,8 @@ from mahrl.multi_agent.policy import (
 
 ENV_NAME = "rte_case5_example"
 ENV_IS_TEST = True
-LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/"
-# LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/lib/python3.10/site-packages/grid2op/data"
+# LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/"
+LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/"
 RHO_THRESHOLD = 0.9
 NB_TSTEPS = 50000
 CHECKPOINT_FREQ = 1000
@@ -172,7 +173,7 @@ if __name__ == "__main__":
     ppo_config = ppo.PPOConfig().to_dict()
     # print(f"ppo:{ppo_config}")
     custom_config = load_config(
-        "/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/configurations/ppo_baseline.yaml"
+        os.path.join(LIB_DIR, "experiments/configurations/ppo_baseline.yaml")
     )
     # print(f"custom:{custom_config}")
     # ppo_config = merge_dicts(ppo_config, custom_config)
