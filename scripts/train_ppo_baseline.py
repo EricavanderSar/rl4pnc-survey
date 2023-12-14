@@ -12,6 +12,7 @@ from ray.rllib.policy.policy import PolicySpec
 
 from mahrl.experiments.callback import CustomMetricsCallback
 from mahrl.experiments.rewards import LossReward
+from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import (
     DoNothingPolicy,
@@ -166,5 +167,16 @@ if __name__ == "__main__":
         }
     )
     ppo_config.callbacks(CustomMetricsCallback)
+    # print(f"original{ppo_config.to_dict()}")
+
+    ppo_config = ppo.PPOConfig().to_dict()
+    # print(f"ppo:{ppo_config}")
+    custom_config = load_config(
+        "/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/configurations/ppo_baseline.yaml"
+    )
+    # print(f"custom:{custom_config}")
+    # ppo_config = merge_dicts(ppo_config, custom_config)
+    ppo_config.update(custom_config)
+    # print(f"merged:{ppo_config}")
 
     run_training(ppo_config)
