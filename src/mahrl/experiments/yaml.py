@@ -2,16 +2,16 @@
 Implements yaml config loading.
 """
 
-from typing import Any, Callable, Dict, Union
+from typing import Any, Callable, Union
 
 import yaml
 from gymnasium.spaces import Discrete
+from ray import tune
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.evaluation.episode_v2 import EpisodeV2
 from ray.rllib.evaluation.rollout_worker import RolloutWorker
 from ray.rllib.policy.policy import PolicySpec
-from yaml.constructor import BaseConstructor
 from yaml.loader import FullLoader, Loader, UnsafeLoader
 from yaml.nodes import MappingNode, ScalarNode
 
@@ -33,7 +33,7 @@ def discrete_constructor(
 
 
 def algorithm_config_constructor(
-    loader: BaseConstructor, node: MappingNode
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> AlgorithmConfig:
     """Custom constructor for AlgorithmConfig"""
     loader.construct_mapping(node)
@@ -55,6 +55,7 @@ def customized_environment_constructor(
     fields = loader.construct_mapping(node, deep=True)
     env_config = fields.get("env_config", {})  # Extract env_config explicitly
     fields["env_config"] = env_config
+    fields = {str(key): value for key, value in fields.items()}
     return CustomizedGrid2OpEnvironment(**fields)
 
 
@@ -84,6 +85,7 @@ def select_agent_policy_constructor(
 ) -> SelectAgentPolicy:
     """Custom constructor for SelectAgentPolicy"""
     fields = loader.construct_mapping(node)
+    fields = {str(key): value for key, value in fields.items()}
     return SelectAgentPolicy(**fields)
 
 
@@ -92,22 +94,86 @@ def do_nothing_policy_constructor(
 ) -> DoNothingPolicy:
     """Custom constructor for DoNothingPolicy"""
     fields = loader.construct_mapping(node)
+    fields = {str(key): value for key, value in fields.items()}
     return DoNothingPolicy(**fields)
+
+
+def float_to_integer(float_value: float) -> Union[int, float]:
+    """
+    Turns a float into an int if appropriate. Otherwise keep int.
+    """
+    if float_value.is_integer():
+        return int(float_value)
+    return float_value
+
+
+def tune_search_quniform_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> Any:
+    """
+    Constructor for tune uniform float sampling
+
+    """
+    vals = []
+    for scalar_node in node.value:
+        val = float_to_integer(float(scalar_node.value))
+        vals.append(val)
+    return tune.quniform(vals[0], vals[1], vals[2])
+
+
+def tune_search_grid_search_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> Any:
+    """
+    Constructor for tune grid search.
+    """
+    vals = []
+    for scalar_node in node.value:
+        val = float_to_integer(float(scalar_node.value))
+        vals.append(val)
+    return tune.grid_search(vals)
+
+
+def tune_choice_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> Any:
+    """
+    Constructor for tune grid search.
+
+    """
+    vals = []
+    for scalar_node in node.value:
+        val: Union[int, bool, float]
+        if scalar_node.value == "True":
+            val = True
+        elif scalar_node.value == "False":
+            val = False
+        else:
+            val = float_to_integer(float(scalar_node.value))
+        vals.append(val)
+    return tune.choice(vals)
 
 
 def add_constructors() -> None:
     """Add the constructors to the yaml loader"""
-    yaml.add_constructor(
+    yaml.FullLoader.add_constructor(
         "!CustomizedGrid2OpEnvironment", customized_environment_constructor
     )
-    yaml.add_constructor("!LossReward", loss_reward_constructor)
-    yaml.add_constructor("!policy_mapping_fn", policy_mapping_fn_constructor)
-    yaml.add_constructor("!CustomMetricsCallback", custom_metrics_callback_constructor)
-    yaml.add_constructor("!SelectAgentPolicy", select_agent_policy_constructor)
-    yaml.add_constructor("!DoNothingPolicy", do_nothing_policy_constructor)
-    yaml.add_constructor("!Discrete", discrete_constructor)
-    yaml.add_constructor("!AlgorithmConfig", algorithm_config_constructor)
-    yaml.add_constructor("!PolicySpec", policy_spec_constructor)
+    yaml.FullLoader.add_constructor("!LossReward", loss_reward_constructor)
+    yaml.FullLoader.add_constructor("!policy_mapping_fn", policy_mapping_fn_constructor)
+    yaml.FullLoader.add_constructor(
+        "!CustomMetricsCallback", custom_metrics_callback_constructor
+    )
+    yaml.FullLoader.add_constructor(
+        "!SelectAgentPolicy", select_agent_policy_constructor
+    )
+    yaml.FullLoader.add_constructor("!DoNothingPolicy", do_nothing_policy_constructor)
+    yaml.FullLoader.add_constructor("!Discrete", discrete_constructor)
+    yaml.FullLoader.add_constructor("!AlgorithmConfig", algorithm_config_constructor)
+    yaml.FullLoader.add_constructor("!PolicySpec", policy_spec_constructor)
+    yaml.FullLoader.add_constructor("!quniform", tune_search_quniform_constructor)
+    yaml.FullLoader.add_constructor("!grid_search", tune_search_grid_search_constructor)
+    yaml.FullLoader.add_constructor("!choice", tune_choice_constructor)
 
 
 def load_config(path: str) -> Any:  # TODO change to dict?

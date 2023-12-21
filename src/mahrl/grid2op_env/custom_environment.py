@@ -54,6 +54,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.lib_dir = env_config["lib_dir"]
         nm_env = env_config["env_name"]
         self.env_glop = grid2op.make(nm_env, **env_config["grid2op_kwargs"])
+        self.env_glop.seed(env_config["seed"])
 
         # 1.a. Setting up custom action space
         if env_config["action_space"] == "asymmetry":
@@ -174,7 +175,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 # rewards: Dict[str, Any] = {}
                 # infos: Dict[str, Any] = {}
             else:
-                raise ValueError("A invalid agent is selected by the policy in step().")
+                raise ValueError(
+                    "An invalid action is selected by the high_level_agent in step()."
+                )
         elif "do_nothing_agent" in action_dict.keys():
             # do nothing
             logging.info("do_nothing_agent IS CALLED: DO NOTHING")
