@@ -98,11 +98,18 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[in
 
     logging.info(f"The results for {agent_instance} agent are:")
     for _, chron_name, cum_reward, nb_time_step, max_ts in res:
-        msg_tmp = f"\tFor chronics with id {chron_name}\n"
+        msg_tmp = f"\n\tFor chronics with id {chron_name}\n"
         msg_tmp += f"\t\t - cumulative reward: {cum_reward:.6f}\n"
         msg_tmp += (
             f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
         )
+        with open(
+            f"{env_config['env_name']}_{env_config['action_space']}_{env_config['rho_threshold']}.txt",
+            "a",
+            encoding="utf-8",
+        ) as file:
+            file.write(msg_tmp)
+
         individual_timesteps.append(nb_time_step)
         logging.info(msg_tmp)
 
@@ -144,9 +151,17 @@ def run_evaluation(file_path: str, checkpoint_name: str) -> None:
     )
     env_config["grid2op_kwargs"]["reward_class"] = reward_object
 
+    # print and save results
+    with open(
+        f"{env_config['env_name']}_{env_config['action_space']}_{env_config['rho_threshold']}.txt",
+        "w",
+        encoding="utf-8",
+    ) as file:
+        file.write(f"Threshold={env_config['rho_threshold']}\n")
+
     # start runner
     start_time = time.time()
-    custom_results = run_runner(
+    _ = run_runner(
         env_config,
         RLlib2Grid2Op(
             action_space=None,
@@ -157,15 +172,6 @@ def run_evaluation(file_path: str, checkpoint_name: str) -> None:
             checkpoint_name=checkpoint_name,
         ),
     )
-
-    # print and save results
-    with open(
-        f"{env_config['env_name']}_{env_config['action_space']}_{env_config['rho_threshold']}.txt",
-        "w",
-        encoding="utf-8",
-    ) as file:
-        file.write(f"Threshold={env_config['rho_threshold']}\n")
-        file.write(f"{custom_results}\n\n")
     logging.info(f"done 5bus --- %s seconds --- {time.time() - start_time}")
 
 

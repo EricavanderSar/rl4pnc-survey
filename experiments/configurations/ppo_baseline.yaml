@@ -15,7 +15,7 @@ model:
   - 256
   - 256
 _enable_learner_api: False
-seed: &seed 14
+seed: &seed 16
   
 # environment
 env_config:

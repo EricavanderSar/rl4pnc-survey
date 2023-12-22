@@ -47,7 +47,13 @@ def run_training(config: dict[str, Any]) -> None:
         ray.shutdown()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # load base PPO config and load in hyperparameters
+    ppo_config = ppo.PPOConfig().to_dict()
+    custom_config = load_config(
+        os.path.join(LIB_DIR, "experiments/configurations/ppo_baseline.yaml")
+    )
+    ppo_config.update(custom_config)
+
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy,
@@ -57,6 +63,11 @@ if __name__ == "__main__":
                 AlgorithmConfig()
                 .training(
                     _enable_learner_api=False,
+                    model={
+                        "custom_model_parameters": {
+                            "rho_threshold": custom_config["rho_threshold"]
+                        }
+                    },
                 )
                 .rl_module(_enable_rl_module_api=False)
                 .exploration(
@@ -100,13 +111,6 @@ if __name__ == "__main__":
             ),
         ),
     }
-
-    # load base PPO config and load in hyperparameters
-    ppo_config = ppo.PPOConfig().to_dict()
-    custom_config = load_config(
-        os.path.join(LIB_DIR, "experiments/configurations/ppo_baseline.yaml")
-    )
-    ppo_config.update(custom_config)
 
     # load environment and agents manually
     ppo_config.update({"env": CustomizedGrid2OpEnvironment})

@@ -249,6 +249,7 @@ class SelectAgentPolicy(Policy):
             action_space=action_space,
             config=config,
         )
+        self.config = config
 
     def compute_actions(
         self,
@@ -274,7 +275,10 @@ class SelectAgentPolicy(Policy):
             raise TypeError(f"Unexpected type for obs_batch: {type(obs_batch)}")
 
         logging.info(f"max_rho={max_rho}")
-        if np.max(max_rho) > RHO_THRESHOLD:
+        if (
+            np.max(max_rho)
+            > self.config["model"]["custom_model_parameters"]["rho_threshold"]
+        ):
             # Set results for do something agent
             actions_result = [0]  # ["reinforcement_learning_policy"]
         else:

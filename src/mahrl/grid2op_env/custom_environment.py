@@ -51,25 +51,39 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 "The configuration for RLLIB should provide the env name"
             )
         self.max_tsteps = env_config["max_tsteps"]
-        self.lib_dir = env_config["lib_dir"]
-        nm_env = env_config["env_name"]
-        self.env_glop = grid2op.make(nm_env, **env_config["grid2op_kwargs"])
+        lib_dir = env_config["lib_dir"]
+        # self.threshold = env_config["rho_threshold"]
+        self.env_glop = grid2op.make(
+            env_config["env_name"], **env_config["grid2op_kwargs"]
+        )
         self.env_glop.seed(env_config["seed"])
 
         # 1.a. Setting up custom action space
         if env_config["action_space"] == "asymmetry":
             path = os.path.join(
-                self.lib_dir, "experiments", "action_spaces", nm_env, "asymmetry.json"
+                lib_dir,
+                "experiments",
+                "action_spaces",
+                env_config["env_name"],
+                "asymmetry.json",
             )
             possible_substation_actions = self.load_action_space(path)
         if env_config["action_space"] == "medha":
             path = os.path.join(
-                self.lib_dir, "experiments", "action_spaces", nm_env, "medha.json"
+                lib_dir,
+                "experiments",
+                "action_spaces",
+                env_config["env_name"],
+                "medha.json",
             )
             possible_substation_actions = self.load_action_space(path)
         elif env_config["action_space"] == "tennet":
             path = os.path.join(
-                self.lib_dir, "experiments", "action_spaces", nm_env, "tennet.json"
+                lib_dir,
+                "experiments",
+                "action_spaces",
+                env_config["env_name"],
+                "tennet.json",
             )
             possible_substation_actions = self.load_action_space(path)
         elif env_config["action_space"] == "erica":
@@ -78,7 +92,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             )
         else:
             path = os.path.join(
-                self.lib_dir, "experiments", "action_spaces", nm_env, "asymmetry.json"
+                lib_dir,
+                "experiments",
+                "action_spaces",
+                env_config["env_name"],
+                "asymmetry.json",
             )
             possible_substation_actions = self.load_action_space(path)
             logging.info("No action space is defined, using asymmetrical action space.")
@@ -130,6 +148,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         self.previous_obs, infos = self.env_gym.reset()
         observations = {"high_level_agent": self.previous_obs}
+        # infos = {"high_level_agent": {"rho_threshold": self.threshold}}
         return observations, infos
 
     def step(
@@ -153,6 +172,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         }
 
         rewards: Dict[str, Any] = {}
+        # infos: Dict[str, Any] = {"__all__": {"rho_threshold": self.threshold}}
         infos: Dict[str, Any] = {}
 
         logging.info(f"ACTION_DICT = {action_dict}")
@@ -163,17 +183,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 # do something
                 logging.info("high_level_agent SAYS: DO SOMETHING")
                 observations = {"reinforcement_learning_agent": self.previous_obs}
-                # rewards = {"reinforcement_learning_agent": 0}
-                # rewards: Dict[str, Any] = {}
-                # infos: Dict[str, Any] = {}
             elif action == 1:
                 # if np.max(self.previous_obs["rho"]) < RHO_THRESHOLD:
                 # do nothing
                 logging.info("AGENT 1 SAYS: DO NOTHING")
                 observations = {"do_nothing_agent": self.previous_obs}
-                # rewards = {"reinforcement_learning_agent": 0}
-                # rewards: Dict[str, Any] = {}
-                # infos: Dict[str, Any] = {}
             else:
                 raise ValueError(
                     "An invalid action is selected by the high_level_agent in step()."
@@ -192,11 +206,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             ) = self.env_gym.step(action)
             # give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
-            # rewards = {}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {}
+            # infos = {"__all__": {"rho_threshold": self.threshold}}
         elif "reinforcement_learning_agent" in action_dict.keys():
             # perform action
             logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
@@ -210,18 +224,17 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             ) = self.env_gym.step(action)
             # give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
-            # rewards = {}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {}
+            # infos = {"__all__": {"rho_threshold": self.threshold}}
         elif bool(action_dict) is False:
             logging.info("Caution: Empty action dictionary!")
-            # rewards = {"reinforcement_learning_agent": 0}
             rewards = {}
-            # observations = {"high_level_agent": self.previous_obs}
             observations = {}
             infos = {}
+            # infos = {"__all__": {"rho_threshold": self.threshold}}
         else:
             logging.info(f"ACTION_DICT={action_dict}")
             raise ValueError("No agent found in action dictionary in step().")
