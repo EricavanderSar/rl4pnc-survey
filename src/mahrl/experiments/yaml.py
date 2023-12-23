@@ -52,7 +52,7 @@ def customized_environment_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> CustomizedGrid2OpEnvironment:
     """Custom constructor for CustomizedGrid2OpEnvironment"""
-    fields: dict[str, Any] = loader.construct_mapping(node, deep=True)  # type: ignore
+    fields = {str(k): v for k, v in loader.construct_mapping(node).items()}
     env_config = fields.get("env_config", {})  # Extract env_config explicitly
     fields["env_config"] = env_config
     return CustomizedGrid2OpEnvironment(**fields)
@@ -83,17 +83,15 @@ def select_agent_policy_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> SelectAgentPolicy:
     """Custom constructor for SelectAgentPolicy"""
-    fields: dict[str, Any] = loader.construct_mapping(node)  # type: ignore
-    # fields = {str(key): value for key, value in fields.items()}
-    return SelectAgentPolicy(**fields)  #
+    fields = {str(k): v for k, v in loader.construct_mapping(node).items()}
+    return SelectAgentPolicy(**fields)
 
 
 def do_nothing_policy_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> DoNothingPolicy:
     """Custom constructor for DoNothingPolicy"""
-    fields: dict[str, Any] = loader.construct_mapping(node)  # type: ignore
-    # fields = {str(key): value for key, value in fields.items()}
+    fields = {str(k): v for k, v in loader.construct_mapping(node).items()}
     return DoNothingPolicy(**fields)
 
 

@@ -72,8 +72,7 @@ class RLlib2Grid2Op(BaseAgent):
             gym_act = 0
 
         # convert Grid2Op action to RLlib
-        grid2op_act = self.gym_wrapper.env_gym.action_space.from_gym(gym_act)
-        return grid2op_act
+        return self.gym_wrapper.env_gym.action_space.from_gym(gym_act)
 
 
 def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[int]:

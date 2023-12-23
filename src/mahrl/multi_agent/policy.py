@@ -277,7 +277,7 @@ class SelectAgentPolicy(Policy):
         logging.info(f"max_rho={max_rho}")
         if (
             np.max(max_rho)
-            > self.config["model"]["custom_model_parameters"]["rho_threshold"]
+            > self.config["model"]["custom_model_config"]["rho_threshold"]
         ):
             # Set results for do something agent
             actions_result = [0]  # ["reinforcement_learning_policy"]

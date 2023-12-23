@@ -64,8 +64,10 @@ if __name__ == "__main__":  # load base PPO config and load in hyperparameters
                 .training(
                     _enable_learner_api=False,
                     model={
-                        "custom_model_parameters": {
-                            "rho_threshold": custom_config["rho_threshold"]
+                        "custom_model_config": {
+                            "rho_threshold": custom_config["env_config"][
+                                "rho_threshold"
+                            ]
                         }
                     },
                 )
