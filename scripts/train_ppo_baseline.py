@@ -1,6 +1,7 @@
 """
 Trains PPO baseline agent.
 """
+import os
 from typing import Any
 
 import ray
@@ -10,23 +11,12 @@ from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 
-from mahrl.experiments.callback import CustomMetricsCallback
-from mahrl.experiments.rewards import LossReward
+from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.multi_agent.policy import (
-    DoNothingPolicy,
-    SelectAgentPolicy,
-    policy_mapping_fn,
-)
+from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
 
-ENV_NAME = "rte_case5_example"
-ENV_IS_TEST = True
 LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/"
-# LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/lib/python3.10/site-packages/grid2op/data"
-RHO_THRESHOLD = 0.9
-NB_TSTEPS = 50000
-CHECKPOINT_FREQ = 1000
-VERBOSE = 1
+# LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/"
 
 
 def run_training(config: dict[str, Any]) -> None:
@@ -38,14 +28,14 @@ def run_training(config: dict[str, Any]) -> None:
         ppo.PPO,
         param_space=config,
         run_config=air.RunConfig(
-            stop={"timesteps_total": NB_TSTEPS},
+            stop={"timesteps_total": config["nb_timesteps"]},
             storage_path="/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/",
             checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=CHECKPOINT_FREQ,
+                checkpoint_frequency=config["checkpoint_freq"],
                 checkpoint_at_end=True,
                 checkpoint_score_attribute="evaluation/episode_reward_mean",
             ),
-            verbose=VERBOSE,
+            verbose=config["verbose"],
         ),
     )
 
@@ -57,10 +47,12 @@ def run_training(config: dict[str, Any]) -> None:
         ray.shutdown()
 
 
-if __name__ == "__main__":
-    # make_train_test_val_split(
-    #     os.path.join(LIB_DIR, "environments"), ENV_NAME, 5.0, 5.0, Reward.L2RPNReward
-    # )
+if __name__ == "__main__":  # load base PPO config and load in hyperparameters
+    ppo_config = ppo.PPOConfig().to_dict()
+    custom_config = load_config(
+        os.path.join(LIB_DIR, "experiments/configurations/ppo_baseline.yaml")
+    )
+    ppo_config.update(custom_config)
 
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
@@ -71,6 +63,13 @@ if __name__ == "__main__":
                 AlgorithmConfig()
                 .training(
                     _enable_learner_api=False,
+                    model={
+                        "custom_model_config": {
+                            "rho_threshold": custom_config["env_config"][
+                                "rho_threshold"
+                            ]
+                        }
+                    },
                 )
                 .rl_module(_enable_rl_module_api=False)
                 .exploration(
@@ -115,56 +114,8 @@ if __name__ == "__main__":
         ),
     }
 
-    ppo_config = ppo.PPOConfig()
-    ppo_config = ppo_config.training(
-        _enable_learner_api=False,
-        gamma=0.99,
-        lr=0.00005,
-        # gamma=tune.grid_search([0.9, 0.99, 0.999]),
-        # lr=tune.grid_search([0.0003, 0.003, 0.03]),
-        vf_loss_coeff=0.5,
-        entropy_coeff=0.01,
-        clip_param=0.2,
-        lambda_=0.95,
-        sgd_minibatch_size=32,
-        train_batch_size=128,
-        # lambda_=tune.grid_search([0.9, 0.95, 0.999]),
-        # sgd_minibatch_size=tune.grid_search([32, 64, 128]),
-        # train_batch_size=tune.grid_search([32, 64, 128]),
-        # seed=14,
-        model={
-            "fcnet_hiddens": [256, 256],
-        },
-    )
-    ppo_config = ppo_config.environment(
-        env=CustomizedGrid2OpEnvironment,
-        env_config={
-            "env_name": ENV_NAME,
-            "num_agents": len(policies),
-            "action_space": "tennet",
-            "lib_dir": LIB_DIR,
-            "max_tsteps": NB_TSTEPS,
-            "grid2op_kwargs": {
-                "test": ENV_IS_TEST,
-                # "reward_class": Reward.L2RPNReward,
-                "reward_class": LossReward,
-            },
-        },
-    )
-
-    ppo_config.multi_agent(
-        policies=policies,
-        policy_mapping_fn=policy_mapping_fn,
-        policies_to_train=["reinforcement_learning_policy"],
-    )
-
-    ppo_config.framework(framework="torch")
-    ppo_config.rl_module(_enable_rl_module_api=False)
-    ppo_config.exploration(
-        exploration_config={
-            "type": "EpsilonGreedy",
-        }
-    )
-    ppo_config.callbacks(CustomMetricsCallback)
+    # load environment and agents manually
+    ppo_config.update({"env": CustomizedGrid2OpEnvironment})
+    ppo_config.update({"policies": policies})
 
     run_training(ppo_config)

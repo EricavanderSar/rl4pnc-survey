@@ -46,9 +46,9 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
         #     return self.do_nothing
         return self.converter.convert_act(gym_action)
 
-    # def close(self):  # copied from gym_act_space
-    #     if hasattr(self, "_init_env"):
-    #         self._init_env = None  # this doesn't own the environment
+    def close(self) -> None:
+        """Not implemented."""
+        raise NotImplementedError
 
 
 def make_train_test_val_split(
