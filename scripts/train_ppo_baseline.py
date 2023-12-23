@@ -49,9 +49,7 @@ def run_training(config: dict[str, Any]) -> None:
 
 if __name__ == "__main__":  # load base PPO config and load in hyperparameters
     ppo_config = ppo.PPOConfig().to_dict()
-    custom_config = load_config(
-        os.path.join(LIB_DIR, "experiments/configurations/ppo_baseline.yaml")
-    )
+    custom_config = load_config(os.path.join(LIB_DIR, "configs/ppo_baseline.yaml"))
     ppo_config.update(custom_config)
 
     policies = {

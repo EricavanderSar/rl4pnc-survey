@@ -62,7 +62,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         if env_config["action_space"] == "asymmetry":
             path = os.path.join(
                 lib_dir,
-                "experiments",
+                "data",
                 "action_spaces",
                 env_config["env_name"],
                 "asymmetry.json",
@@ -71,7 +71,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         if env_config["action_space"] == "medha":
             path = os.path.join(
                 lib_dir,
-                "experiments",
+                "data",
                 "action_spaces",
                 env_config["env_name"],
                 "medha.json",
@@ -80,7 +80,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         elif env_config["action_space"] == "tennet":
             path = os.path.join(
                 lib_dir,
-                "experiments",
+                "data",
                 "action_spaces",
                 env_config["env_name"],
                 "tennet.json",
@@ -93,7 +93,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         else:
             path = os.path.join(
                 lib_dir,
-                "experiments",
+                "data",
                 "action_spaces",
                 env_config["env_name"],
                 "asymmetry.json",
