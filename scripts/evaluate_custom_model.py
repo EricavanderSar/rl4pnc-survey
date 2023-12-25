@@ -3,76 +3,53 @@ Class to evaluate custom RL models.
 """
 import argparse
 import importlib
+import json
 import logging
 import os
-import time
-from collections import OrderedDict
 from statistics import mean
 from typing import Any
 
 import grid2op
-import numpy as np
-from grid2op.Action import ActionSpace, BaseAction
-from grid2op.Agent import BaseAgent
-from grid2op.Observation import BaseObservation
+from grid2op.Action import BaseAction
+from grid2op.Agent import BaseAgent, DoNothingAgent
+from grid2op.Environment import BaseEnv
 from grid2op.Reward import BaseReward
 from grid2op.Runner import Runner
-from ray.rllib.algorithms import Algorithm, ppo
+from ray.rllib.algorithms import ppo
 
+from mahrl.evaluation.evaluation_agents import RllibAgent, TopologyGreedyAgent
 from mahrl.experiments.yaml import load_config
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 
 
-class RLlib2Grid2Op(BaseAgent):
+def instantiate_reward_class(class_name: str) -> Any:
     """
-    Class that runs a RLlib model in the Grid2Op environment.
+    Instantiates the Reward class from json string.
     """
+    # Split the class name into module and class
+    class_name = class_name.replace("<", "")
+    module_name, class_name = class_name.rsplit(".", 1)
+    class_name = class_name.split(" ", 1)[0]
+    # Import the module dynamically
+    module = importlib.import_module(module_name)
+    # Get the class from the module
+    reward_class: BaseReward = getattr(module, class_name)
+    # Instantiate the class
+    if reward_class:
+        return reward_class()
+    raise ValueError("Problem instantiating reward class for evaluation.")
 
-    def __init__(
-        self,
-        action_space: ActionSpace,
-        env_config: dict[str, Any],
-        file_path: str,
-        policy_name: str,
-        algorithm: Algorithm,
-        checkpoint_name: str,
-    ):
-        BaseAgent.__init__(self, action_space)
 
-        # load PPO
-        checkpoint_path = os.path.join(file_path, checkpoint_name)
-        self._rllib_agent = algorithm.from_checkpoint(
-            checkpoint_path, policy_ids=[policy_name]
-        )
-
-        # setup env
-        self.gym_wrapper = CustomizedGrid2OpEnvironment(env_config)
-
-        # setup threshold
-        self.threshold = env_config["rho_threshold"]
-
-    def act(
-        self, observation: BaseObservation, reward: BaseReward, done: bool = False
-    ) -> BaseAction:
-        """
-        Returns a grid2op action based on a RLlib observation.
-        """
-        # Grid2Op to RLlib observation
-        gym_obs = self.gym_wrapper.env_gym.observation_space.to_gym(observation)
-        gym_obs = OrderedDict(
-            (k, gym_obs[k]) for k in self.gym_wrapper.observation_space.spaces
-        )
-
-        if np.max(gym_obs["rho"]) > self.threshold:
-            # get action as int
-            gym_act = self._rllib_agent.compute_single_action(
-                gym_obs, policy_id="reinforcement_learning_policy"
+def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
+    """
+    Loads the .json with specified topology actions.
+    """
+    with open(path, "rt", encoding="utf-8") as action_set_file:
+        return list(
+            (
+                env.action_space(action_dict)
+                for action_dict in json.load(action_set_file)
             )
-        else:
-            gym_act = 0
-
-        # convert Grid2Op action to RLlib
-        return self.gym_wrapper.env_gym.action_space.from_gym(gym_act)
+        )
 
 
 def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[int]:
@@ -91,7 +68,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[in
     runner = Runner(
         **env.get_params_for_runner(), agentClass=None, agentInstance=agent_instance
     )
-    res = runner.run(nb_episode=nb_episode, max_iter=-1)
+    res = runner.run(nb_episode=nb_episode, max_iter=-1, nb_process=6)
 
     individual_timesteps = []
 
@@ -116,25 +93,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[in
     return individual_timesteps
 
 
-def instantiate_reward_class(class_name: str) -> Any:
-    """
-    Instantiates the Reward class from json string.
-    """
-    # Split the class name into module and class
-    class_name = class_name.replace("<", "")
-    module_name, class_name = class_name.rsplit(".", 1)
-    class_name = class_name.split(" ", 1)[0]
-    # Import the module dynamically
-    module = importlib.import_module(module_name)
-    # Get the class from the module
-    reward_class: BaseReward = getattr(module, class_name)
-    # Instantiate the class
-    if reward_class:
-        return reward_class()
-    raise ValueError("Problem instantiating reward class for evaluation.")
-
-
-def run_evaluation(file_path: str, checkpoint_name: str) -> None:
+def run_evaluation_rllib(file_path: str, checkpoint_name: str) -> None:
     """
     Loads config file and calls runner.
     """
@@ -159,10 +118,9 @@ def run_evaluation(file_path: str, checkpoint_name: str) -> None:
         file.write(f"Threshold={env_config['rho_threshold']}\n")
 
     # start runner
-    start_time = time.time()
     _ = run_runner(
         env_config,
-        RLlib2Grid2Op(
+        RllibAgent(
             action_space=None,
             env_config=env_config,
             file_path=file_path,
@@ -171,17 +129,113 @@ def run_evaluation(file_path: str, checkpoint_name: str) -> None:
             checkpoint_name=checkpoint_name,
         ),
     )
-    logging.info(f"done 5bus --- %s seconds --- {time.time() - start_time}")
+
+
+def run_evaluation_greedy(actions_path: str, threshold: float) -> None:
+    """
+    Call runner for greedy agent.
+    """
+    # Get the environment and the action name from the path
+    parts_of_action_path = actions_path.split("/")
+
+    # setup env config
+    env_config = {
+        "env_name": parts_of_action_path[-2],
+        "rho_threshold": threshold,
+        "action_space": parts_of_action_path[-1].split(".json")[0],
+    }
+
+    setup_env = grid2op.make(env_config["env_name"], test=True)
+
+    possible_actions = load_actions(actions_path, setup_env)
+
+    # print and save results
+    with open(
+        f"{env_config['env_name']}_{env_config['action_space']}_{env_config['rho_threshold']}.txt",
+        "w",
+        encoding="utf-8",
+    ) as file:
+        file.write(f"Threshold={env_config['rho_threshold']}\n")
+
+    # start runner
+    _ = run_runner(
+        env_config,
+        TopologyGreedyAgent(
+            action_space=setup_env.action_space,
+            env_config=env_config,
+            possible_actions=possible_actions,
+        ),
+    )
+
+
+def run_evaluation_nothing(environment_name: str) -> None:
+    """
+    Call runner for DoNothing agent.
+    """
+    # print and save results
+    with open(
+        f"{environment_name}_DoNothing.txt",
+        "w",
+        encoding="utf-8",
+    ) as file:
+        file.write("Agent=DoNothing\n")
+
+    env_config = {"env_name": environment_name}
+    setup_env = grid2op.make(env_config["env_name"], test=True)
+
+    # start runner
+    _ = run_runner(
+        env_config,
+        DoNothingAgent(setup_env.action_space),
+    )
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Process input file and checkpoint name."
-    )
+    parser = argparse.ArgumentParser(description="Process possible variables.")
 
-    # Define command-line arguments
-    parser.add_argument("--file_path", type=str, help="Path to the input file")
-    parser.add_argument("--checkpoint_name", type=str, help="Name of the checkpoint")
+    # Define command-line arguments for two possibilities: greedy and rllib model
+    parser.add_argument(
+        "-f",
+        "--file_path",
+        type=str,
+        help="Path to the input file, only for the Rllib agent.",
+    )
+    parser.add_argument(
+        "-c",
+        "--checkpoint_name",
+        type=str,
+        help="Name of the checkpoint, only for the Rllib agent.",
+    )
+    parser.add_argument(
+        "-g",
+        "--greedy",
+        action="store_true",
+        help="Signals to evaluate a Greedy agent.",
+    )
+    parser.add_argument(
+        "-n",
+        "--nothing",
+        action="store_true",
+        help="Signals to evaluate a DoNothing agent.",
+    )
+    parser.add_argument(
+        "-a",
+        "--actions",
+        type=str,
+        help="Path to the action space file, only for the Greedy agent.",
+    )
+    parser.add_argument(
+        "-t",
+        "--threshold",
+        type=float,
+        help="Specify the threshold, only for the Greedy agent.",
+    )
+    parser.add_argument(
+        "-e",
+        "--environment",
+        type=str,
+        help="Specify the environment, only for the DoNothing agent.",
+    )
 
     # Parse the command-line arguments
     args = parser.parse_args()
@@ -189,17 +243,40 @@ if __name__ == "__main__":
     # Access the parsed arguments
     input_file_path = args.file_path
     input_checkpoint_name = args.checkpoint_name
+    input_greedy = args.greedy
+    input_nothing = args.nothing
+    input_actions = args.actions
+    input_threshold = args.threshold
+    input_environment = args.environment
 
-    # Check if both arguments are provided
-    if not input_file_path:
-        parser.print_help()
-        logging.info("\nError: --file_path is required.")
-    else:
-        if not input_checkpoint_name:
-            logging.info(
-                "\nWarning: --checkpoint_name not specified. Using checkpoint_000000."
-            )
-            CHECKPOINT_NAME = "checkpoint_000000"
-            run_evaluation(input_file_path, CHECKPOINT_NAME)
+    # Check which arguments are provided
+    if input_greedy:  # run greedy evaluation
+        if not input_actions:
+            parser.print_help()
+            logging.error("\nError: --actions is required for the greedy agent.")
         else:
-            run_evaluation(input_file_path, input_checkpoint_name)
+            if not input_threshold:
+                logging.warning("\nWarning: --threshold not specified. Using 0.95.")
+                INPUT_THRESHOLD = 0.95
+                run_evaluation_greedy(input_actions, INPUT_THRESHOLD)
+            else:
+                run_evaluation_greedy(input_actions, input_threshold)
+    elif input_nothing:
+        if not input_environment:
+            parser.print_help()
+            logging.error("\nError: --environment is required for the greedy agent.")
+        else:
+            run_evaluation_nothing(input_environment)
+    else:  # run Rllib evaluations
+        if not input_file_path:
+            parser.print_help()
+            logging.error("\nError: --file_path is required.")
+        else:
+            if not input_checkpoint_name:
+                logging.warning(
+                    "\nWarning: --checkpoint_name not specified. Using checkpoint_000000."
+                )
+                CHECKPOINT_NAME = "checkpoint_000000"
+                run_evaluation_rllib(input_file_path, CHECKPOINT_NAME)
+            else:
+                run_evaluation_rllib(input_file_path, input_checkpoint_name)
