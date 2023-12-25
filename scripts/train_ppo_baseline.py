@@ -1,7 +1,8 @@
 """
 Trains PPO baseline agent.
 """
-import os
+import argparse
+import logging
 from typing import Any
 
 import ray
@@ -47,9 +48,13 @@ def run_training(config: dict[str, Any]) -> None:
         ray.shutdown()
 
 
-if __name__ == "__main__":  # load base PPO config and load in hyperparameters
+def setup_config(config_path: str) -> None:
+    """
+    Loads the json as config and sets it up for training.
+    """
+    # load base PPO config and load in hyperparameters
     ppo_config = ppo.PPOConfig().to_dict()
-    custom_config = load_config(os.path.join(LIB_DIR, "configs/ppo_baseline.yaml"))
+    custom_config = load_config(config_path)
     ppo_config.update(custom_config)
 
     policies = {
@@ -117,3 +122,26 @@ if __name__ == "__main__":  # load base PPO config and load in hyperparameters
     ppo_config.update({"policies": policies})
 
     run_training(ppo_config)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Process possible variables.")
+
+    parser.add_argument(
+        "-f",
+        "--file_path",
+        type=str,
+        help="Path to the config file.",
+    )
+
+    # Parse the command-line arguments
+    args = parser.parse_args()
+
+    # Access the parsed arguments
+    input_file_path = args.file_path
+
+    if input_file_path:
+        setup_config(input_file_path)
+    else:
+        parser.print_help()
+        logging.error("\nError: --file_path is required to specify config location.")
