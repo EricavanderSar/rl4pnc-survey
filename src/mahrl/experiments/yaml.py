@@ -5,6 +5,8 @@ Implements yaml config loading.
 from typing import Any, Callable, Union
 
 import yaml
+from grid2op.Action import BaseAction, PowerlineSetAction
+from grid2op.Opponent import BaseActionBudget, BaseOpponent, RandomLineOpponent
 from gymnasium.spaces import Discrete
 from ray import tune
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
@@ -151,6 +153,27 @@ def tune_choice_constructor(
     return tune.choice(vals)
 
 
+def powerline_action_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> BaseAction:
+    """Custom constructor for PowerlineSetAction"""
+    return PowerlineSetAction
+
+
+def randomline_opponent_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> BaseOpponent:
+    """Custom constructor for RandomLineOpponent"""
+    return RandomLineOpponent
+
+
+def baseaction_budget_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> BaseActionBudget:
+    """Custom constructor for BaseActionBudget"""
+    return BaseActionBudget
+
+
 def add_constructors() -> None:
     """Add the constructors to the yaml loader"""
     yaml.FullLoader.add_constructor(
@@ -171,6 +194,11 @@ def add_constructors() -> None:
     yaml.FullLoader.add_constructor("!quniform", tune_search_quniform_constructor)
     yaml.FullLoader.add_constructor("!grid_search", tune_search_grid_search_constructor)
     yaml.FullLoader.add_constructor("!choice", tune_choice_constructor)
+    yaml.FullLoader.add_constructor("!PowerlineSetAction", powerline_action_constructor)
+    yaml.FullLoader.add_constructor(
+        "!RandomLineOpponent", randomline_opponent_constructor
+    )
+    yaml.FullLoader.add_constructor("!BaseActionBudget", baseaction_budget_constructor)
 
 
 def load_config(path: str) -> Any:  # TODO change to dict?

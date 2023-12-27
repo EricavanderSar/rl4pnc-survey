@@ -6,6 +6,7 @@ import importlib
 import json
 import logging
 import os
+import time
 from statistics import mean
 from typing import Any
 
@@ -65,10 +66,14 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[in
     else:
         raise NotImplementedError("This network was not implemented for evaluation.")
 
+    params = env.get_params_for_runner()
+
     runner = Runner(
-        **env.get_params_for_runner(), agentClass=None, agentInstance=agent_instance
+        **params,
+        agentClass=None,
+        agentInstance=agent_instance,
     )
-    res = runner.run(nb_episode=nb_episode, max_iter=-1, nb_process=6)
+    res = runner.run(nb_episode=nb_episode, max_iter=-1, nb_process=1)
 
     individual_timesteps = []
 
@@ -88,6 +93,15 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[in
 
         individual_timesteps.append(nb_time_step)
         logging.info(msg_tmp)
+
+    with open(
+        f"{env_config['env_name']}_{env_config['action_space']}_{env_config['rho_threshold']}.txt",
+        "a",
+        encoding="utf-8",
+    ) as file:
+        file.write(
+            f"Average timesteps survived: {mean(individual_timesteps)}\n{individual_timesteps}"
+        )
 
     logging.info(f"Average timesteps survived: {mean(individual_timesteps)}")
     return individual_timesteps
@@ -172,16 +186,21 @@ def run_evaluation_nothing(environment_name: str) -> None:
     """
     Call runner for DoNothing agent.
     """
+    # setup env config
+    env_config = {
+        "env_name": environment_name,
+        "rho_threshold": None,
+        "action_space": None,
+    }
+    setup_env = grid2op.make(env_config["env_name"], test=True)
+
     # print and save results
     with open(
-        f"{environment_name}_DoNothing.txt",
+        f"{env_config['env_name']}_{env_config['action_space']}_{env_config['rho_threshold']}.txt",
         "w",
         encoding="utf-8",
     ) as file:
         file.write("Agent=DoNothing\n")
-
-    env_config = {"env_name": environment_name}
-    setup_env = grid2op.make(env_config["env_name"], test=True)
 
     # start runner
     _ = run_runner(
@@ -191,6 +210,7 @@ def run_evaluation_nothing(environment_name: str) -> None:
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
     # Define command-line arguments for two possibilities: greedy and rllib model
@@ -280,3 +300,5 @@ if __name__ == "__main__":
                 run_evaluation_rllib(input_file_path, CHECKPOINT_NAME)
             else:
                 run_evaluation_rllib(input_file_path, input_checkpoint_name)
+
+    logging.info(f"Total time = {time.time() - start_time}")

@@ -1,5 +1,5 @@
 # training
-nb_timesteps: &nb_timesteps 10000000
+nb_timesteps: &nb_timesteps 1000000
 checkpoint_freq: 10000
 verbose: 1
 gamma: 0.95 # !grid_search [0.95, 0.99]
@@ -19,14 +19,28 @@ seed: &seed 16
   
 # environment
 env_config:
-  env_name: rte_case14_realistic
+  env_name: rte_case5_example
   num_agents: 3
-  action_space: tennet
+  action_space: asymmetry
   lib_dir: /home3/s3374610/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/
   max_tsteps: *nb_timesteps
   grid2op_kwargs:
-    test: False
+    # general kwargs
+    test: True
     reward_class: !LossReward
+    # kwargs specific to opponents
+    opponent_attack_cooldown: 144 # max 2 attacks per day
+    opponent_attack_duration: 48 # 4 hours in a day
+    opponent_budget_per_ts: 0.333343333333 # taken from blazej, (opponent_attack_duration / opponent_attack_cooldown) + 1e-5
+    opponent_init_budget: 144
+    opponent_action_class: !PowerlineSetAction 
+    opponent_class: !RandomLineOpponent
+    opponent_budget_class: !BaseActionBudget
+    kwargs_opponent:
+      lines_attacked: # TODO: define which lines fit case5
+        - '0_2_1'
+        - '0_3_2'
+        - '2_3_6'
   seed: *seed
   rho_threshold: 0.9
 

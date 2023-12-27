@@ -1,93 +1,109 @@
 """
-Utilities in the grid2op and gym convertion.
+Utilities in the grid2op experiments.
 """
 
 import logging
 
-import grid2op
+from grid2op.Environment import BaseEnv
 
 
-def calculate_action_topology_spaces(environments: list[str]) -> None:
+def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int]:
     """
-    Function prints the number of legal actions and topologies without symmetries,
-    following Subrahamian et al. (2020)'s implementation and following a proposed implementation.
+    Function prints and returns the number of legal actions and topologies without symmetries.
     """
-    # environments = ["rte_case5_example", "rte_case14_realistic", "l2rpn_wcci_2022"]
 
-    for env_name in environments:
-        logging.info(env_name)
-        env = grid2op.make(env_name, test=True)
+    nr_substations = len(env.sub_info)
 
-        nr_substations = len(env.sub_info)
+    logging.info("no symmetries")
+    action_space = 0
+    possible_topologies = 1
+    for sub in range(nr_substations):
+        nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
+        nr_non_lines = sum(
+            1
+            for row in env.observation_space.get_obj_substations(substation_id=sub)
+            if row[1] != -1 or row[2] != -1
+        )
 
-        logging.info("no symmetries")
-        action_space = 0
-        possible_topologies = 1
-        for sub in range(nr_substations):
-            nr_elements = len(
-                env.observation_space.get_obj_substations(substation_id=sub)
+        alpha = 2 ** (nr_elements - 1) - (2**nr_non_lines - 1)
+        action_space += alpha if alpha > 1 else 0
+        possible_topologies *= max(alpha, 1)
+
+    logging.info(f"actions {action_space}")
+    logging.info(f"topologies {possible_topologies}")
+    return action_space, possible_topologies
+
+
+def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int]:
+    """
+    Function prints and returns the number of legal actions and topologies following Subrahamian (2021).
+    """
+    nr_substations = len(env.sub_info)
+
+    logging.info("medha")
+    action_space = 0
+    possible_topologies = 1
+    for sub in range(nr_substations):
+        nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
+        nr_non_lines = sum(
+            1
+            for row in env.observation_space.get_obj_substations(substation_id=sub)
+            if row[1] != -1 or row[2] != -1
+        )
+        alpha = 2 ** (nr_elements - 1)
+        beta = nr_elements - (1 if nr_elements == 2 else 0)
+        gamma = 2**nr_non_lines - 1 - nr_non_lines
+        combined = alpha - beta - gamma
+        action_space += combined if combined > 1 else 0
+        possible_topologies *= max(combined, 1)
+
+    logging.info(f"actions {action_space}")
+    logging.info(f"topologies {possible_topologies}")
+    return action_space, possible_topologies
+
+
+def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int]:
+    """
+    Function prints and returns the number of legal actions and topologies following the proposed action space.
+    """
+    nr_substations = len(env.sub_info)
+
+    logging.info("TenneT")
+    action_space = 0
+    possible_topologies = 1
+    for sub in range(nr_substations):
+        nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
+        nr_non_lines = sum(
+            1
+            for row in env.observation_space.get_obj_substations(substation_id=sub)
+            if row[1] != -1 or row[2] != -1
+        )
+        nr_lines = nr_elements - nr_non_lines
+
+        combined = (
+            (
+                2**nr_non_lines - 2
+            )  # configuratations of non-lines except when all lines are same colour
+            * (
+                2**nr_lines  # configurations of lines
+                - 2 * nr_lines  # minus lines that there is exactly one line at a busbar
+                - 2  # minus case where all lines have the same colour
+                + (2 if nr_lines == 1 else 0)  # due to doubles with 1 line
+                + (2 if nr_lines == 2 else 0)  # due to doubles with 2 lines
             )
-            alpha = 2 ** (nr_elements - 1)
-            action_space += alpha
-            possible_topologies *= max(alpha, 1)
-
-        logging.info(f"actions {action_space}")
-        logging.info(f"topologies {possible_topologies}")
-
-        logging.info("medha")
-        action_space = 0
-        possible_topologies = 1
-        for sub in range(nr_substations):
-            nr_elements = len(
-                env.observation_space.get_obj_substations(substation_id=sub)
+            + 2  # configurations where non-lines all have the same colour
+            * (
+                2**nr_lines  # configurations of lines
+                - 2 * nr_lines  # minus lines that there is exactly one line at a busbar
+                - 1  # if all non-lines have the same colour, then if all lines are also this colour, it's allowed
+                + (2 if nr_lines == 2 else 0)  # due to doubles with 2 lines
+                + (1 if nr_lines == 1 else 0)  # due to doubles with 1 line
             )
-            nr_non_lines = sum(
-                1
-                for row in env.observation_space.get_obj_substations(substation_id=sub)
-                if row[1] != -1 or row[2] != -1
-            )
-            alpha = 2 ** (nr_elements - 1)
-            beta = nr_elements - (1 if nr_elements == 2 else 0)
-            gamma = 2**nr_non_lines - 1 - nr_non_lines
-            action_space += alpha - beta - gamma
-            possible_topologies *= max(alpha - beta - gamma, 1)
+        ) / 2  # remove symmetries
 
-        logging.info(f"actions {action_space}")
-        logging.info(f"topologies {possible_topologies}")
+        action_space += int(combined) if combined > 1 else 0
+        possible_topologies *= max(combined, 1)
 
-        logging.info("TenneT")
-        action_space = 0
-        possible_topologies = 1
-        for sub in range(nr_substations):
-            nr_elements = len(
-                env.observation_space.get_obj_substations(substation_id=sub)
-            )
-            nr_non_lines = sum(
-                1
-                for row in env.observation_space.get_obj_substations(substation_id=sub)
-                if row[1] != -1 or row[2] != -1
-            )
-            nr_lines = nr_elements - nr_non_lines
-            alpha = 2 ** (nr_elements - 1)
-            beta = (
-                2 ** (nr_non_lines) - 1
-            )  # cases in which there is at least one non-line
-            epsilon = (
-                1 + nr_lines
-            )  # cases in which there are less than two lines connected to a busbar
-            theta = nr_lines  # cases in which there is only one line and no non-lines
-            action_space += alpha - beta * epsilon - theta
-            possible_topologies *= max(alpha - beta * epsilon - theta, 1)
-
-        logging.info(f"actions {action_space}")
-        logging.info(f"topologies {possible_topologies}")
-
-
-# def load_config(file_path="config.yaml"):
-#     with open(file_path, "r") as stream:
-#         try:
-#             config = yaml.safe_load(stream)
-#             return config
-#         except yaml.YAMLError as e:
-#             print(f"Error loading YAML file {file_path}: {e}")
-#             return None
+    logging.info(f"actions {action_space}")
+    logging.info(f"topologies {possible_topologies}")
+    return action_space, possible_topologies

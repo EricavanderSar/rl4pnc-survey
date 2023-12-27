@@ -3,7 +3,6 @@ Implements the codes to configure the three kinds of action spaces.
 """
 import json
 from collections import Counter
-from dataclasses import dataclass
 from typing import List
 
 import grid2op
@@ -187,70 +186,6 @@ def get_tennet_action_space(env: BaseEnv) -> list[BaseAction]:
             legal_actions.append(possible_substation_actions[index])
 
     return legal_actions
-
-
-# Adapted from GridMind
-_MAP_SET_BUS_ENTITY_NAMES = {
-    "load": "loads",
-    "gen": "generators",
-    "line_or": "lines_from",
-    "line_ex": "lines_to",
-}
-
-
-@dataclass
-class SetBus:
-    """
-    Dataclass encoding information about
-    set bus operations encoded in the action
-    Adapted from GridMind.
-    """
-
-    substations_ids: set[int]  # list of affected substations
-    loads: dict[int, int]  # Map from load to bus it connects to
-    generators: dict[int, int]  # Map from generator to bus it connects to
-    lines_from: dict[int, int]  # Map from line id to bus its from-end connects to
-    lines_to: dict[int, int]  # Map from line id to bus its to-end connects to
-
-
-def set_bus(act: BaseAction) -> None | SetBus:
-    """
-    Extracts information about SetBus actions encoded by
-    current object. Adapted from GridMind.
-    """
-
-    # Initialize arguments to be passed to Action.SetBus constructor
-    set_bus_kwargs: dict[str, dict[int, int]] = {}
-
-    # Initialize list of affected substations
-    sub_ids: set[int] = set()
-
-    # Loop through entity types (line origin, targets, loads, generators, etc...)
-    for entity_type in ["load", "gen", "line_ex", "line_or"]:
-        # Create dictionary setting each entity of the current type
-        # to a bus (if part of the action)
-        entity_type_action_dict = {
-            entity_id: int(bus)
-            for entity_id, bus in enumerate(getattr(act, f"{entity_type}_set_bus"))
-            if bus > 0
-        }
-
-        # Store action in kwargs for Action.SetBus constructor
-        set_bus_kwargs[_MAP_SET_BUS_ENTITY_NAMES[entity_type]] = entity_type_action_dict
-
-        # Get map from entity_id to substation
-        id_to_sub = getattr(act, f"{entity_type}_to_subid")
-
-        # Record all the (new) affected substations
-        sub_ids = sub_ids.union(
-            (id_to_sub[entity_id] for entity_id in entity_type_action_dict.keys())
-        )
-
-    # Build Action.SetBus object
-    return SetBus(
-        substations_ids=sub_ids,
-        **set_bus_kwargs,
-    )
 
 
 def save_to_json(

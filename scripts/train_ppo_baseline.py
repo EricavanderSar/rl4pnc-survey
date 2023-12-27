@@ -3,6 +3,7 @@ Trains PPO baseline agent.
 """
 import argparse
 import logging
+import os
 from typing import Any
 
 import ray
@@ -16,9 +17,6 @@ from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
 
-LIB_DIR = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/"
-# LIB_DIR = "/home/daddabarba/VirtualEnvs/mahrl/"
-
 
 def run_training(config: dict[str, Any]) -> None:
     """
@@ -30,7 +28,7 @@ def run_training(config: dict[str, Any]) -> None:
         param_space=config,
         run_config=air.RunConfig(
             stop={"timesteps_total": config["nb_timesteps"]},
-            storage_path="/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/",
+            storage_path=os.path.abspath(config["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=config["checkpoint_freq"],
                 checkpoint_at_end=True,
