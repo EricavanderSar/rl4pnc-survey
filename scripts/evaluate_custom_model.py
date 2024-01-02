@@ -57,12 +57,13 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[in
     """
     Perform runner on the implemented networks.
     """
+    env = grid2op.make(env_config["env_name"])
     if env_config["env_name"] == "rte_case5_example":
-        env = grid2op.make(env_config["env_name"], test=True)
         nb_episode = 20
     elif env_config["env_name"] == "rte_case14_realistic":
-        env = grid2op.make(env_config["env_name"])
         nb_episode = 1000
+    elif env_config["env_name"] == "l2rpn_icaps_2021_large":
+        nb_episode = 2952
     else:
         raise NotImplementedError("This network was not implemented for evaluation.")
 
@@ -159,7 +160,7 @@ def run_evaluation_greedy(actions_path: str, threshold: float) -> None:
         "action_space": parts_of_action_path[-1].split(".json")[0],
     }
 
-    setup_env = grid2op.make(env_config["env_name"], test=True)
+    setup_env = grid2op.make(env_config["env_name"])
 
     possible_actions = load_actions(actions_path, setup_env)
 
@@ -192,7 +193,7 @@ def run_evaluation_nothing(environment_name: str) -> None:
         "rho_threshold": None,
         "action_space": None,
     }
-    setup_env = grid2op.make(env_config["env_name"], test=True)
+    setup_env = grid2op.make(env_config["env_name"])
 
     # print and save results
     with open(

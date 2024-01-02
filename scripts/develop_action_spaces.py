@@ -24,7 +24,7 @@ def create_action_spaces(env_name: str, action_spaces_to_create: list[str]) -> N
     """
     Creates action spaces for a specified grid2op environment.
     """
-    env = grid2op.make(env_name, test=True)
+    env = grid2op.make(env_name)
 
     if "asymmetry" in action_spaces_to_create:
         mathematically_possible_actions, _ = calculate_action_space_asymmetry(env)
