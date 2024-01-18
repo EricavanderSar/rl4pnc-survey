@@ -119,6 +119,7 @@ def setup_config(config_path: str) -> None:
     ppo_config.update({"env": CustomizedGrid2OpEnvironment})
     ppo_config.update({"policies": policies})
 
+    print(f"CONFIG={ppo_config['env_config']}")
     run_training(ppo_config)
 
 

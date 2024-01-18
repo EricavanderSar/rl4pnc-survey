@@ -55,6 +55,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         lib_dir = env_config["lib_dir"]
         # self.threshold = env_config["rho_threshold"]
 
+        print(
+            f"Initialising environment with att lines {env_config['grid2op_kwargs']['kwargs_opponent']['lines_attacked']}"
+        )
+        if len(env_config["grid2op_kwargs"]["kwargs_opponent"]["lines_attacked"]) < 1:
+            raise ValueError("No lines are attacked.")
         # # manually set opponent space for calling init_opponent
         # if (
         #     env_config["grid2op_kwargs"]["opponent_space_type"]
@@ -72,6 +77,14 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             env_config["env_name"], **env_config["grid2op_kwargs"]
         )
         self.env_glop.seed(env_config["seed"])
+
+        print(
+            f"OPPSPACE:{self.env_glop._oppSpace}, len rem={len(self.env_glop._oppSpace._remedial_actions)}, len config={len(env_config['grid2op_kwargs']['kwargs_opponent']['lines_attacked'])}"
+        )
+        if len(env_config["grid2op_kwargs"]["kwargs_opponent"]["lines_attacked"]) < 1:
+            raise ValueError("Env: No lines in config.")
+        elif len(self.env_glop._oppSpace._remedial_actions) < 1:
+            raise ValueError("Env: No lines in remedial actions.")
 
         # 1.a. Setting up custom action space
         if env_config["action_space"] == "asymmetry":

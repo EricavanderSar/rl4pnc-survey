@@ -55,6 +55,13 @@ class ReconnectingOpponentSpace(OpponentSpace):
         self._remedial_actions: dict[int, BaseAction] = {}
         print("{self}: OVERWRITE REMEDIALS from __init__")
 
+        if self.opponent._lines_ids is None:
+            print(f"Opp: None: {self}.")
+        elif len(self.opponent._lines_ids) < 1:
+            print("Opp: No lines in opponent config.")
+        elif len(self._remedial_actions) < 1:
+            print("Opp: No lines in remedial actions.")
+
     def init_opponent(self, partial_env: BaseEnv, **kwargs: dict[Any, Any]) -> None:
         """
         Populate repair action map
