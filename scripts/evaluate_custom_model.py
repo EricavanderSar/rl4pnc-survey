@@ -58,6 +58,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[in
     Perform runner on the implemented networks.
     """
     env = grid2op.make(env_config["env_name"])
+    print(env.get_reward_instance())
     if env_config["env_name"] == "rte_case5_example":
         nb_episode = 20
     elif env_config["env_name"] == "rte_case14_realistic":

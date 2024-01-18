@@ -36,6 +36,7 @@ env_config:
     opponent_action_class: !PowerlineSetAction 
     opponent_class: !RandomLineOpponent
     opponent_budget_class: !BaseActionBudget
+    opponent_space_type: !ReconnectingOpponentSpace
     kwargs_opponent:
       lines_attacked: 
         - 3_4_6

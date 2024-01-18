@@ -15,6 +15,7 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
+# from mahrl.experiments.opponent import ReconnectingOpponentSpace
 from mahrl.grid2op_env.utils import (
     CustomDiscreteActions,
     get_possible_topologies,
@@ -30,7 +31,7 @@ ACTTYPE = TypeVar("ACTTYPE")
 RENDERFRAME = TypeVar("RENDERFRAME")
 
 # Configure the logging module
-logging.basicConfig(filename="example.log", level=logging.INFO)
+# logging.basicConfig(filename="example.log", level=logging.INFO)
 
 
 class CustomizedGrid2OpEnvironment(MultiAgentEnv):
@@ -53,6 +54,20 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.max_tsteps = env_config["max_tsteps"]
         lib_dir = env_config["lib_dir"]
         # self.threshold = env_config["rho_threshold"]
+
+        # # manually set opponent space for calling init_opponent
+        # if (
+        #     env_config["grid2op_kwargs"]["opponent_space_type"]
+        #     == "reconnecting_opponent"
+        # ):
+        #     env_config["grid2op_kwargs"].update(
+        #         {"opponent_space_type": ReconnectingOpponentSpace}
+        #     )
+        # else:
+        #     raise NotImplementedError(
+        #         "This opponent space is not implemented for training."
+        #     )
+
         self.env_glop = grid2op.make(
             env_config["env_name"], **env_config["grid2op_kwargs"]
         )

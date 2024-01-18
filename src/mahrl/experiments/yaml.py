@@ -18,6 +18,7 @@ from yaml.loader import FullLoader, Loader, UnsafeLoader
 from yaml.nodes import MappingNode, ScalarNode
 
 from mahrl.experiments.callback import CustomMetricsCallback
+from mahrl.experiments.opponent import ReconnectingOpponentSpace
 from mahrl.experiments.rewards import LossReward
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import (
@@ -174,6 +175,13 @@ def baseaction_budget_constructor(
     return BaseActionBudget
 
 
+def reconnecting_opponent_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> ReconnectingOpponentSpace:
+    """Custom constructor for ReconnectingOpponentSpace"""
+    return ReconnectingOpponentSpace
+
+
 def add_constructors() -> None:
     """Add the constructors to the yaml loader"""
     yaml.FullLoader.add_constructor(
@@ -199,6 +207,9 @@ def add_constructors() -> None:
         "!RandomLineOpponent", randomline_opponent_constructor
     )
     yaml.FullLoader.add_constructor("!BaseActionBudget", baseaction_budget_constructor)
+    yaml.FullLoader.add_constructor(
+        "!ReconnectingOpponentSpace", reconnecting_opponent_constructor
+    )
 
 
 def load_config(path: str) -> Any:  # TODO change to dict?
