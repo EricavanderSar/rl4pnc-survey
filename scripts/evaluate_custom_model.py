@@ -58,15 +58,6 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[in
     Perform runner on the implemented networks.
     """
     env = grid2op.make(env_config["env_name"])
-    print(env.get_reward_instance())
-    if env_config["env_name"] == "rte_case5_example":
-        nb_episode = 20
-    elif env_config["env_name"] == "rte_case14_realistic":
-        nb_episode = 1000
-    elif env_config["env_name"] == "l2rpn_icaps_2021_large":
-        nb_episode = 2952
-    else:
-        raise NotImplementedError("This network was not implemented for evaluation.")
 
     params = env.get_params_for_runner()
 
@@ -75,7 +66,12 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[in
         agentClass=None,
         agentInstance=agent_instance,
     )
-    res = runner.run(nb_episode=nb_episode, max_iter=-1, nb_process=1)
+    res = runner.run(
+        path_save=os.path.abspath(f"./runs/action_evaluation/{env_config['env_name']}"),
+        nb_episode=len(env.chronics_handler.subpaths),
+        max_iter=-1,
+        nb_process=1,
+    )
 
     individual_timesteps = []
 
@@ -228,17 +224,25 @@ if __name__ == "__main__":
         type=str,
         help="Name of the checkpoint, only for the Rllib agent.",
     )
-    parser.add_argument(
-        "-g",
-        "--greedy",
-        action="store_true",
-        help="Signals to evaluate a Greedy agent.",
-    )
+
     parser.add_argument(
         "-n",
         "--nothing",
         action="store_true",
         help="Signals to evaluate a DoNothing agent.",
+    )
+    parser.add_argument(
+        "-e",
+        "--environment",
+        type=str,
+        help="Specify the environment, only for the DoNothing agent.",
+    )
+
+    parser.add_argument(
+        "-g",
+        "--greedy",
+        action="store_true",
+        help="Signals to evaluate a Greedy agent.",
     )
     parser.add_argument(
         "-a",
@@ -251,12 +255,6 @@ if __name__ == "__main__":
         "--threshold",
         type=float,
         help="Specify the threshold, only for the Greedy agent.",
-    )
-    parser.add_argument(
-        "-e",
-        "--environment",
-        type=str,
-        help="Specify the environment, only for the DoNothing agent.",
     )
 
     # Parse the command-line arguments

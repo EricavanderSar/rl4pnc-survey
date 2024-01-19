@@ -6,7 +6,12 @@ from typing import Any, Callable, Union
 
 import yaml
 from grid2op.Action import BaseAction, PowerlineSetAction
-from grid2op.Opponent import BaseActionBudget, BaseOpponent, RandomLineOpponent
+from grid2op.Opponent import (
+    BaseActionBudget,
+    BaseOpponent,
+    OpponentSpace,
+    RandomLineOpponent,
+)
 from gymnasium.spaces import Discrete
 from ray import tune
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
@@ -177,7 +182,7 @@ def baseaction_budget_constructor(
 
 def reconnecting_opponent_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
-) -> ReconnectingOpponentSpace:
+) -> OpponentSpace:
     """Custom constructor for ReconnectingOpponentSpace"""
     return ReconnectingOpponentSpace
 
