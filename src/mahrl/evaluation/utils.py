@@ -17,6 +17,7 @@ def load_episodes(path: str) -> list[EpisodeData]:
 
     all_episodes = []
     for full_path, episode_studied in li_episode:
+        print(f"Loading episode {episode_studied}")
         this_episode = EpisodeData.from_disk(full_path, episode_studied)
         all_episodes.append(this_episode)
 
@@ -26,6 +27,7 @@ def load_episodes(path: str) -> list[EpisodeData]:
 def save_global_statistics(
     path: str,
     all_episodes: list[EpisodeData],
+    grid_objects_types: list[list[int]],
     global_action_sequences: list[list[list[dict[str, Any]]]],
     global_topology_list: list[list[list[int]]],
 ) -> None:
@@ -88,6 +90,7 @@ def save_global_statistics(
 def save_scenario_statistics(
     path: str,
     episode_name: str,
+    grid_objects_types: list[list[int]],
     action_sequences: list[list[dict[str, Any]]],
     topology_list: list[list[int]],
 ) -> None:
@@ -98,8 +101,13 @@ def save_scenario_statistics(
     # flatten action sequences
     action_list = [item for sublist in action_sequences for item in sublist]
 
+    if os.path.exists(os.path.join(path, "scenario_statistics.txt")):
+        mode = "a"  # append if file exists
+    else:
+        mode = "w"  # write if file doesn't exist
+
     with open(
-        os.path.join(path, "scenario_statistics.txt"), "w", encoding="utf-8"
+        os.path.join(path, "scenario_statistics.txt"), mode, encoding="utf-8"
     ) as file:
         # - topologies
         file.write(f"Episode: {episode_name}\n")
@@ -112,7 +120,7 @@ def save_scenario_statistics(
         )
         # - max topology depth
         file.write(
-            f"Max topological depth: {evaluation_metrics.get_max_topological_depth(topology_list)}\n"
+            f"Max topological depth: {evaluation_metrics.get_max_topological_depth(topology_list, grid_objects_types)}\n"
         )
         # - number of actions
         file.write(

@@ -53,7 +53,7 @@ class ReconnectingOpponentSpace(OpponentSpace):
 
         # Initialize list of remedial actions
         self._remedial_actions: dict[int, BaseAction] = {}
-        print("{self}: OVERWRITE REMEDIALS from __init__")
+        print(f"{self}: OVERWRITE REMEDIALS from __init__")
 
         if self.opponent._lines_ids is None:
             print(f"Opp: None: {self}.")

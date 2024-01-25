@@ -127,17 +127,24 @@ class TopologyGreedyAgent(GreedyAgent):
                 self.resulting_rewards = np.full(
                     shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
                 )
+                self.resulting_infos = []
                 for i, action in enumerate(self.tested_action):
                     (
                         _,
                         simul_reward,
                         _,
-                        _,
+                        simul_info,
                     ) = observation.simulate(action)
                     self.resulting_rewards[i] = simul_reward
+                    self.resulting_infos.append(simul_info)
+
+                    # TODO: Include extra safeguard to prevent exception actions with converging powerflow
                 reward_idx = int(
                     np.argmax(self.resulting_rewards)
                 )  # rewards.index(max(rewards))
+                # print(
+                #     f"Chosen action {reward_idx} with info {self.resulting_infos[reward_idx]}"
+                # )
                 best_action = self.tested_action[reward_idx]
             else:
                 best_action = self.tested_action[0]

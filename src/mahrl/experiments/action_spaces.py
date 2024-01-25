@@ -108,7 +108,6 @@ def get_medha_action_space(env: BaseEnv) -> list[BaseAction]:
         # get_possible_topologies already takes into account that a generator connected to no
         # substation-substation lines does not work, so the constraint to check if one
         # substation-substation line is connected to each busbar does not need to be tested
-        # if at_least_two_occurrences and variation_check:
         if at_least_two_occurrences:
             dataframe.loc[len(dataframe.index)] = topo_vect
         else:  # add dummy to keep index intact

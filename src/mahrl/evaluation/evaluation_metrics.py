@@ -5,6 +5,8 @@ import os
 from collections import Counter
 from typing import Any
 
+import ast
+import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 from grid2op.Episode import EpisodeData
@@ -97,25 +99,30 @@ def get_number_of_unique_topologies(topology_list: list[list[int]]) -> int:
     return len(get_unique_topologies(topology_list))
 
 
-def get_topological_depth(topology_list: list[list[int]]) -> list[int]:
+def get_topological_depth(
+    topology_list: list[list[int]], grid_objects_types: list[list[int]]
+) -> list[int]:
     """List the topological depth of the each action"""
-    # TODO revisit definition
-    default = topology_list[0]
     summed_depth = []
+    for topo_vect in topology_list:
+        # get the indices of the elements that are connected to busbar 2
+        indices = [i for i, x in enumerate(topo_vect) if x == 2]
 
-    for topo in topology_list:
-        topo_diff = np.array(topo) - np.array(default)
-        topo_no_disconnection = np.where(topo_diff > 0, topo_diff, 0)
+        # get the substations of these elements
+        substations = [grid_objects_types[i][0] for i in indices]
 
-        # print(topo_no_disconnection)
-        summed_depth.append(np.sum(topo_no_disconnection))
+        # count the number of unique substations
+        num_substations = len(set(substations))
 
+        summed_depth.append(num_substations)
     return summed_depth
 
 
-def get_max_topological_depth(topology_list: list[list[int]]) -> int:
+def get_max_topological_depth(
+    topology_list: list[list[int]], grid_objects_types: list[list[int]]
+) -> int:
     """Return the maximum topological."""
-    return int(np.max(get_topological_depth(topology_list)))
+    return int(np.max(get_topological_depth(topology_list, grid_objects_types)))
 
 
 def get_mean_topological_depth(topology_list: list[list[int]]) -> float:
@@ -175,7 +182,8 @@ def plot_substation_distribution(
     path: str, all_substations: range, substation_list: list[int]
 ) -> None:
     """Plot the distribution of controlled substations."""
-    plt.bar(all_substations, get_substation_counts(all_substations, substation_list))
+    substation_counts = get_substation_counts(all_substations, substation_list)
+    plt.bar(all_substations, substation_counts)
     plt.xlabel("Substations")
     plt.xticks(all_substations)
     plt.ylabel("Count")
@@ -183,13 +191,53 @@ def plot_substation_distribution(
     plt.close()
 
 
+def get_colours_for_substations(
+    modif_subs_ids: list[list[str]],
+) -> tuple[list[list[float]], dict[str, list[float]]]:
+    """Colour coordinates the actions per substation."""
+    # flatten the list and convert to integers
+    values = list(map(int, [item for sublist in modif_subs_ids for item in sublist]))
+
+    # create a list of unique values
+    unique_values = list(set(values))
+
+    # create a colormap
+    colors = cm.rainbow(np.linspace(0, 1, len(unique_values)))
+
+    # create a dictionary that maps values to colors
+    color_dict = {value: color for value, color in zip(unique_values, colors)}
+
+    # create a list of colors for your values
+    color_list = [color_dict[value] for value in values]
+    return color_list, color_dict
+
+
 def plot_action_distribution(path: str, action_list: list[dict[str, Any]]) -> None:
     """Plot the distribution of actions."""
     unique_actions_list = get_unique_actions(action_list)
     action_counts = get_action_counts(unique_actions_list, action_list)
-    plt.bar(list(unique_actions_list), action_counts)
+    action_dicts = [ast.literal_eval(action) for action in unique_actions_list]
+    modif_subs_ids = [
+        action["set_bus_vect"]["modif_subs_id"] for action in action_dicts
+    ]
+
+    # Sort action_counts and unique_actions_list based on action_counts
+    action_counts, unique_actions_list, modif_subs_ids = zip(
+        *sorted(zip(action_counts, unique_actions_list, modif_subs_ids), reverse=True)
+    )
+
+    color_list, color_dict = get_colours_for_substations(modif_subs_ids)
+    plt.bar(range(len(unique_actions_list)), action_counts, color=color_list)
     plt.xlabel("Unique actions")
     plt.xticks([])  # Remove x-axis labels
     plt.ylabel("Count")
+
+    # Create a custom legend
+    sorted_keys = sorted(color_dict.keys(), key=int)
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, color=color_dict[label]) for label in sorted_keys
+    ]
+    plt.legend(handles, sorted_keys)
+
     plt.savefig(os.path.join(path, "action_distribution.png"))
     plt.close()
