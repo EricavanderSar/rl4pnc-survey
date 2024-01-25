@@ -1,15 +1,15 @@
 """
 This describes possible metrics to be used for evaluation of the agent..
 """
+import ast
 import os
 from collections import Counter
 from typing import Any
 
-import ast
-import matplotlib.cm as cm
 import matplotlib.pyplot as plt
 import numpy as np
 from grid2op.Episode import EpisodeData
+from matplotlib import cm
 
 
 def get_number_of_scenarios(all_episodes: list[EpisodeData]) -> int:
@@ -125,12 +125,6 @@ def get_max_topological_depth(
     return int(np.max(get_topological_depth(topology_list, grid_objects_types)))
 
 
-def get_mean_topological_depth(topology_list: list[list[int]]) -> float:
-    """Return the mean topological depth."""
-    # TODO, not actually correct because it doesn't take into account how long the topology is held
-    return float(np.mean(get_topological_depth(topology_list)))
-
-
 def get_number_of_action_sequences(action_sequences: list[list[dict[str, Any]]]) -> int:
     """Count the number of action sequences in the dataset"""
     return len(action_sequences)
@@ -193,7 +187,7 @@ def plot_substation_distribution(
 
 def get_colours_for_substations(
     modif_subs_ids: list[list[str]],
-) -> tuple[list[list[float]], dict[str, list[float]]]:
+) -> tuple[list[list[float]], dict[int, Any]]:
     """Colour coordinates the actions per substation."""
     # flatten the list and convert to integers
     values = list(map(int, [item for sublist in modif_subs_ids for item in sublist]))
@@ -202,10 +196,11 @@ def get_colours_for_substations(
     unique_values = list(set(values))
 
     # create a colormap
-    colors = cm.rainbow(np.linspace(0, 1, len(unique_values)))
+    # pylint: disable=no-member
+    colors = cm.rainbow(np.linspace(0, 1, len(unique_values)))  # type: ignore[attr-defined]
 
     # create a dictionary that maps values to colors
-    color_dict = {value: color for value, color in zip(unique_values, colors)}
+    color_dict = dict(zip(unique_values, colors))
 
     # create a list of colors for your values
     color_list = [color_dict[value] for value in values]
