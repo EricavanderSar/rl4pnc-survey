@@ -66,4 +66,4 @@ environment:
           - '0_3_2'
           - '2_3_6'
     seed: *seed
-    rho_threshold: 0.9
+    rho_threshold: 0.95

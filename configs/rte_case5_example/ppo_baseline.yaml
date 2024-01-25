@@ -52,4 +52,4 @@ environment:
       test: True
       reward_class: !LossReward
     seed: *seed
-    rho_threshold: 0.9
+    rho_threshold: 0.95
