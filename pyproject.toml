@@ -50,7 +50,7 @@ dependencies = [
   "scikit-image==0.19.3",
   "scikit-learn==1.2.2",
   "scikit-network==0.30.0",
-  "scipy==1.7.3",
+  "scipy==1.8",
   "seaborn==0.12.2",
   "gym==0.26.2",
   "gymnasium==0.29.1",

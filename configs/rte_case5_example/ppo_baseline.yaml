@@ -1,6 +1,6 @@
 # training
-nb_timesteps: &nb_timesteps 1000000
-checkpoint_freq: 10000
+nb_timesteps: &nb_timesteps 1000
+checkpoint_freq: 100
 verbose: 1
 gamma: 0.95 # !grid_search [0.95, 0.99]
 lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
@@ -12,8 +12,8 @@ sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
 train_batch_size: 128
 model:
   fcnet_hiddens: 
-  - 256
-  - 256
+  - 128
+  - 128
 _enable_learner_api: False
 seed: &seed 16
   
@@ -22,7 +22,7 @@ env_config:
   env_name: rte_case5_example
   num_agents: 3
   action_space: asymmetry
-  lib_dir: /home3/s3374610/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/
+  lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/
   max_tsteps: *nb_timesteps
   grid2op_kwargs:
     test: True
@@ -48,4 +48,4 @@ exploration_config:
 callbacks: !CustomMetricsCallback
 
 # paths
-storage_path: /home3/s3374610/mahrl_grid2op/runs/ # /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/
+storage_path: ./runs # /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/

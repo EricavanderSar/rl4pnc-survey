@@ -153,3 +153,7 @@ cython_debug/
 
 # Precommit
 .pre-commit-config.yaml
+
+# Pycharm project settings
+.idea
+*/runs/*

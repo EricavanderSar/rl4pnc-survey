@@ -55,11 +55,16 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         lib_dir = env_config["lib_dir"]
         # self.threshold = env_config["rho_threshold"]
 
-        print(
-            f"Initialising environment with att lines {env_config['grid2op_kwargs']['kwargs_opponent']['lines_attacked']}"
-        )
-        if len(env_config["grid2op_kwargs"]["kwargs_opponent"]["lines_attacked"]) < 1:
-            raise ValueError("No lines are attacked.")
+        if 'kwargs_opponent' in env_config['grid2op_kwargs']:
+            opponent=True
+            print(
+                f"Initialising environment with att lines {env_config['grid2op_kwargs']['kwargs_opponent']['lines_attacked']}"
+            )
+            if len(env_config["grid2op_kwargs"]["kwargs_opponent"]["lines_attacked"]) < 1:
+                raise ValueError("No lines are attacked.")
+        else:
+            print("REMARK EVDS: no opponent used!")
+            opponent=False
         # # manually set opponent space for calling init_opponent
         # if (
         #     env_config["grid2op_kwargs"]["opponent_space_type"]
@@ -78,13 +83,14 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         )
         self.env_glop.seed(env_config["seed"])
 
-        print(
-            f"OPPSPACE:{self.env_glop._oppSpace}, len rem={len(self.env_glop._oppSpace._remedial_actions)}, len config={len(env_config['grid2op_kwargs']['kwargs_opponent']['lines_attacked'])}"
-        )
-        if len(env_config["grid2op_kwargs"]["kwargs_opponent"]["lines_attacked"]) < 1:
-            raise ValueError("Env: No lines in config.")
-        elif len(self.env_glop._oppSpace._remedial_actions) < 1:
-            raise ValueError("Env: No lines in remedial actions.")
+        if opponent:
+            print(
+                f"OPPSPACE:{self.env_glop._oppSpace}, len rem={len(self.env_glop._oppSpace._remedial_actions)}, len config={len(env_config['grid2op_kwargs']['kwargs_opponent']['lines_attacked'])}"
+            )
+            if len(env_config["grid2op_kwargs"]["kwargs_opponent"]["lines_attacked"]) < 1:
+                raise ValueError("Env: No lines in config.")
+            elif len(self.env_glop._oppSpace._remedial_actions) < 1:
+                raise ValueError("Env: No lines in remedial actions.")
 
         # 1.a. Setting up custom action space
         if env_config["action_space"] == "asymmetry":
@@ -278,7 +284,13 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         Loads the action space from a specified folder.
         """
+        print(path)
+        if os.path.exists(path):
+            print("THE path printed exists!!!")
+        else:
+            print("The path does NOT exist!")
         with open(path, "rt", encoding="utf-8") as action_set_file:
+            print(path)
             return list(
                 (
                     self.env_glop.action_space(action_dict)
