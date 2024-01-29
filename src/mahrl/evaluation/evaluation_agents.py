@@ -16,6 +16,7 @@ from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
 
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from mahrl.grid2op_env.utils import reconnect_action, remember_disconnect
 
 
 class RllibAgent(BaseAgent):
@@ -52,22 +53,32 @@ class RllibAgent(BaseAgent):
         """
         Returns a grid2op action based on a RLlib observation.
         """
+
+        # print(f"obs={observation.to_dict()}")
         # Grid2Op to RLlib observation
         gym_obs = self.gym_wrapper.env_gym.observation_space.to_gym(observation)
         gym_obs = OrderedDict(
             (k, gym_obs[k]) for k in self.gym_wrapper.observation_space.spaces
         )
+        # print(f"reconnectline= {self.gym_wrapper.reconnect_line}")
+        # print(f"agent={self._rllib_agent.info}")
+        # standard: do nothing (int=0), no reconnection
+        action_comp = {"agent": 0, "reconnect": None}
 
         if np.max(gym_obs["rho"]) > self.threshold:
             # get action as int
-            gym_act = self._rllib_agent.compute_single_action(
+            action_comp["agent"] = self._rllib_agent.compute_single_action(
                 gym_obs, policy_id="reinforcement_learning_policy"
             )
-        else:
-            gym_act = 0
 
-        # convert Grid2Op action to RLlib
-        return self.gym_wrapper.env_gym.action_space.from_gym(gym_act)
+            print(
+                f"wrapper:{self.gym_wrapper.env_glop.simulate(self.gym_wrapper.env_gym.action_space.from_gym(action_comp))}"
+            )
+
+        # TODO: add reconnect
+
+        # convert Rllib action to grid2op
+        return self.gym_wrapper.env_gym.action_space.from_gym(action_comp)
 
 
 class TopologyGreedyAgent(GreedyAgent):
@@ -86,6 +97,7 @@ class TopologyGreedyAgent(GreedyAgent):
         self.tested_action: list[BaseAction] = []
         self.action_space = action_space
         self.possible_actions = possible_actions
+        self.reconnect_line = None
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]
@@ -117,6 +129,8 @@ class TopologyGreedyAgent(GreedyAgent):
             The action chosen by the bot / controller / agent.
 
         """
+        # TODO ADD AUTOMATIC RECONNECT?
+
         # get all possible actions to be tested
         self.tested_action = self._get_tested_action(observation)
 
@@ -127,25 +141,28 @@ class TopologyGreedyAgent(GreedyAgent):
                 self.resulting_rewards = np.full(
                     shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
                 )
+                self.resulting_rho_observations = np.full(
+                    shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
+                )
                 self.resulting_infos = []
                 for i, action in enumerate(self.tested_action):
                     (
+                        simul_observation,
                         _,
-                        simul_reward,
                         _,
                         simul_info,
                     ) = observation.simulate(action)
-                    self.resulting_rewards[i] = simul_reward
+                    self.resulting_rho_observations[i] = np.max(
+                        simul_observation.to_dict()["rho"]
+                    )
                     self.resulting_infos.append(simul_info)
 
-                    # TODO: Include extra safeguard to prevent exception actions with converging powerflow
-                reward_idx = int(
-                    np.argmax(self.resulting_rewards)
-                )  # rewards.index(max(rewards))
-                # print(
-                #     f"Chosen action {reward_idx} with info {self.resulting_infos[reward_idx]}"
-                # )
-                best_action = self.tested_action[reward_idx]
+                    # Include extra safeguard to prevent exception actions with converging powerflow
+                    if simul_info["exception"]:
+                        self.resulting_rho_observations[i] = 999999
+
+                rho_idx = int(np.argmin(self.resulting_rho_observations))
+                best_action = self.tested_action[rho_idx]
             else:
                 best_action = self.tested_action[0]
         # if the threshold is not exceeded, do nothing

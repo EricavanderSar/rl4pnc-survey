@@ -20,6 +20,8 @@ class ReconnectingOpponentSpace(OpponentSpace):
     action has finished running
     """
 
+    # TODO: Not plugged into the rest of the code yet
+
     def __init__(
         self,
         compute_budget: float,

@@ -108,7 +108,7 @@ def setup_config(config_path: str) -> None:
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,
-            observation_space=None,  # infer automatically from env --TODO not actually needed
+            observation_space=None,  # infer automatically from env
             action_space=Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()

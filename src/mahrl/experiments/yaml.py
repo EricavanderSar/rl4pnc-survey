@@ -217,7 +217,7 @@ def add_constructors() -> None:
     )
 
 
-def load_config(path: str) -> Any:  # TODO change to dict?
+def load_config(path: str) -> Any:
     """Adds constructors and returns config."""
     add_constructors()
 

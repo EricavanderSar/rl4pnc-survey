@@ -2,8 +2,8 @@
 Utilities in the grid2op and gym convertion.
 """
 import os
-from typing import Any
-
+from typing import Any, Optional
+import numpy as np
 import grid2op
 import gymnasium
 from grid2op.Action import BaseAction
@@ -11,6 +11,7 @@ from grid2op.Converter import IdToAct
 from grid2op.Converter.Converters import Converter
 from grid2op.Environment import BaseEnv
 from grid2op.Reward import BaseReward
+from grid2op.gym_compat.gymenv import GymnasiumEnv
 
 
 class CustomDiscreteActions(gymnasium.spaces.Discrete):
@@ -100,3 +101,30 @@ def setup_converter(
     converter = IdToAct(env.action_space)
     converter.init_converter(all_actions=possible_substation_actions)
     return converter
+
+
+def remember_disconnect(info: dict[str, Any]) -> Optional[int]:
+    """
+    Remembers the line that was disconnected by the opponent.
+    """
+    if isinstance(info["opponent_attack_line"], np.ndarray):
+        if info["opponent_attack_duration"] == 1:
+            line_id_attacked = np.argwhere(info["opponent_attack_line"]).flatten()[0]
+            return line_id_attacked
+        return None
+    return None
+
+
+def reconnect_action(
+    env_gym: GymnasiumEnv, reconnect_line: int
+) -> tuple[Optional[BaseAction], Optional[int]]:
+    """
+    Automatically reconnects a line after an opponent attack.
+    """
+    if reconnect_line is not None:
+        reconnect_act = env_gym.init_env.action_space(
+            {"set_line_status": (reconnect_line, 1)}
+        )
+        reconnect_line = None
+        return reconnect_act, None
+    return None, None
