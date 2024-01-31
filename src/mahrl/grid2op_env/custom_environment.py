@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypeVar
 import grid2op
 from lightsim2grid import LightSimBackend
 import gymnasium
+import numpy as np
 from grid2op.Action import BaseAction
 from grid2op.gym_compat import GymEnv
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
@@ -54,71 +55,21 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             )
         self.max_tsteps = env_config["max_tsteps"]
         lib_dir = env_config["lib_dir"]
-        # self.threshold = env_config["rho_threshold"]
-
-        if 'kwargs_opponent' in env_config['grid2op_kwargs']:
-            opponent=True
-            print(
-                f"Initialising environment with att lines {env_config['grid2op_kwargs']['kwargs_opponent']['lines_attacked']}"
-            )
-            if len(env_config["grid2op_kwargs"]["kwargs_opponent"]["lines_attacked"]) < 1:
-                raise ValueError("No lines are attacked.")
-        else:
-            print("REMARK EVDS: no opponent used!")
-            opponent=False
-        # # manually set opponent space for calling init_opponent
-        # if (
-        #     env_config["grid2op_kwargs"]["opponent_space_type"]
-        #     == "reconnecting_opponent"
-        # ):
-        #     env_config["grid2op_kwargs"].update(
-        #         {"opponent_space_type": ReconnectingOpponentSpace}
-        #     )
-        # else:
-        #     raise NotImplementedError(
-        #         "This opponent space is not implemented for training."
-        #     )
 
         self.env_glop = grid2op.make(
             env_config["env_name"], **env_config["grid2op_kwargs"], backend=LightSimBackend()
         )
         self.env_glop.seed(env_config["seed"])
 
-        if opponent:
-            print(
-                f"OPPSPACE:{self.env_glop._oppSpace}, len rem={len(self.env_glop._oppSpace._remedial_actions)}, len config={len(env_config['grid2op_kwargs']['kwargs_opponent']['lines_attacked'])}"
-            )
-            if len(env_config["grid2op_kwargs"]["kwargs_opponent"]["lines_attacked"]) < 1:
-                raise ValueError("Env: No lines in config.")
-            elif len(self.env_glop._oppSpace._remedial_actions) < 1:
-                raise ValueError("Env: No lines in remedial actions.")
-
         # 1.a. Setting up custom action space
-        if env_config["action_space"] == "asymmetry":
+        if (
+            env_config["action_space"] == "asymmetry"
+            or env_config["action_space"] == "medha"
+            or env_config["action_space"] == "tennet"
+        ):
             path = os.path.join(
                 lib_dir,
-                "data",
-                "action_spaces",
-                env_config["env_name"],
-                "asymmetry.json",
-            )
-            possible_substation_actions = self.load_action_space(path)
-        if env_config["action_space"] == "medha":
-            path = os.path.join(
-                lib_dir,
-                "data",
-                "action_spaces",
-                env_config["env_name"],
-                "medha.json",
-            )
-            possible_substation_actions = self.load_action_space(path)
-        elif env_config["action_space"] == "tennet":
-            path = os.path.join(
-                lib_dir,
-                "data",
-                "action_spaces",
-                env_config["env_name"],
-                "tennet.json",
+                f"data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
             )
             possible_substation_actions = self.load_action_space(path)
         elif env_config["action_space"] == "erica":
@@ -128,13 +79,12 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         else:
             path = os.path.join(
                 lib_dir,
-                "data",
-                "action_spaces",
-                env_config["env_name"],
-                "asymmetry.json",
+                f"data/action_spaces/{env_config['env_name']}/asymmetry.json",
             )
             possible_substation_actions = self.load_action_space(path)
-            logging.info("No action space is defined, using asymmetrical action space.")
+            logging.warning(
+                "No valid space is defined, using asymmetrical action space."
+            )
 
         logging.info(f"LEN ACTIONS={len(possible_substation_actions)}")
         # Add the do-nothing action at index 0
@@ -171,6 +121,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             str, Any
         ] = OrderedDict()  # TODO: How to initalize?
         self.step_nb = 0
+        self.reconnect_line = None
 
     def reset(
         self,
@@ -183,7 +134,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         self.previous_obs, infos = self.env_gym.reset()
         observations = {"high_level_agent": self.previous_obs}
-        # infos = {"high_level_agent": {"rho_threshold": self.threshold}}
         return observations, infos
 
     def step(
@@ -194,8 +144,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         This function performs a single step in the environment.
         """
-        # # Increase step
-        # self.step_nb = self.step_nb + 1
+
+        # Increase step
+        self.step_nb = self.step_nb + 1
 
         # Build termination dict
         terminateds = {
@@ -207,7 +158,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         }
 
         rewards: Dict[str, Any] = {}
-        # infos: Dict[str, Any] = {"__all__": {"rho_threshold": self.threshold}}
         infos: Dict[str, Any] = {}
 
         logging.info(f"ACTION_DICT = {action_dict}")
@@ -216,65 +166,70 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             action = action_dict["high_level_agent"]
             if action == 0:
                 # do something
-                logging.info("high_level_agent SAYS: DO SOMETHING")
                 observations = {"reinforcement_learning_agent": self.previous_obs}
             elif action == 1:
-                # if np.max(self.previous_obs["rho"]) < RHO_THRESHOLD:
                 # do nothing
-                logging.info("AGENT 1 SAYS: DO NOTHING")
                 observations = {"do_nothing_agent": self.previous_obs}
             else:
                 raise ValueError(
                     "An invalid action is selected by the high_level_agent in step()."
                 )
         elif "do_nothing_agent" in action_dict.keys():
-            # do nothing
             logging.info("do_nothing_agent IS CALLED: DO NOTHING")
+
             # overwrite action in action_dict to nothing
             action = action_dict["do_nothing_agent"]
+            action_comp = {
+                "agent": action,
+                "reconnect": self.reconnect_action(),
+            }
             (
                 self.previous_obs,
                 reward,
                 terminated,
                 truncated,
                 infos,
-            ) = self.env_gym.step(action)
-            # give reward to RL agent
+            ) = self.env_gym.step(action_comp)
+
+            # still give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
+            self.remember_disconnect(infos)
             infos = {}
-            # infos = {"__all__": {"rho_threshold": self.threshold}}
         elif "reinforcement_learning_agent" in action_dict.keys():
-            # perform action
             logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
             action = action_dict["reinforcement_learning_agent"]
+            action_comp = {
+                "agent": action,
+                "reconnect": self.reconnect_action(),
+            }
+
             (
                 self.previous_obs,
                 reward,
                 terminated,
                 truncated,
                 infos,
-            ) = self.env_gym.step(action)
+            ) = self.env_gym.step(action_comp)
+
             # give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
+            self.remember_disconnect(infos)
             infos = {}
-            # Increase step
-            self.step_nb = self.step_nb + 1
-            # infos = {"__all__": {"rho_threshold": self.threshold}}
         elif bool(action_dict) is False:
             logging.info("Caution: Empty action dictionary!")
             rewards = {}
             observations = {}
             infos = {}
-            # infos = {"__all__": {"rho_threshold": self.threshold}}
         else:
             logging.info(f"ACTION_DICT={action_dict}")
             raise ValueError("No agent found in action dictionary in step().")
+
         return observations, rewards, terminateds, truncateds, infos
 
     def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
@@ -287,11 +242,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         Loads the action space from a specified folder.
         """
-        # print(path)
-        # if os.path.exists(path):
-        #     print("THE path printed exists!!!")
-        # else:
-        #     print("The path does NOT exist!")
         with open(path, "rt", encoding="utf-8") as action_set_file:
             return list(
                 (
@@ -299,6 +249,29 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                     for action_dict in json.load(action_set_file)
                 )
             )
+
+    def remember_disconnect(self, info: dict[str, Any]) -> None:
+        """
+        Remembers the line that was disconnected by the opponent.
+        """
+        if isinstance(info["opponent_attack_line"], np.ndarray):
+            if info["opponent_attack_duration"] == 1:
+                line_id_attacked = np.argwhere(info["opponent_attack_line"]).flatten()[
+                    0
+                ]
+                self.reconnect_line = line_id_attacked
+
+    def reconnect_action(self) -> Optional[BaseAction]:
+        """
+        Automatically reconnects a line after an opponent attack.
+        """
+        if self.reconnect_line is not None:
+            reconnect_act = self.env_gym.init_env.action_space(
+                {"set_line_status": (self.reconnect_line, 1)}
+            )
+            self.reconnect_line = None
+            return reconnect_act
+        return None
 
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)

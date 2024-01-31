@@ -16,16 +16,15 @@ from ray.rllib.policy.policy import PolicySpec
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
-import warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-warnings.filterwarnings("ignore", category=Warning)
 
-def run_training(config: dict[str, Any]) -> None:
+
+def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     """
     Function that runs the training script.
     """
     # runtime_env = {"env_vars": {"PYTHONWARNINGS": "ignore"}}
     # ray.init(runtime_env= runtime_env, local_mode=False)
+    # init ray
     ray.init()
 
     # Get the hostname and port
@@ -40,14 +39,14 @@ def run_training(config: dict[str, Any]) -> None:
         ppo.PPO,
         param_space=config,
         run_config=air.RunConfig(
-            stop={"timesteps_total": config["nb_timesteps"]}, #100_000}, #
-            storage_path=os.path.abspath(config["storage_path"]),
+            stop={"timesteps_total": setup["nb_timesteps"]},
+            storage_path=os.path.abspath(setup["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=config["checkpoint_freq"],
+                checkpoint_frequency=setup["checkpoint_freq"],
                 checkpoint_at_end=True,
                 checkpoint_score_attribute="evaluation/episode_reward_mean",
             ),
-            verbose=config["verbose"],
+            verbose=setup["verbose"],
         ),
     )
 
@@ -66,7 +65,14 @@ def setup_config(config_path: str) -> None:
     # load base PPO config and load in hyperparameters
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
-    ppo_config.update(custom_config)
+    ppo_config.update(custom_config["training"])
+    ppo_config.update(custom_config["debugging"])
+    ppo_config.update(custom_config["framework"])
+    ppo_config.update(custom_config["rl_module"])
+    ppo_config.update(custom_config["explore"])
+    ppo_config.update(custom_config["callbacks"])
+    ppo_config.update(custom_config["environment"])
+    ppo_config.update(custom_config["multi_agent"])
 
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
@@ -79,7 +85,7 @@ def setup_config(config_path: str) -> None:
                     _enable_learner_api=False,
                     model={
                         "custom_model_config": {
-                            "rho_threshold": custom_config["env_config"][
+                            "rho_threshold": custom_config["environment"]["env_config"][
                                 "rho_threshold"
                             ]
                         }
@@ -99,10 +105,8 @@ def setup_config(config_path: str) -> None:
             observation_space=None,  # infer automatically from env
             action_space=None,  # infer automatically from env
             config=(
-                AlgorithmConfig()
-                .training(
-                    _enable_learner_api=False,
-                )
+                ppo.PPOConfig()
+                .training(**custom_config["training"])
                 .rl_module(_enable_rl_module_api=False)
                 .exploration(
                     exploration_config={
@@ -129,15 +133,13 @@ def setup_config(config_path: str) -> None:
     }
 
     # load environment and agents manually
-    ppo_config.update({"env": CustomizedGrid2OpEnvironment})
     ppo_config.update({"policies": policies})
+    ppo_config.update({"env": CustomizedGrid2OpEnvironment})
 
-    print(f"CONFIG={ppo_config['env_config']}")
-    run_training(ppo_config)
+    run_training(ppo_config, custom_config["setup"])
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
     parser.add_argument(

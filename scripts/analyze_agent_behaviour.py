@@ -21,17 +21,26 @@ def run_statistics(path: str, episode_list: list[EpisodeData]) -> None:
     """
     global_action_sequences = []
     global_topology_list = []
-
+    grid_objects_types = episode_list[0].observations[0].grid_objects_types
     for episode in episode_list:
         action_sequences = []
         current_sequence = []
         topology_list = [episode.observations[0].topo_vect]
 
         for idx, _ in enumerate(episode.actions):
-            # print(f"Observation before action: {episode.observations[idx].rho}")
+            # print(f"Observation before action: {episode.observations[idx].topo_vect}")
             # print(f"Action: {episode.actions[idx]}")
-            # print(f"Observation after action: {episode.observations[idx+1].rho}")
-            if episode.actions[idx].as_dict() != {}:
+            # print(f"Observation after action: {episode.observations[idx+1].topo_vect}")
+
+            implicit_do_nothing = np.array_equal(
+                episode.observations[idx].topo_vect,
+                episode.observations[idx + 1].topo_vect,
+            )
+
+            if implicit_do_nothing and episode.actions[idx].as_dict() != {}:
+                print("IMPLICIT DO NOTHING CAUGHT")
+
+            if episode.actions[idx].as_dict() != {} and not implicit_do_nothing:
                 # print(f"Played Action: {episode.actions[idx].as_dict()}")
                 topology_list.append(episode.observations[idx + 1].topo_vect)
                 current_sequence.append(episode.actions[idx].as_dict())
@@ -51,10 +60,16 @@ def run_statistics(path: str, episode_list: list[EpisodeData]) -> None:
 
         global_action_sequences.append(action_sequences)
         global_topology_list.append(topology_list)
-        save_scenario_statistics(path, episode.name, action_sequences, topology_list)
+        save_scenario_statistics(
+            path, episode.name, grid_objects_types, action_sequences, topology_list
+        )
 
     save_global_statistics(
-        path, episode_list, global_action_sequences, global_topology_list
+        path,
+        episode_list,
+        grid_objects_types,
+        global_action_sequences,
+        global_topology_list,
     )
 
 
