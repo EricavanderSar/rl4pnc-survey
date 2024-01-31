@@ -71,9 +71,9 @@ class RllibAgent(BaseAgent):
                 gym_obs, policy_id="reinforcement_learning_policy"
             )
 
-            print(
-                f"wrapper:{self.gym_wrapper.env_glop.simulate(self.gym_wrapper.env_gym.action_space.from_gym(action_comp))}"
-            )
+            # print(
+            #     f"wrapper:{self.gym_wrapper.env_glop.simulate(self.gym_wrapper.env_gym.action_space.from_gym(action_comp))}"
+            # )
 
         # TODO: add reconnect
 
@@ -156,7 +156,7 @@ class TopologyGreedyAgent(GreedyAgent):
                         simul_observation.to_dict()["rho"]
                     )
                     self.resulting_infos.append(simul_info)
-
+                    # print(simul_info)
                     # Include extra safeguard to prevent exception actions with converging powerflow
                     if simul_info["exception"]:
                         self.resulting_rho_observations[i] = 999999

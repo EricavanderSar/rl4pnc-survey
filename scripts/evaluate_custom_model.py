@@ -114,71 +114,96 @@ def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
         )
 
 
-def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> list[int]:
+def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
     """
     Perform runner on the implemented networks.
     """
-    # print and save results
-    with open(
-        f"results/{env_config['env_name']}/{type(agent_instance)}_{env_config['action_space']}_{env_config['rho_threshold']}.txt",
-        "w",
-        encoding="utf-8",
-    ) as file:
-        file.write(f"Threshold={env_config['rho_threshold']}\n")
+    is_opponent = env_config["grid2op_kwargs"]["kwargs_opponent"]
 
-    env = grid2op.make(env_config["env_name"])
+    # run the environment 10 times if an opponent is active, with different seeds
+    iter = 10 if is_opponent else 1
 
-    params = env.get_params_for_runner()
-    params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
-    del env_config["grid2op_kwargs"]["reward_class"]
+    for i in range(iter):
+        env_config["seed"] = env_config["seed"] + i
 
-    if env_config["grid2op_kwargs"]["kwargs_opponent"]:
-        params["opponent_kwargs"] = env_config["grid2op_kwargs"]["kwargs_opponent"]
-        del env_config["grid2op_kwargs"]["kwargs_opponent"]
-    params.update(env_config["grid2op_kwargs"])
+        # define the results folder path
+        results_folder = f"{env_config['lib_dir']}/results/{env_config['env_name']}"
+        file_name = f"{type(agent_instance)}_{env_config['action_space']}_{env_config['rho_threshold']}.txt"
 
-    runner = Runner(
-        **params,
-        agentClass=None,
-        agentInstance=agent_instance,
-    )
-    res = runner.run(
-        path_save=os.path.abspath(f"./runs/action_evaluation/{env_config['env_name']}"),
-        nb_episode=len(env.chronics_handler.subpaths),
-        max_iter=-1,
-        nb_process=1,
-    )
+        # check if the folder exists
+        if not os.path.exists(results_folder):
+            # if not, create the folder
+            os.makedirs(results_folder)
 
-    individual_timesteps = []
-
-    logging.info(f"The results for {agent_instance} agent are:")
-    for _, chron_name, cum_reward, nb_time_step, max_ts in res:
-        msg_tmp = f"\n\tFor chronics with id {chron_name}\n"
-        msg_tmp += f"\t\t - cumulative reward: {cum_reward:.6f}\n"
-        msg_tmp += (
-            f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
-        )
+        # now you can safely open the file
         with open(
-            f"results/{env_config['env_name']}/{type(agent_instance)}_{env_config['action_space']}_{env_config['rho_threshold']}.txt",
+            f"{results_folder}/{file_name}",
+            "w",
+            encoding="utf-8",
+        ) as file:
+            file.write(f"Threshold={env_config['rho_threshold']}\n")
+
+        env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+
+        params = env.get_params_for_runner()
+        params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
+        del env_config["grid2op_kwargs"]["reward_class"]
+
+        if is_opponent:
+            params["opponent_kwargs"] = env_config["grid2op_kwargs"]["kwargs_opponent"]
+            del env_config["grid2op_kwargs"]["kwargs_opponent"]
+        params.update(env_config["grid2op_kwargs"])
+
+        runner = Runner(
+            **params,
+            agentClass=None,
+            agentInstance=agent_instance,
+        )
+
+        store_trajectories_folder = f"{env_config['lib_dir']}/runs/action_evaluation"
+
+        # check if the folder exists
+        if not os.path.exists(store_trajectories_folder):
+            # if not, create the folder
+            os.makedirs(store_trajectories_folder)
+
+        res = runner.run(
+            path_save=os.path.abspath(
+                f"{store_trajectories_folder}/{env_config['env_name']}"
+            ),
+            # path_save=os.path.abspath(f"./runs/action_evaluation/{env_config['env_name']}"),
+            nb_episode=len(env.chronics_handler.subpaths),
+            max_iter=-1,
+            nb_process=1,
+        )
+
+        individual_timesteps = []
+
+        logging.info(f"The results for {agent_instance} agent are:")
+        for _, chron_name, cum_reward, nb_time_step, max_ts in res:
+            msg_tmp = f"\n\tFor chronics with id {chron_name}\n"
+            msg_tmp += f"\t\t - cumulative reward: {cum_reward:.6f}\n"
+            msg_tmp += f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
+            with open(
+                f"{results_folder}/{file_name}",
+                "a",
+                encoding="utf-8",
+            ) as file:
+                file.write(msg_tmp)
+
+            individual_timesteps.append(nb_time_step)
+            logging.info(msg_tmp)
+
+        with open(
+            f"{results_folder}/{file_name}",
             "a",
             encoding="utf-8",
         ) as file:
-            file.write(msg_tmp)
+            file.write(
+                f"\nAverage timesteps survived: {mean(individual_timesteps)}\n{individual_timesteps}"
+            )
 
-        individual_timesteps.append(nb_time_step)
-        logging.info(msg_tmp)
-
-    with open(
-        f"results/{env_config['env_name']}/{type(agent_instance)}_{env_config['action_space']}_{env_config['rho_threshold']}.txt",
-        "a",
-        encoding="utf-8",
-    ) as file:
-        file.write(
-            f"\nAverage timesteps survived: {mean(individual_timesteps)}\n{individual_timesteps}"
-        )
-
-    logging.info(f"Average timesteps survived: {mean(individual_timesteps)}")
-    return individual_timesteps
+        logging.info(f"Average timesteps survived: {mean(individual_timesteps)}")
 
 
 def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> None:
@@ -243,19 +268,21 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
     env_config["grid2op_kwargs"]["reward_class"] = instantiate_reward_class(
         env_config["grid2op_kwargs"]["reward_class"]
     )
-    env_config["grid2op_kwargs"][
-        "opponent_action_class"
-    ] = instantiate_opponent_classes(
-        env_config["grid2op_kwargs"]["opponent_action_class"]
-    )
-    env_config["grid2op_kwargs"][
-        "opponent_budget_class"
-    ] = instantiate_opponent_classes(
-        env_config["grid2op_kwargs"]["opponent_budget_class"]
-    )
-    env_config["grid2op_kwargs"]["opponent_class"] = instantiate_opponent_classes(
-        env_config["grid2op_kwargs"]["opponent_class"]
-    )
+
+    if env_config["grid2op_kwargs"]["opponent_action_class"]:
+        env_config["grid2op_kwargs"][
+            "opponent_action_class"
+        ] = instantiate_opponent_classes(
+            env_config["grid2op_kwargs"]["opponent_action_class"]
+        )
+        env_config["grid2op_kwargs"][
+            "opponent_budget_class"
+        ] = instantiate_opponent_classes(
+            env_config["grid2op_kwargs"]["opponent_budget_class"]
+        )
+        env_config["grid2op_kwargs"]["opponent_class"] = instantiate_opponent_classes(
+            env_config["grid2op_kwargs"]["opponent_class"]
+        )
 
     run_runner(
         env_config=env_config,

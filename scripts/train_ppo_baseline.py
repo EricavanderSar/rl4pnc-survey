@@ -97,9 +97,8 @@ def setup_config(config_path: str) -> None:
             action_space=None,  # infer automatically from env
             config=(
                 ppo.PPOConfig()
-                .training(**custom_config["training"])
-                .rl_module(_enable_rl_module_api=False)
-                .exploration(
+                # .training(**custom_config["training"])
+                .rl_module(_enable_rl_module_api=False).exploration(
                     exploration_config={
                         "type": "EpsilonGreedy",
                     }
