@@ -1,6 +1,7 @@
 # training
-nb_timesteps: &nb_timesteps 1000
-checkpoint_freq: 100
+nb_timesteps: &nb_timesteps 100_000
+checkpoint_freq: 2016
+checkpoint_trainable_policies_only: True
 verbose: 1
 gamma: 0.95 # !grid_search [0.95, 0.99]
 lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]

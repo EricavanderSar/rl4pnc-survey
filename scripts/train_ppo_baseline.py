@@ -16,18 +16,31 @@ from ray.rllib.policy.policy import PolicySpec
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
-
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=Warning)
 
 def run_training(config: dict[str, Any]) -> None:
     """
     Function that runs the training script.
     """
+    # runtime_env = {"env_vars": {"PYTHONWARNINGS": "ignore"}}
+    # ray.init(runtime_env= runtime_env, local_mode=False)
+    ray.init()
+
+    # Get the hostname and port
+    address = ray.worker._real_worker._global_node.address
+    host_name, port = address.split(":")
+
+    print("Hostname:", host_name)
+    print("Port:", port)
+
     # Create tuner
     tuner = tune.Tuner(
         ppo.PPO,
         param_space=config,
         run_config=air.RunConfig(
-            stop={"timesteps_total": config["nb_timesteps"]},
+            stop={"timesteps_total": config["nb_timesteps"]}, #100_000}, #
             storage_path=os.path.abspath(config["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=config["checkpoint_freq"],
@@ -124,6 +137,7 @@ def setup_config(config_path: str) -> None:
 
 
 if __name__ == "__main__":
+
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
     parser.add_argument(

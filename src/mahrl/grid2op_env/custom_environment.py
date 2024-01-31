@@ -8,6 +8,7 @@ from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, TypeVar
 
 import grid2op
+from lightsim2grid import LightSimBackend
 import gymnasium
 from grid2op.Action import BaseAction
 from grid2op.gym_compat import GymEnv
@@ -79,7 +80,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         #     )
 
         self.env_glop = grid2op.make(
-            env_config["env_name"], **env_config["grid2op_kwargs"]
+            env_config["env_name"], **env_config["grid2op_kwargs"], backend=LightSimBackend()
         )
         self.env_glop.seed(env_config["seed"])
 
@@ -193,8 +194,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         This function performs a single step in the environment.
         """
-        # Increase step
-        self.step_nb = self.step_nb + 1
+        # # Increase step
+        # self.step_nb = self.step_nb + 1
 
         # Build termination dict
         terminateds = {
@@ -262,6 +263,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {}
+            # Increase step
+            self.step_nb = self.step_nb + 1
             # infos = {"__all__": {"rho_threshold": self.threshold}}
         elif bool(action_dict) is False:
             logging.info("Caution: Empty action dictionary!")
@@ -284,13 +287,12 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         Loads the action space from a specified folder.
         """
-        print(path)
-        if os.path.exists(path):
-            print("THE path printed exists!!!")
-        else:
-            print("The path does NOT exist!")
+        # print(path)
+        # if os.path.exists(path):
+        #     print("THE path printed exists!!!")
+        # else:
+        #     print("The path does NOT exist!")
         with open(path, "rt", encoding="utf-8") as action_set_file:
-            print(path)
             return list(
                 (
                     self.env_glop.action_space(action_dict)
