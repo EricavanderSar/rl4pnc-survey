@@ -2,6 +2,7 @@
 Utilities in the grid2op and gym convertion.
 """
 import os
+from typing import Any
 
 import grid2op
 import gymnasium
@@ -38,12 +39,10 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
         self.do_nothing = do_nothing
         super().__init__(n=converter.n)
 
-    def from_gym(self, gym_action: int) -> BaseAction:
+    def from_gym(self, gym_action: dict[str, Any]) -> BaseAction:
         """
         Function that converts a gym action into a grid2op action.
         """
-        # if gym_action == -1:
-        #     return self.do_nothing
         return self.converter.convert_act(gym_action)
 
     def close(self) -> None:

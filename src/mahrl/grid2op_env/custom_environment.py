@@ -21,8 +21,6 @@ from mahrl.grid2op_env.utils import (
     setup_converter,
 )
 
-# TODO: Investigate why all agents are always called
-
 CHANGEABLE_SUBSTATIONS = [0, 2, 3]
 
 OBSTYPE = TypeVar("OBSTYPE")
@@ -30,7 +28,7 @@ ACTTYPE = TypeVar("ACTTYPE")
 RENDERFRAME = TypeVar("RENDERFRAME")
 
 # Configure the logging module
-logging.basicConfig(filename="example.log", level=logging.INFO)
+# logging.basicConfig(filename="example.log", level=logging.INFO)
 
 
 class CustomizedGrid2OpEnvironment(MultiAgentEnv):
@@ -52,38 +50,21 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             )
         self.max_tsteps = env_config["max_tsteps"]
         lib_dir = env_config["lib_dir"]
-        # self.threshold = env_config["rho_threshold"]
+
         self.env_glop = grid2op.make(
             env_config["env_name"], **env_config["grid2op_kwargs"]
         )
         self.env_glop.seed(env_config["seed"])
 
         # 1.a. Setting up custom action space
-        if env_config["action_space"] == "asymmetry":
+        if (
+            env_config["action_space"] == "asymmetry"
+            or env_config["action_space"] == "medha"
+            or env_config["action_space"] == "tennet"
+        ):
             path = os.path.join(
                 lib_dir,
-                "data",
-                "action_spaces",
-                env_config["env_name"],
-                "asymmetry.json",
-            )
-            possible_substation_actions = self.load_action_space(path)
-        if env_config["action_space"] == "medha":
-            path = os.path.join(
-                lib_dir,
-                "data",
-                "action_spaces",
-                env_config["env_name"],
-                "medha.json",
-            )
-            possible_substation_actions = self.load_action_space(path)
-        elif env_config["action_space"] == "tennet":
-            path = os.path.join(
-                lib_dir,
-                "data",
-                "action_spaces",
-                env_config["env_name"],
-                "tennet.json",
+                f"data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
             )
             possible_substation_actions = self.load_action_space(path)
         elif env_config["action_space"] == "erica":
@@ -93,13 +74,12 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         else:
             path = os.path.join(
                 lib_dir,
-                "data",
-                "action_spaces",
-                env_config["env_name"],
-                "asymmetry.json",
+                f"data/action_spaces/{env_config['env_name']}/asymmetry.json",
             )
             possible_substation_actions = self.load_action_space(path)
-            logging.info("No action space is defined, using asymmetrical action space.")
+            logging.warning(
+                "No valid space is defined, using asymmetrical action space."
+            )
 
         logging.info(f"LEN ACTIONS={len(possible_substation_actions)}")
         # Add the do-nothing action at index 0
@@ -132,10 +112,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             dict(self.env_gym.observation_space.spaces.items())
         )
 
-        self.previous_obs: OrderedDict[
-            str, Any
-        ] = OrderedDict()  # TODO: How to initalize?
+        self.previous_obs: OrderedDict[str, Any] = OrderedDict()
         self.step_nb = 0
+        self.reconnect_line = None
 
     def reset(
         self,
@@ -148,7 +127,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         self.previous_obs, infos = self.env_gym.reset()
         observations = {"high_level_agent": self.previous_obs}
-        # infos = {"high_level_agent": {"rho_threshold": self.threshold}}
         return observations, infos
 
     def step(
@@ -159,12 +137,13 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         This function performs a single step in the environment.
         """
+
         # Increase step
         self.step_nb = self.step_nb + 1
 
         # Build termination dict
         terminateds = {
-            "__all__": self.step_nb >= self.max_tsteps,  # TODO ADJUST
+            "__all__": self.step_nb >= self.max_tsteps,
         }
 
         truncateds = {
@@ -172,7 +151,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         }
 
         rewards: Dict[str, Any] = {}
-        # infos: Dict[str, Any] = {"__all__": {"rho_threshold": self.threshold}}
         infos: Dict[str, Any] = {}
 
         logging.info(f"ACTION_DICT = {action_dict}")
@@ -181,20 +159,17 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             action = action_dict["high_level_agent"]
             if action == 0:
                 # do something
-                logging.info("high_level_agent SAYS: DO SOMETHING")
                 observations = {"reinforcement_learning_agent": self.previous_obs}
             elif action == 1:
-                # if np.max(self.previous_obs["rho"]) < RHO_THRESHOLD:
                 # do nothing
-                logging.info("AGENT 1 SAYS: DO NOTHING")
                 observations = {"do_nothing_agent": self.previous_obs}
             else:
                 raise ValueError(
                     "An invalid action is selected by the high_level_agent in step()."
                 )
         elif "do_nothing_agent" in action_dict.keys():
-            # do nothing
             logging.info("do_nothing_agent IS CALLED: DO NOTHING")
+
             # overwrite action in action_dict to nothing
             action = action_dict["do_nothing_agent"]
             (
@@ -204,17 +179,17 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 truncated,
                 infos,
             ) = self.env_gym.step(action)
-            # give reward to RL agent
+
+            # still give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {}
-            # infos = {"__all__": {"rho_threshold": self.threshold}}
         elif "reinforcement_learning_agent" in action_dict.keys():
-            # perform action
             logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
             action = action_dict["reinforcement_learning_agent"]
+
             (
                 self.previous_obs,
                 reward,
@@ -222,22 +197,22 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 truncated,
                 infos,
             ) = self.env_gym.step(action)
+
             # give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {}
-            # infos = {"__all__": {"rho_threshold": self.threshold}}
         elif bool(action_dict) is False:
             logging.info("Caution: Empty action dictionary!")
             rewards = {}
             observations = {}
             infos = {}
-            # infos = {"__all__": {"rho_threshold": self.threshold}}
         else:
             logging.info(f"ACTION_DICT={action_dict}")
             raise ValueError("No agent found in action dictionary in step().")
+
         return observations, rewards, terminateds, truncateds, infos
 
     def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:

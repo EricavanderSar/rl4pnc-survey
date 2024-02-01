@@ -5,6 +5,13 @@ Implements yaml config loading.
 from typing import Any, Callable, Union
 
 import yaml
+from grid2op.Action import BaseAction, PowerlineSetAction
+from grid2op.Opponent import (
+    BaseActionBudget,
+    BaseOpponent,
+    OpponentSpace,
+    RandomLineOpponent,
+)
 from gymnasium.spaces import Discrete
 from ray import tune
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
@@ -16,6 +23,7 @@ from yaml.loader import FullLoader, Loader, UnsafeLoader
 from yaml.nodes import MappingNode, ScalarNode
 
 from mahrl.experiments.callback import CustomMetricsCallback
+from mahrl.experiments.opponent import ReconnectingOpponentSpace
 from mahrl.experiments.rewards import LossReward
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import (
@@ -151,6 +159,34 @@ def tune_choice_constructor(
     return tune.choice(vals)
 
 
+def powerline_action_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> BaseAction:
+    """Custom constructor for PowerlineSetAction"""
+    return PowerlineSetAction
+
+
+def randomline_opponent_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> BaseOpponent:
+    """Custom constructor for RandomLineOpponent"""
+    return RandomLineOpponent
+
+
+def baseaction_budget_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> BaseActionBudget:
+    """Custom constructor for BaseActionBudget"""
+    return BaseActionBudget
+
+
+def reconnecting_opponent_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> OpponentSpace:
+    """Custom constructor for ReconnectingOpponentSpace"""
+    return ReconnectingOpponentSpace
+
+
 def add_constructors() -> None:
     """Add the constructors to the yaml loader"""
     yaml.FullLoader.add_constructor(
@@ -171,9 +207,17 @@ def add_constructors() -> None:
     yaml.FullLoader.add_constructor("!quniform", tune_search_quniform_constructor)
     yaml.FullLoader.add_constructor("!grid_search", tune_search_grid_search_constructor)
     yaml.FullLoader.add_constructor("!choice", tune_choice_constructor)
+    yaml.FullLoader.add_constructor("!PowerlineSetAction", powerline_action_constructor)
+    yaml.FullLoader.add_constructor(
+        "!RandomLineOpponent", randomline_opponent_constructor
+    )
+    yaml.FullLoader.add_constructor("!BaseActionBudget", baseaction_budget_constructor)
+    yaml.FullLoader.add_constructor(
+        "!ReconnectingOpponentSpace", reconnecting_opponent_constructor
+    )
 
 
-def load_config(path: str) -> Any:  # TODO change to dict?
+def load_config(path: str) -> Any:
     """Adds constructors and returns config."""
     add_constructors()
 

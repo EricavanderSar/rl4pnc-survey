@@ -22,8 +22,6 @@ from ray.rllib.utils.typing import (
     TensorType,
 )
 
-RHO_THRESHOLD = 0.9  # TODO include in obs?
-
 
 def policy_mapping_fn(
     agent_id: str,
