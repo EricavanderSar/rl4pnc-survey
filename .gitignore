@@ -2,6 +2,7 @@
 *__pycache__/*
 *.py[cod]
 *$py.class
+src/mahrl/grid2op_env/__pycache__/utils.cpython-310.pyc
 
 # C extensions
 *.so

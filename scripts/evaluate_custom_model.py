@@ -220,7 +220,7 @@ def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> N
         None
     """
     actions_path = os.path.abspath(
-        f"data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
+        f"{env_config['lib_dir']}/data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
     )
 
     possible_actions = load_actions(actions_path, setup_env)
