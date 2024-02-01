@@ -123,18 +123,44 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
     """
     Perform runner on the implemented networks.
     """
+    results_folder = f"{env_config['lib_dir']}/results/{env_config['env_name']}"
+    # check if the folder exists
+    if not os.path.exists(results_folder):
+        # if not, create the folder
+        os.makedirs(results_folder)
+
+    env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+
+    params = env.get_params_for_runner()
+    params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
+    del env_config["grid2op_kwargs"]["reward_class"]
+
+    if "kwargs_opponent" in env_config["grid2op_kwargs"]:
+        env_config["grid2op_kwargs"]["opponent_kwargs"] = env_config["grid2op_kwargs"][
+            "kwargs_opponent"
+        ]
+        del env_config["grid2op_kwargs"]["kwargs_opponent"]
+    params.update(env_config["grid2op_kwargs"])
+
+    store_trajectories_folder = os.path.join(
+        env_config["lib_dir"], "runs/action_evaluation"
+    )
+
+    # check if the folder exists
+    if not os.path.exists(store_trajectories_folder):
+        # if not, create the folder
+        os.makedirs(store_trajectories_folder)
+
     # run the environment 10 times if an opponent is active, with different seeds
-    for i in range(10 if env_config["grid2op_kwargs"]["kwargs_opponent"] else 1):
+    for i in range(10 if "opponent_kwargs" in env_config["grid2op_kwargs"] else 1):
         env_config["seed"] = env_config["seed"] + i
 
         # define the results folder path
-        results_folder = f"{env_config['lib_dir']}/results/{env_config['env_name']}"
-        file_name = f"{type(agent_instance)}_{env_config['action_space']}_{env_config['rho_threshold']}.txt"
-
-        # check if the folder exists
-        if not os.path.exists(results_folder):
-            # if not, create the folder
-            os.makedirs(results_folder)
+        file_name = (
+            f"{type(agent_instance)}"
+            + f"_{'opponent' if 'opponent_kwargs' in env_config['grid2op_kwargs'] else 'no_opponent'}"
+            + f"_{env_config['action_space']}_{env_config['rho_threshold']}_{i}.txt"
+        )
 
         with open(
             f"{results_folder}/{file_name}",
@@ -142,26 +168,6 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             encoding="utf-8",
         ) as file:
             file.write(f"Threshold={env_config['rho_threshold']}\n")
-
-        env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
-
-        params = env.get_params_for_runner()
-        params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
-        del env_config["grid2op_kwargs"]["reward_class"]
-
-        if env_config["grid2op_kwargs"]["kwargs_opponent"]:
-            params["opponent_kwargs"] = env_config["grid2op_kwargs"]["kwargs_opponent"]
-            del env_config["grid2op_kwargs"]["kwargs_opponent"]
-        params.update(env_config["grid2op_kwargs"])
-
-        store_trajectories_folder = os.path.join(
-            env_config["lib_dir"], "runs/action_evaluation"
-        )
-
-        # check if the folder exists
-        if not os.path.exists(store_trajectories_folder):
-            # if not, create the folder
-            os.makedirs(store_trajectories_folder)
 
         res = Runner(
             **params,
