@@ -154,7 +154,9 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             del env_config["grid2op_kwargs"]["kwargs_opponent"]
         params.update(env_config["grid2op_kwargs"])
 
-        store_trajectories_folder = f"{env_config['lib_dir']}/runs/action_evaluation"
+        store_trajectories_folder = os.path.join(
+            env_config["lib_dir"], "runs/action_evaluation"
+        )
 
         # check if the folder exists
         if not os.path.exists(store_trajectories_folder):
