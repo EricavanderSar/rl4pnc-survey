@@ -8,10 +8,10 @@ import importlib
 import json
 import logging
 import os
+import re
 import time
 from statistics import mean
-from typing import Any, Optional
-import re
+from typing import Any
 
 import grid2op
 from grid2op.Action import BaseAction
@@ -25,7 +25,7 @@ from mahrl.evaluation.evaluation_agents import RllibAgent, TopologyGreedyAgent
 from mahrl.experiments.yaml import load_config
 
 
-def setup_parser(parser):
+def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
     """
     Set up the command-line argument parser.
 
@@ -89,16 +89,21 @@ def instantiate_reward_class(class_name: str) -> Any:
 
 
 def instantiate_opponent_classes(class_name: str) -> Any:
+    """
+    Instantiates opponent classes from json string.
+    """
     # extract the module and class names
-    match = re.match("<class '(.*)\.(.*)'>", class_name)
-    module_name = match.group(1)
-    class_name = match.group(2)
+    match = re.match(r"<class '(.*)\.(.*)'>", class_name)
+    if match:
+        module_name = match.group(1)
+        class_name = match.group(2)
 
-    # load the module
-    module = importlib.import_module(module_name)
+        # load the module
+        module = importlib.import_module(module_name)
 
-    # get the class from the module
-    return getattr(module, class_name)
+        # get the class from the module
+        return getattr(module, class_name)
+    raise ValueError("Problem instantiating opponent class for evaluation.")
 
 
 def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
@@ -118,12 +123,8 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
     """
     Perform runner on the implemented networks.
     """
-    is_opponent = env_config["grid2op_kwargs"]["kwargs_opponent"]
-
     # run the environment 10 times if an opponent is active, with different seeds
-    iter = 10 if is_opponent else 1
-
-    for i in range(iter):
+    for i in range(10 if env_config["grid2op_kwargs"]["kwargs_opponent"] else 1):
         env_config["seed"] = env_config["seed"] + i
 
         # define the results folder path
@@ -149,16 +150,10 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
         del env_config["grid2op_kwargs"]["reward_class"]
 
-        if is_opponent:
+        if env_config["grid2op_kwargs"]["kwargs_opponent"]:
             params["opponent_kwargs"] = env_config["grid2op_kwargs"]["kwargs_opponent"]
             del env_config["grid2op_kwargs"]["kwargs_opponent"]
         params.update(env_config["grid2op_kwargs"])
-
-        runner = Runner(
-            **params,
-            agentClass=None,
-            agentInstance=agent_instance,
-        )
 
         store_trajectories_folder = f"{env_config['lib_dir']}/runs/action_evaluation"
 
@@ -167,7 +162,11 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             # if not, create the folder
             os.makedirs(store_trajectories_folder)
 
-        res = runner.run(
+        res = Runner(
+            **params,
+            agentClass=None,
+            agentInstance=agent_instance,
+        ).run(
             path_save=os.path.abspath(
                 f"{store_trajectories_folder}/{env_config['env_name']}"
             ),
@@ -181,18 +180,23 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
 
         logging.info(f"The results for {agent_instance} agent are:")
         for _, chron_name, cum_reward, nb_time_step, max_ts in res:
-            msg_tmp = f"\n\tFor chronics with id {chron_name}\n"
-            msg_tmp += f"\t\t - cumulative reward: {cum_reward:.6f}\n"
-            msg_tmp += f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
             with open(
                 f"{results_folder}/{file_name}",
                 "a",
                 encoding="utf-8",
             ) as file:
-                file.write(msg_tmp)
+                file.write(
+                    f"\n\tFor chronics with id {chron_name}\n"
+                    + f"\t\t - cumulative reward: {cum_reward:.6f}\n"
+                    + f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
+                )
 
             individual_timesteps.append(nb_time_step)
-            logging.info(msg_tmp)
+            logging.info(
+                f"\n\tFor chronics with id {chron_name}\n"
+                + f"\t\t - cumulative reward: {cum_reward:.6f}\n"
+                + f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
+            )
 
         with open(
             f"{results_folder}/{file_name}",
@@ -300,27 +304,27 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
 if __name__ == "__main__":
     start_time = time.time()
 
-    parser = argparse.ArgumentParser(description="Process possible variables.")
-    args = setup_parser(parser)
+    init_parser = argparse.ArgumentParser(description="Process possible variables.")
+    args = setup_parser(init_parser)
 
     # Check which arguments are provided
     if args.greedy or args.nothing:  # run donothing or greedy evaluation
         if not args.config:
-            parser.print_help()
+            init_parser.print_help()
             logging.error("\nError: --actions is required for the greedy agent.")
         else:
             # load config file
-            env_config = load_config(args.config)["environment"]["env_config"]
-            setup_env = grid2op.make(env_config["env_name"])
+            environment_config = load_config(args.config)["environment"]["env_config"]
+            init_setup_env = grid2op.make(environment_config["env_name"])
 
             # start runners
             if args.greedy:
-                setup_greedy_evaluation(env_config, setup_env)
+                setup_greedy_evaluation(environment_config, init_setup_env)
             else:
-                setup_do_nothing_evaluation(env_config, setup_env)
+                setup_do_nothing_evaluation(environment_config, init_setup_env)
     else:  # run Rllib evaluations #TODO check if works after retraining with new opponent
         if not args.file_path:
-            parser.print_help()
+            init_parser.print_help()
             logging.error("\nError: --file_path is required.")
         else:
             if not args.checkpoint_name:

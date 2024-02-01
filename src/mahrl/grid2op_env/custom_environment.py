@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional, Tuple, TypeVar
 
 import grid2op
 import gymnasium
-import numpy as np
 from grid2op.Action import BaseAction
 from grid2op.gym_compat import GymEnv
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
@@ -17,14 +16,11 @@ from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
 # from mahrl.experiments.opponent import ReconnectingOpponentSpace
-from mahrl.grid2op_env.utils import (
+from mahrl.grid2op_env.utils import (  # reconnect_action,; remember_disconnect,
     CustomDiscreteActions,
     get_possible_topologies,
     setup_converter,
-    reconnect_action,
-    remember_disconnect,
 )
-
 
 CHANGEABLE_SUBSTATIONS = [0, 2, 3]
 
@@ -61,6 +57,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         )
         self.env_glop.seed(env_config["seed"])
 
+        # print(self.env_glop._opponent_space_type)
         # 1.a. Setting up custom action space
         if (
             env_config["action_space"] == "asymmetry"
@@ -177,32 +174,32 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
             # overwrite action in action_dict to nothing
             action = action_dict["do_nothing_agent"]
-            reconnect_act, self.reconnect_line = reconnect_action(
-                self.env_gym, self.reconnect_line
-            )
-            action_comp = {"agent": action, "reconnect": reconnect_act}
+            # reconnect_act, self.reconnect_line = reconnect_action(
+            #     self.env_gym, self.reconnect_line
+            # )
+            # action_comp = {"agent": action, "reconnect": reconnect_act}
             (
                 self.previous_obs,
                 reward,
                 terminated,
                 truncated,
                 infos,
-            ) = self.env_gym.step(action_comp)
+            ) = self.env_gym.step(action)
 
             # still give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
-            self.reconnect_line = remember_disconnect(infos)
+            # self.reconnect_line = remember_disconnect(infos)
             infos = {}
         elif "reinforcement_learning_agent" in action_dict.keys():
             logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
             action = action_dict["reinforcement_learning_agent"]
-            reconnect_act, self.reconnect_line = reconnect_action(
-                self.env_gym, self.reconnect_line
-            )
-            action_comp = {"agent": action, "reconnect": reconnect_act}
+            # reconnect_act, self.reconnect_line = reconnect_action(
+            #     self.env_gym, self.reconnect_line
+            # )
+            # action_comp = {"agent": action, "reconnect": reconnect_act}
 
             (
                 self.previous_obs,
@@ -210,14 +207,14 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 terminated,
                 truncated,
                 infos,
-            ) = self.env_gym.step(action_comp)
+            ) = self.env_gym.step(action)
 
             # give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
-            self.reconnect_line = remember_disconnect(infos)
+            # self.reconnect_line = remember_disconnect(infos)
             infos = {}
         elif bool(action_dict) is False:
             logging.info("Caution: Empty action dictionary!")

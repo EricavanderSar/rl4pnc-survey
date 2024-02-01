@@ -9,8 +9,8 @@ debugging:
 
 training:
   # tunable parameters
+  lr: 0.05 # !grid_search [0.0005, 0.005, 0.05]
   gamma: 0.95 # !grid_search [0.95, 0.99]
-  lr: !grid_search [0.0005, 0.005, 0.05]
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
@@ -22,7 +22,7 @@ training:
     - 256
     - 256
   _enable_learner_api: False
-  
+
 rl_module:
   _enable_rl_module_api: False
 

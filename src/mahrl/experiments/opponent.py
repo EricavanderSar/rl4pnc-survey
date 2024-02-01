@@ -126,6 +126,8 @@ class ReconnectingOpponentSpace(OpponentSpace):
         # Check if attack has just stopped
         if self._attacked_line_id is not None and duration < 2:
             # Set remedial action to be used in the next time-step
+            # print(f"{self}: IDattack={self._attacked_line_id}")
+            # print(f"{self}: possible={self._remedial_actions}")
             self._remedial_action = self._remedial_actions[self._attacked_line_id]
 
             # Set attack as not running anymore
@@ -141,3 +143,76 @@ class ReconnectingOpponentSpace(OpponentSpace):
             self._remedial_action = None
 
         return attack, duration
+
+    def _get_state(
+        self,
+    ) -> tuple[
+        tuple[
+            float,
+            bool,
+            int,
+            int,
+            BaseAction,
+            BaseAction | None,
+            dict[int, BaseAction],
+            int | None,
+        ],
+        None,
+    ]:
+        """
+        Gets state for simulation and deep copy.
+        """
+        # used for simulate
+        state_me = (
+            self.budget,
+            self.previous_fails,
+            self.current_attack_duration,
+            self.current_attack_cooldown,
+            self.last_attack,
+            self._remedial_action,
+            self._remedial_actions,
+            self._attacked_line_id,
+        )
+
+        state_opp = self.opponent.get_state()
+        return state_me, state_opp
+
+    def _set_state(
+        self,
+        my_state: tuple[
+            float,
+            bool,
+            int,
+            int,
+            BaseAction,
+            BaseAction | None,
+            dict[int, BaseAction],
+            int | None,
+        ],
+        opp_state: None = None,
+    ) -> None:
+        """
+        Sets state for simulation and deep copy.
+        """
+
+        # used for simulate (and for deep copy)
+        if opp_state is not None:
+            self.opponent.set_state(opp_state)
+        (
+            budget,
+            previous_fails,
+            current_attack_duration,
+            current_attack_cooldown,
+            last_attack,
+            remedial_action,
+            remedial_actions,
+            attacked_line_id,
+        ) = my_state
+        self.budget = budget
+        self.previous_fails = previous_fails
+        self.current_attack_duration = current_attack_duration
+        self.current_attack_cooldown = current_attack_cooldown
+        self.last_attack = last_attack
+        self._remedial_action = remedial_action
+        self._remedial_actions = remedial_actions
+        self._attacked_line_id = attacked_line_id

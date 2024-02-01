@@ -1,6 +1,6 @@
 setup:
-  nb_timesteps: &nb_timesteps 1000
-  checkpoint_freq: 100
+  nb_timesteps: &nb_timesteps 100000
+  checkpoint_freq: 10000
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
 
@@ -59,7 +59,7 @@ environment:
       opponent_action_class: !PowerlineSetAction 
       opponent_class: !RandomLineOpponent
       opponent_budget_class: !BaseActionBudget
-      # opponent_space_type: !ReconnectingOpponentSpace #reconnecting_opponent
+      opponent_space_type: !ReconnectingOpponentSpace #reconnecting_opponent
       kwargs_opponent:
         lines_attacked:
           - '0_2_1'

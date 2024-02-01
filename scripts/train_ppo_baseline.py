@@ -95,15 +95,7 @@ def setup_config(config_path: str) -> None:
             policy_class=None,  # use default policy of PPO
             observation_space=None,  # infer automatically from env
             action_space=None,  # infer automatically from env
-            config=(
-                ppo.PPOConfig()
-                # .training(**custom_config["training"])
-                .rl_module(_enable_rl_module_api=False).exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
-            ),
+            config=None,
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,

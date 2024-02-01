@@ -16,7 +16,8 @@ from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
 
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.grid2op_env.utils import reconnect_action, remember_disconnect
+
+# from mahrl.grid2op_env.utils import reconnect_action, remember_disconnect
 
 
 class RllibAgent(BaseAgent):
@@ -71,12 +72,6 @@ class RllibAgent(BaseAgent):
                 gym_obs, policy_id="reinforcement_learning_policy"
             )
 
-            # print(
-            #     f"wrapper:{self.gym_wrapper.env_glop.simulate(self.gym_wrapper.env_gym.action_space.from_gym(action_comp))}"
-            # )
-
-        # TODO: add reconnect
-
         # convert Rllib action to grid2op
         return self.gym_wrapper.env_gym.action_space.from_gym(action_comp)
 
@@ -129,8 +124,6 @@ class TopologyGreedyAgent(GreedyAgent):
             The action chosen by the bot / controller / agent.
 
         """
-        # TODO ADD AUTOMATIC RECONNECT?
-
         # get all possible actions to be tested
         self.tested_action = self._get_tested_action(observation)
 
@@ -141,10 +134,10 @@ class TopologyGreedyAgent(GreedyAgent):
                 self.resulting_rewards = np.full(
                     shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
                 )
-                self.resulting_rho_observations = np.full(
+                resulting_rho_observations = np.full(
                     shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
                 )
-                self.resulting_infos = []
+                resulting_infos = []
                 for i, action in enumerate(self.tested_action):
                     (
                         simul_observation,
@@ -152,16 +145,16 @@ class TopologyGreedyAgent(GreedyAgent):
                         _,
                         simul_info,
                     ) = observation.simulate(action)
-                    self.resulting_rho_observations[i] = np.max(
+                    resulting_rho_observations[i] = np.max(
                         simul_observation.to_dict()["rho"]
                     )
-                    self.resulting_infos.append(simul_info)
+                    resulting_infos.append(simul_info)
                     # print(simul_info)
                     # Include extra safeguard to prevent exception actions with converging powerflow
                     if simul_info["exception"]:
-                        self.resulting_rho_observations[i] = 999999
+                        resulting_rho_observations[i] = 999999
 
-                rho_idx = int(np.argmin(self.resulting_rho_observations))
+                rho_idx = int(np.argmin(resulting_rho_observations))
                 best_action = self.tested_action[rho_idx]
             else:
                 best_action = self.tested_action[0]
