@@ -55,25 +55,20 @@ class RllibAgent(BaseAgent):
         Returns a grid2op action based on a RLlib observation.
         """
 
-        # print(f"obs={observation.to_dict()}")
         # Grid2Op to RLlib observation
         gym_obs = self.gym_wrapper.env_gym.observation_space.to_gym(observation)
         gym_obs = OrderedDict(
             (k, gym_obs[k]) for k in self.gym_wrapper.observation_space.spaces
         )
-        # print(f"reconnectline= {self.gym_wrapper.reconnect_line}")
-        # print(f"agent={self._rllib_agent.info}")
-        # standard: do nothing (int=0), no reconnection
-        action_comp = {"agent": 0, "reconnect": None}
 
         if np.max(gym_obs["rho"]) > self.threshold:
             # get action as int
-            action_comp["agent"] = self._rllib_agent.compute_single_action(
+            action = self._rllib_agent.compute_single_action(
                 gym_obs, policy_id="reinforcement_learning_policy"
             )
 
         # convert Rllib action to grid2op
-        return self.gym_wrapper.env_gym.action_space.from_gym(action_comp)
+        return self.gym_wrapper.env_gym.action_space.from_gym(action)
 
 
 class TopologyGreedyAgent(GreedyAgent):
@@ -149,7 +144,7 @@ class TopologyGreedyAgent(GreedyAgent):
                         simul_observation.to_dict()["rho"]
                     )
                     resulting_infos.append(simul_info)
-                    # print(simul_info)
+
                     # Include extra safeguard to prevent exception actions with converging powerflow
                     if simul_info["exception"]:
                         resulting_rho_observations[i] = 999999

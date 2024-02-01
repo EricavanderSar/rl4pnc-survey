@@ -20,8 +20,6 @@ class ReconnectingOpponentSpace(OpponentSpace):
     action has finished running
     """
 
-    # TODO: Not plugged into the rest of the code yet
-
     def __init__(
         self,
         compute_budget: float,
@@ -55,14 +53,6 @@ class ReconnectingOpponentSpace(OpponentSpace):
 
         # Initialize list of remedial actions
         self._remedial_actions: dict[int, BaseAction] = {}
-        # print(f"{self}: OVERWRITE REMEDIALS from __init__")
-
-        # if self.opponent._lines_ids is None:
-        #     print(f"Opp: None: {self}.")
-        # elif len(self.opponent._lines_ids) < 1:
-        #     print("Opp: No lines in opponent config.")
-        # elif len(self._remedial_actions) < 1:
-        #     print("Opp: No lines in remedial actions.")
 
     def init_opponent(self, partial_env: BaseEnv, **kwargs: dict[Any, Any]) -> None:
         """
@@ -72,21 +62,15 @@ class ReconnectingOpponentSpace(OpponentSpace):
         super().init_opponent(partial_env, **kwargs)
 
         # Create remedial actions
-        # TODO this does not work for all opponents
-        # print(f"lines_ids={self.opponent._lines_ids}")
         self._remedial_actions = {
             line_id: self.action_space({"set_line_status": (line_id, 1)})
             for line_id in self.opponent._lines_ids  # pylint: disable=protected-access
         }
-        # print(
-        #     f"{self}: init_opponent gets called: init remedial {self._remedial_actions}"
-        # )
 
     def reset(self) -> None:
         """
         Reset attack running and remedial action
         """
-        # print(f"{self}: RESET: {self._remedial_actions}")
         # Call OpponentSpace's reset
         super().reset()
 
@@ -95,8 +79,6 @@ class ReconnectingOpponentSpace(OpponentSpace):
 
         # Reset remdial action
         self._remedial_action = None
-
-        # print(f"AFTER RESET: init remedial {self._remedial_actions}")
 
     def attack(
         self,
@@ -117,17 +99,10 @@ class ReconnectingOpponentSpace(OpponentSpace):
         if attack is not None and duration > 0:
             # Extract line id from attack action
             self._attacked_line_id = int(attack.set_line_status.argmin())
-            # print(
-            #     f"{self}: IDattack={self._attacked_line_id}, RemActsOptions={self._remedial_actions}"
-            # )
-        # else:
-        #     print(f"{self}: No attack running, RemActsOptions={self._remedial_actions}")
 
         # Check if attack has just stopped
         if self._attacked_line_id is not None and duration < 2:
             # Set remedial action to be used in the next time-step
-            # print(f"{self}: IDattack={self._attacked_line_id}")
-            # print(f"{self}: possible={self._remedial_actions}")
             self._remedial_action = self._remedial_actions[self._attacked_line_id]
 
             # Set attack as not running anymore

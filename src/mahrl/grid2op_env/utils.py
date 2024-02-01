@@ -43,12 +43,6 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
         """
         Function that converts a gym action into a grid2op action.
         """
-        # if gym_action["reconnect"]:
-        #     return (
-        #         self.converter.convert_act(gym_action["agent"])
-        #         + gym_action["reconnect"]
-        #     )
-        # return self.converter.convert_act(gym_action["agent"])
         return self.converter.convert_act(gym_action)
 
     def close(self) -> None:
@@ -101,30 +95,3 @@ def setup_converter(
     converter = IdToAct(env.action_space)
     converter.init_converter(all_actions=possible_substation_actions)
     return converter
-
-
-# def remember_disconnect(info: dict[str, Any]) -> Optional[int]:
-#     """
-#     Remembers the line that was disconnected by the opponent.
-#     """
-#     if isinstance(info["opponent_attack_line"], np.ndarray):
-#         if info["opponent_attack_duration"] == 1:
-#             line_id_attacked = np.argwhere(info["opponent_attack_line"]).flatten()[0]
-#             return line_id_attacked
-#         return None
-#     return None
-
-
-# def reconnect_action(
-#     env_gym: GymnasiumEnv, reconnect_line: int
-# ) -> tuple[Optional[BaseAction], Optional[int]]:
-#     """
-#     Automatically reconnects a line after an opponent attack.
-#     """
-#     if reconnect_line is not None:
-#         reconnect_act = env_gym.init_env.action_space(
-#             {"set_line_status": (reconnect_line, 1)}
-#         )
-#         reconnect_line = None
-#         return reconnect_act, None
-#     return None, None

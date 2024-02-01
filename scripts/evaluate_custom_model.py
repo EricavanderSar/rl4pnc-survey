@@ -136,7 +136,6 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             # if not, create the folder
             os.makedirs(results_folder)
 
-        # now you can safely open the file
         with open(
             f"{results_folder}/{file_name}",
             "w",
@@ -170,7 +169,6 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             path_save=os.path.abspath(
                 f"{store_trajectories_folder}/{env_config['env_name']}"
             ),
-            # path_save=os.path.abspath(f"./runs/action_evaluation/{env_config['env_name']}"),
             nb_episode=len(env.chronics_handler.subpaths),
             max_iter=-1,
             nb_process=1,
@@ -322,7 +320,7 @@ if __name__ == "__main__":
                 setup_greedy_evaluation(environment_config, init_setup_env)
             else:
                 setup_do_nothing_evaluation(environment_config, init_setup_env)
-    else:  # run Rllib evaluations #TODO check if works after retraining with new opponent
+    else:
         if not args.file_path:
             init_parser.print_help()
             logging.error("\nError: --file_path is required.")
