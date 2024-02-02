@@ -36,7 +36,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
 
     # Create tuner
     tuner = tune.Tuner(
-        ppo.PPO,
+        trainable=ppo.PPO,
         param_space=config,
         run_config=air.RunConfig(
             stop={"timesteps_total": setup["nb_timesteps"]},
@@ -92,11 +92,11 @@ def setup_config(config_path: str) -> None:
                     },
                 )
                 .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
+                # .exploration(
+                #     exploration_config={
+                #         "type": "EpsilonGreedy",
+                #     }
+                # )
                 .rollouts(preprocessor_pref=None)
             ),
         ),
@@ -108,11 +108,12 @@ def setup_config(config_path: str) -> None:
                 ppo.PPOConfig()
                 .training(**custom_config["training"])
                 .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
+                # .evaluation_config()
+                # .exploration(
+                #     exploration_config={
+                #         "type": "EpsilonGreedy",
+                #     }
+                # )
             ),
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
@@ -123,11 +124,11 @@ def setup_config(config_path: str) -> None:
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
                 .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
+                # .exploration(
+                #     exploration_config={
+                #         "type": "EpsilonGreedy",
+                #     }
+                # )
             ),
         ),
     }
@@ -146,7 +147,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default="../configs/rte_case5_example/ppo_baseline.yaml",
+        default= "../configs/rte_case5_example/ppo_baseline.yaml", #"../configs/rte_case14_realistic/ppo_baseline.yaml",  #
         help="Path to the config file.",
     )
 
