@@ -10,21 +10,17 @@ from typing import Any, Dict, List, Optional, Tuple, TypeVar
 import grid2op
 from lightsim2grid import LightSimBackend
 import gymnasium
-import numpy as np
 from grid2op.Action import BaseAction
 from grid2op.gym_compat import GymEnv
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
-# from mahrl.experiments.opponent import ReconnectingOpponentSpace
 from mahrl.grid2op_env.utils import (
     CustomDiscreteActions,
     get_possible_topologies,
     setup_converter,
 )
-
-# TODO: Investigate why all agents are always called
 
 CHANGEABLE_SUBSTATIONS = [0, 2, 3]
 
@@ -119,9 +115,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             dict(self.env_gym.observation_space.spaces.items())
         )
 
-        self.previous_obs: OrderedDict[
-            str, Any
-        ] = OrderedDict()  # TODO: How to initalize?
+        self.previous_obs: OrderedDict[str, Any] = OrderedDict()
         self.step_nb = 0
         self.reconnect_line = None
 
@@ -152,7 +146,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         # Build termination dict
         terminateds = {
-            "__all__": self.step_nb >= self.max_tsteps,  # TODO ADJUST
+            "__all__": self.step_nb >= self.max_tsteps,
         }
 
         truncateds = {
@@ -181,32 +175,23 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
             # overwrite action in action_dict to nothing
             action = action_dict["do_nothing_agent"]
-            action_comp = {
-                "agent": action,
-                "reconnect": self.reconnect_action(),
-            }
             (
                 self.previous_obs,
                 reward,
                 terminated,
                 truncated,
                 infos,
-            ) = self.env_gym.step(action_comp)
+            ) = self.env_gym.step(action)
 
             # still give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
-            self.remember_disconnect(infos)
             infos = {}
         elif "reinforcement_learning_agent" in action_dict.keys():
             logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
             action = action_dict["reinforcement_learning_agent"]
-            action_comp = {
-                "agent": action,
-                "reconnect": self.reconnect_action(),
-            }
 
             (
                 self.previous_obs,
@@ -214,14 +199,13 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 terminated,
                 truncated,
                 infos,
-            ) = self.env_gym.step(action_comp)
+            ) = self.env_gym.step(action)
 
             # give reward to RL agent
             rewards = {"reinforcement_learning_agent": reward}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
-            self.remember_disconnect(infos)
             infos = {}
         elif bool(action_dict) is False:
             logging.info("Caution: Empty action dictionary!")
@@ -251,29 +235,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                     for action_dict in json.load(action_set_file)
                 )
             )
-
-    def remember_disconnect(self, info: dict[str, Any]) -> None:
-        """
-        Remembers the line that was disconnected by the opponent.
-        """
-        if isinstance(info["opponent_attack_line"], np.ndarray):
-            if info["opponent_attack_duration"] == 1:
-                line_id_attacked = np.argwhere(info["opponent_attack_line"]).flatten()[
-                    0
-                ]
-                self.reconnect_line = line_id_attacked
-
-    def reconnect_action(self) -> Optional[BaseAction]:
-        """
-        Automatically reconnects a line after an opponent attack.
-        """
-        if self.reconnect_line is not None:
-            reconnect_act = self.env_gym.init_env.action_space(
-                {"set_line_status": (self.reconnect_line, 1)}
-            )
-            self.reconnect_line = None
-            return reconnect_act
-        return None
 
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)

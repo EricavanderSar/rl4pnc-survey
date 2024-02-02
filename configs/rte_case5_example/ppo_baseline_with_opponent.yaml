@@ -1,5 +1,5 @@
 setup:
-  nb_timesteps: &nb_timesteps 1000000
+  nb_timesteps: &nb_timesteps 100000
   checkpoint_freq: 10000
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
@@ -49,7 +49,6 @@ environment:
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
       # general kwargs
-      test: True
       reward_class: !LossReward
       # kwargs specific to opponents
       opponent_attack_cooldown: 144 # max 2 attacks per day
@@ -59,9 +58,9 @@ environment:
       opponent_action_class: !PowerlineSetAction 
       opponent_class: !RandomLineOpponent
       opponent_budget_class: !BaseActionBudget
-      # opponent_space_type: !ReconnectingOpponentSpace #reconnecting_opponent
+      opponent_space_type: !ReconnectingOpponentSpace #reconnecting_opponent
       kwargs_opponent:
-        lines_attacked: # TODO: define which lines fit case5
+        lines_attacked:
           - '0_2_1'
           - '0_3_2'
           - '2_3_6'

@@ -43,12 +43,7 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
         """
         Function that converts a gym action into a grid2op action.
         """
-        if gym_action["reconnect"]:
-            return (
-                self.converter.convert_act(gym_action["agent"])
-                + gym_action["reconnect"]
-            )
-        return self.converter.convert_act(gym_action["agent"])
+        return self.converter.convert_act(gym_action)
 
     def close(self) -> None:
         """Not implemented."""

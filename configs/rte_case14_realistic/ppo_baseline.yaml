@@ -49,7 +49,6 @@ environment:
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
       # general kwargs
-      test: True
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.95
