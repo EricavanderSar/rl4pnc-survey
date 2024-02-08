@@ -4,6 +4,7 @@ based on TenneT) for a specified grid2op environment.
 """
 
 import argparse
+import os
 
 import grid2op
 
@@ -20,7 +21,9 @@ from mahrl.experiments.utils import (
 )
 
 
-def create_action_spaces(env_name: str, action_spaces_to_create: list[str]) -> None:
+def create_action_spaces(
+    env_name: str, action_spaces_to_create: list[str], save_path: str
+) -> None:
     """
     Creates action spaces for a specified grid2op environment.
     """
@@ -34,7 +37,7 @@ def create_action_spaces(env_name: str, action_spaces_to_create: list[str]) -> N
                 "The number of possible actions does not match the mathematically calculated number of actions."
             )
 
-        file_path = f"data/action_spaces/{env_name}/asymmetry.json"
+        file_path = os.path.join(save_path, f"{env_name}/asymmetry.json")
         save_to_json(possible_actions, file_path)
     if "medha" in action_spaces_to_create:
         mathematically_possible_actions, _ = calculate_action_space_medha(env)
@@ -44,7 +47,7 @@ def create_action_spaces(env_name: str, action_spaces_to_create: list[str]) -> N
                 "The number of possible actions does not match the mathematically calculated number of actions."
             )
 
-        file_path = f"data/action_spaces/{env_name}/medha.json"
+        file_path = os.path.join(save_path, f"{env_name}/medha.json")
         save_to_json(possible_actions, file_path)
     if "tennet" in action_spaces_to_create:
         mathematically_possible_actions, _ = calculate_action_space_tennet(env)
@@ -54,7 +57,7 @@ def create_action_spaces(env_name: str, action_spaces_to_create: list[str]) -> N
                 "The number of possible actions does not match the mathematically calculated number of actions."
             )
 
-        file_path = f"data/action_spaces/{env_name}/tennet.json"
+        file_path = os.path.join(save_path, f"{env_name}/medha.json")
         save_to_json(possible_actions, file_path)
 
 
@@ -74,11 +77,18 @@ if __name__ == "__main__":
         help="Action space to be used.",
         default="all",
     )
+    parser.add_argument(
+        "-s",
+        "--save_path",
+        type=str,
+        help="Path the action spaces must be saved.",
+    )
 
     args = parser.parse_args()
 
     input_environment = args.environment
     input_action_space = args.action_space
+    input_save_path = args.save_path
 
     if input_action_space == "all":
         input_action_space = ["asymmetry", "medha", "tennet"]
@@ -92,4 +102,4 @@ if __name__ == "__main__":
         raise ValueError(
             "The action space must be either 'all', 'asymmetry', 'medha' or 'tennet'."
         )
-    create_action_spaces(input_environment, input_action_space)
+    create_action_spaces(input_environment, input_action_space, input_save_path)

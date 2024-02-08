@@ -1,6 +1,7 @@
 """
 Implements the codes to configure the three kinds of action spaces.
 """
+
 import json
 from collections import Counter
 from typing import List
