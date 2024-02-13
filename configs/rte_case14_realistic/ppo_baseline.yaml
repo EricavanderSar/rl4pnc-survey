@@ -28,7 +28,7 @@ rl_module:
 
 explore:
   exploration_config:
-    type: EpsilonGreedy
+    type: StochasticSampling
 
 callbacks:
   callbacks: !CustomMetricsCallback

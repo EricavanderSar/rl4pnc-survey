@@ -23,6 +23,7 @@ from ray.rllib.algorithms import ppo
 
 from mahrl.evaluation.evaluation_agents import RllibAgent, TopologyGreedyAgent
 from mahrl.experiments.yaml import load_config
+from mahrl.grid2op_env.utils import load_actions
 
 
 def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
@@ -104,19 +105,6 @@ def instantiate_opponent_classes(class_name: str) -> Any:
         # get the class from the module
         return getattr(module, class_name)
     raise ValueError("Problem instantiating opponent class for evaluation.")
-
-
-def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
-    """
-    Loads the .json with specified topology actions.
-    """
-    with open(path, "rt", encoding="utf-8") as action_set_file:
-        return list(
-            (
-                env.action_space(action_dict)
-                for action_dict in json.load(action_set_file)
-            )
-        )
 
 
 def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
@@ -280,15 +268,15 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
     )
 
     if env_config["grid2op_kwargs"]["opponent_action_class"]:
-        env_config["grid2op_kwargs"][
-            "opponent_action_class"
-        ] = instantiate_opponent_classes(
-            env_config["grid2op_kwargs"]["opponent_action_class"]
+        env_config["grid2op_kwargs"]["opponent_action_class"] = (
+            instantiate_opponent_classes(
+                env_config["grid2op_kwargs"]["opponent_action_class"]
+            )
         )
-        env_config["grid2op_kwargs"][
-            "opponent_budget_class"
-        ] = instantiate_opponent_classes(
-            env_config["grid2op_kwargs"]["opponent_budget_class"]
+        env_config["grid2op_kwargs"]["opponent_budget_class"] = (
+            instantiate_opponent_classes(
+                env_config["grid2op_kwargs"]["opponent_budget_class"]
+            )
         )
         env_config["grid2op_kwargs"]["opponent_class"] = instantiate_opponent_classes(
             env_config["grid2op_kwargs"]["opponent_class"]

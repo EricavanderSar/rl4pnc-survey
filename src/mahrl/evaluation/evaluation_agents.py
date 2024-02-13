@@ -2,10 +2,9 @@
 Describes classes of agents that can be evaluated.
 """
 
-
 import os
 from collections import OrderedDict
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from grid2op.Action import ActionSpace, BaseAction
@@ -16,8 +15,6 @@ from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
 
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-
-# from mahrl.grid2op_env.utils import reconnect_action, remember_disconnect
 
 
 class RllibAgent(BaseAgent):
@@ -93,7 +90,10 @@ class TopologyGreedyAgent(GreedyAgent):
         self.threshold = env_config["rho_threshold"]
 
     def act(
-        self, observation: BaseObservation, reward: BaseReward, done: bool = False
+        self,
+        observation: BaseObservation,
+        reward: Optional[BaseReward],
+        done: Optional[bool] = False,
     ) -> BaseAction:
         """
         By definition, all "greedy" agents are acting the same way. The only thing that can differentiate multiple

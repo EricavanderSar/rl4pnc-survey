@@ -1,7 +1,9 @@
 """
 Utilities in the grid2op and gym convertion.
 """
+
 import os
+import json
 from typing import Any
 
 import grid2op
@@ -95,3 +97,16 @@ def setup_converter(
     converter = IdToAct(env.action_space)
     converter.init_converter(all_actions=possible_substation_actions)
     return converter
+
+
+def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
+    """
+    Loads the .json with specified topology actions.
+    """
+    with open(path, "rt", encoding="utf-8") as action_set_file:
+        return list(
+            (
+                env.action_space(action_dict)
+                for action_dict in json.load(action_set_file)
+            )
+        )

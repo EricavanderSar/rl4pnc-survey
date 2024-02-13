@@ -7,7 +7,7 @@ import logging
 from grid2op.Environment import BaseEnv
 
 
-def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int]:
+def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, list[int]]:
     """
     Function prints and returns the number of legal actions and topologies without symmetries.
     """
@@ -16,7 +16,7 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int]:
 
     logging.info("no symmetries")
     action_space = 0
-    controllable_substations = 0
+    controllable_substations = []
     possible_topologies = 1
     for sub in range(nr_substations):
         nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
@@ -28,16 +28,16 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int]:
 
         alpha = 2 ** (nr_elements - 1) - (2**nr_non_lines - 1)
         action_space += alpha if alpha > 1 else 0
-        controllable_substations += 1 if alpha > 1 else 0
+        controllable_substations.append(sub) if alpha > 1 else 0
         possible_topologies *= max(alpha, 1)
 
     logging.info(f"actions {action_space}")
     logging.info(f"topologies {possible_topologies}")
     logging.info(f"controllable substations {controllable_substations}")
-    return action_space, possible_topologies
+    return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int]:
+def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, list[int]]:
     """
     Function prints and returns the number of legal actions and topologies following Subrahamian (2021).
     """
@@ -45,7 +45,7 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int]:
 
     logging.info("medha")
     action_space = 0
-    controllable_substations = 0
+    controllable_substations = []
     possible_topologies = 1
     for sub in range(nr_substations):
         nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
@@ -59,16 +59,16 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int]:
         gamma = 2**nr_non_lines - 1 - nr_non_lines
         combined = alpha - beta - gamma
         action_space += combined if combined > 1 else 0
-        controllable_substations += 1 if combined > 1 else 0
+        controllable_substations.append(sub) if combined > 1 else 0
         possible_topologies *= max(combined, 1)
 
     logging.info(f"actions {action_space}")
     logging.info(f"topologies {possible_topologies}")
     logging.info(f"controllable substations {controllable_substations}")
-    return action_space, possible_topologies
+    return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int]:
+def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
     """
     Function prints and returns the number of legal actions and topologies following the proposed action space.
     """
@@ -76,7 +76,7 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int]:
 
     logging.info("TenneT")
     action_space = 0
-    controllable_substations = 0
+    controllable_substations = []
     possible_topologies = 1
     for sub in range(nr_substations):
         nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
@@ -109,10 +109,10 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int]:
         ) / 2  # remove symmetries
 
         action_space += int(combined) if combined > 1 else 0
-        controllable_substations += 1 if combined > 1 else 0
+        controllable_substations.append(sub) if combined > 1 else 0
         possible_topologies *= max(combined, 1)
 
     logging.info(f"actions {action_space}")
     logging.info(f"topologies {possible_topologies}")
     logging.info(f"controllable substations {controllable_substations}")
-    return action_space, possible_topologies
+    return action_space, possible_topologies, controllable_substations

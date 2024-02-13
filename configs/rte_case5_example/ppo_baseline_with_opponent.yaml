@@ -1,6 +1,6 @@
 setup:
-  nb_timesteps: &nb_timesteps 100000
-  checkpoint_freq: 10000
+  nb_timesteps: &nb_timesteps 2000000
+  checkpoint_freq: 100000
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
 
@@ -10,13 +10,13 @@ debugging:
 training:
   # tunable parameters
   gamma: 0.95 # !grid_search [0.95, 0.99]
-  lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
+  lr: 0.0003 # !grid_search [0.0005, 0.005, 0.05]
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
   lambda_: 0.95
-  sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
-  train_batch_size: 128
+  sgd_minibatch_size: 128 # !grid_search [32, 64, 128]
+  train_batch_size: 2000
   model:
     fcnet_hiddens: 
     - 256

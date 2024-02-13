@@ -28,7 +28,7 @@ rl_module:
 
 explore:
   exploration_config:
-    type: EpsilonGreedy
+    type: StochasticSampling
 
 callbacks:
   callbacks: !CustomMetricsCallback
@@ -38,7 +38,7 @@ framework:
 
 multi_agent:
   policy_mapping_fn: !policy_mapping_fn
-  policies_to_train: ["reinforcement_learning_policy"]
+  policies_to_train: ["reinforcement_learning_policy_0"]
 
 environment:
   env_config:

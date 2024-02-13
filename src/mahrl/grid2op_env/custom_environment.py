@@ -1,9 +1,11 @@
 """
 Class that defines the custom Grid2op to gym environment with the set observation and action spaces.
 """
+
 import json
 import logging
 import os
+import re
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, TypeVar
 
@@ -114,7 +116,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         self.previous_obs: OrderedDict[str, Any] = OrderedDict()
         self.step_nb = 0
-        self.reconnect_line = None
 
     def reset(
         self,
@@ -235,3 +236,139 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)
+
+
+class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
+    """
+    Implement step function for hierarchical environment.
+    """
+
+    def __init__(self, env_config: dict[str, Any]):
+        super().__init__(env_config)
+
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[MultiAgentDict, MultiAgentDict]:
+        """
+        This function resets the environment.
+        """
+        return super().reset()
+
+    def step(
+        self, action_dict: MultiAgentDict
+    ) -> Tuple[
+        MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict
+    ]:
+        """
+        This function performs a single step in the environment.
+        """
+
+        # TODO: Adjust step function to handle middle level agent
+
+        # Increase step
+        self.step_nb = self.step_nb + 1
+
+        # Build termination dict
+        terminateds = {
+            "__all__": self.step_nb >= self.max_tsteps,
+        }
+
+        truncateds = {
+            "__all__": False,
+        }
+
+        rewards: Dict[str, Any] = {}
+        infos: Dict[str, Any] = {}
+
+        logging.info(f"ACTION_DICT = {action_dict}")
+
+        if "high_level_agent" in action_dict.keys():
+            action = action_dict["high_level_agent"]
+            if action == 0:
+                # do something
+                observations = {"choose_substation_agent": self.previous_obs}
+            elif action == 1:
+                # do nothing
+                observations = {"do_nothing_agent": self.previous_obs}
+            else:
+                raise ValueError(
+                    "An invalid action is selected by the high_level_agent in step()."
+                )
+        elif "do_nothing_agent" in action_dict.keys():
+            logging.info("do_nothing_agent IS CALLED: DO NOTHING")
+
+            # overwrite action in action_dict to nothing
+            action = action_dict["do_nothing_agent"]
+            (
+                self.previous_obs,
+                reward,
+                terminated,
+                truncated,
+                infos,
+            ) = self.env_gym.step(action)
+
+            # still give reward to RL agent
+            rewards = {"reinforcement_learning_agent": reward}
+            observations = {"high_level_agent": self.previous_obs}
+            terminateds = {"__all__": terminated}
+            truncateds = {"__all__": truncated}
+            infos = {}
+        elif any(
+            key.startswith("reinforcement_learning_agent") for key in action_dict.keys()
+        ):
+            logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
+
+            # extract key
+            if len(action_dict) == 1:
+                key = next(iter(action_dict))
+            else:
+                raise ValueError(
+                    "Only one reinforcement_learning_agent should be in action_dict."
+                )
+
+            action = action_dict[key]
+
+            (
+                self.previous_obs,
+                reward,
+                terminated,
+                truncated,
+                infos,
+            ) = self.env_gym.step(action)
+
+            # TODO: How to setup reward system?
+            rewards = {key: reward}
+            observations = {"high_level_agent": self.previous_obs}
+            terminateds = {"__all__": terminated}
+            truncateds = {"__all__": truncated}
+            infos = {}
+        elif "choose_substation_agent" in action_dict.keys():
+            logging.info("choose_substation_agent IS CALLED: DO SOMETHING")
+
+            action = action_dict["choose_substation_agent"]
+            observations = {f"reinforcement_learning_agent_{action}": self.previous_obs}
+        elif bool(action_dict) is False:
+            logging.info("Caution: Empty action dictionary!")
+            rewards = {}
+            observations = {}
+            infos = {}
+        else:
+            logging.info(f"ACTION_DICT={action_dict}")
+            raise ValueError("No agent found in action dictionary in step().")
+
+        return observations, rewards, terminateds, truncateds, infos
+
+    def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
+        """
+        Not implemented.
+        """
+        super().render()
+
+    def load_action_space(self, path: str) -> List[BaseAction]:
+        """
+        Loads the action space from a specified folder.
+        """
+        return super().load_action_space(path)
