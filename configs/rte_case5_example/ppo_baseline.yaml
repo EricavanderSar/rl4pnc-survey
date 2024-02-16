@@ -1,6 +1,6 @@
 setup:
-  nb_timesteps: &nb_timesteps 1_000
-  checkpoint_freq: 500
+  nb_timesteps: &nb_timesteps 100_000
+  checkpoint_freq: 10_000
   checkpoint_trainable_policies_only: True
   verbose: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
@@ -16,12 +16,14 @@ training:
   entropy_coeff: 0.01
   clip_param: 0.2
   lambda_: 0.95
-  sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
-  train_batch_size: 128
+  num_sgd_iter: 4
+  sgd_minibatch_size: 16
+  train_batch_size: 64 # !grid_search [32, 64, 128]
+  batch_mode: complete_episodes
   model:
     fcnet_hiddens:
-    - 256
-    - 256
+    - 128
+    - 128
   _enable_learner_api: False
 
 rl_module:
@@ -40,12 +42,13 @@ framework:
 multi_agent:
   policy_mapping_fn: !policy_mapping_fn
   policies_to_train: ["reinforcement_learning_policy"]
+  count_steps_by: agent_steps
 
 environment:
   env_config:
     env_name: rte_case5_example
     num_agents: 3
-    action_space: tennet
+    action_space: asymmetry
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
@@ -53,4 +56,9 @@ environment:
       test: True
       reward_class: !LossReward
     seed: *seed
-    rho_threshold: 0.95
+    rho_threshold: 0.90
+
+evaluation:
+  evaluation_interval: 2
+  evaluation_duration: 3
+  evaluation_duration_unit: "episodes"

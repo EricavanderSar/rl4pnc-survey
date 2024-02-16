@@ -19,6 +19,9 @@ from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.evaluation.episode_v2 import EpisodeV2
 from ray.rllib.evaluation.rollout_worker import RolloutWorker
 from ray.rllib.policy.policy import PolicySpec
+from ray.rllib.core.rl_module.rl_module import SingleAgentRLModuleSpec
+from ray.rllib.core.rl_module.marl_module import MultiAgentRLModuleSpec
+
 from yaml.loader import FullLoader, Loader, UnsafeLoader
 from yaml.nodes import MappingNode, ScalarNode
 

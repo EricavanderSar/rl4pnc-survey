@@ -141,8 +141,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         This function performs a single step in the environment.
         """
 
-        # Increase step
-        self.step_nb = self.step_nb + 1
+        # # Increase step
+        # self.step_nb = self.step_nb + 1
 
         # Build termination dict
         terminateds = {
@@ -236,5 +236,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 )
             )
 
+    def observation_space_sample(self, agent_ids: list = None):
+        return {}
+
+    def action_space_sample(self, agent_ids: list = None):
+        return {}
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)

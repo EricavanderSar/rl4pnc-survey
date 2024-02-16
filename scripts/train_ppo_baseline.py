@@ -18,6 +18,12 @@ from ray.rllib.policy.torch_policy_template import build_policy_class
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
+from mahrl.algorithms.custom_ppo import CustomPPO
+
+from ray.rllib.policy.sample_batch import MultiAgentBatch
+
+from ray.rllib.core.rl_module.rl_module import SingleAgentRLModuleSpec
+from ray.rllib.core.rl_module.marl_module import MultiAgentRLModuleSpec
 
 
 def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
@@ -27,6 +33,8 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     # runtime_env = {"env_vars": {"PYTHONWARNINGS": "ignore"}}
     # ray.init(runtime_env= runtime_env, local_mode=False)
     # init ray
+    # Set the environment variable
+    os.environ["RAY_DEDUP_LOGS"] = "0"
     ray.init()
 
     # Get the hostname and port
@@ -38,26 +46,34 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
 
     # Create tuner
     tuner = tune.Tuner(
-        trainable=ppo.PPO,
+        trainable=CustomPPO,
         param_space=config,
         run_config=air.RunConfig(
-            stop={"timesteps_total": setup["nb_timesteps"]},
+            stop={"training_iteration": 5}, #"timesteps_total": setup["nb_timesteps"]},
             storage_path=os.path.abspath(setup["storage_path"]),
-            checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=setup["checkpoint_freq"],
-                checkpoint_at_end=True,
-                checkpoint_score_attribute="evaluation/episode_reward_mean",
-            ),
+            # checkpoint_config=air.CheckpointConfig(
+            #     checkpoint_frequency=setup["checkpoint_freq"],
+            #     checkpoint_at_end=True,
+            #     checkpoint_score_attribute="evaluation/episode_reward_mean",
+            # ),
             verbose=setup["verbose"],
         ),
     )
 
     # Launch tuning
     try:
-        tuner.fit()
+        result_grid = tuner.fit()
     finally:
         # Close ray instance
         ray.shutdown()
+
+    for i in range(len(result_grid)):
+        result = result_grid[i]
+        if not result.error:
+            print(f"Trial finishes successfully with metrics"
+                  f"{result.metrics}.")
+        else:
+            print(f"Trial failed with error {result.error}.")
 
 
 def setup_config(config_path: str) -> None:
@@ -75,6 +91,7 @@ def setup_config(config_path: str) -> None:
     ppo_config.update(custom_config["callbacks"])
     ppo_config.update(custom_config["environment"])
     ppo_config.update(custom_config["multi_agent"])
+    # ppo_config.update(custom_config["evaluation"])
 
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
