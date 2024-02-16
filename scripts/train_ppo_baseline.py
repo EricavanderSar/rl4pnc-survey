@@ -1,6 +1,7 @@
 """
 Trains PPO baseline agent.
 """
+
 import argparse
 import logging
 import os
@@ -125,8 +126,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
     parser.add_argument(
-        "-f",
-        "--file_path",
+        "-c",
+        "--config",
         type=str,
         help="Path to the config file.",
     )
@@ -135,10 +136,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Access the parsed arguments
-    input_file_path = args.file_path
+    input_config = args.config
 
-    if input_file_path:
-        setup_config(input_file_path)
+    if input_config:
+        setup_config(input_config)
     else:
         parser.print_help()
-        logging.error("\nError: --file_path is required to specify config location.")
+        logging.error("\nError: --config is required to specify config location.")

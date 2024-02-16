@@ -6,6 +6,7 @@ import os
 from collections import OrderedDict
 from typing import Any, Optional
 
+import grid2op
 import numpy as np
 from grid2op.Action import ActionSpace, BaseAction
 from grid2op.Agent import BaseAgent, GreedyAgent
@@ -157,6 +158,157 @@ class TopologyGreedyAgent(GreedyAgent):
         else:
             best_action = self.tested_action[0]
         return best_action
+
+    def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
+        """
+        Adds all possible actions to be tested.
+        """
+        if not self.tested_action:
+            # add the do nothing
+            res = [self.action_space({})]
+            # add all possible actions
+            res += self.possible_actions
+            self.tested_action = res
+        return self.tested_action
+
+
+class RllibGreedyAgent(GreedyAgent):
+    """
+    Defines the behaviour of a Greedy Agent that can perform topology changes based
+    on a provided set of possible actions.
+    """
+
+    def __init__(
+        self,
+        action_space: ActionSpace,
+        env_config: dict[str, Any],
+        possible_actions: list[BaseAction],
+    ):
+        GreedyAgent.__init__(self, action_space)
+        self.tested_action: list[BaseAction] = []
+        self.action_space = action_space
+        self.possible_actions = possible_actions
+        self.reconnect_line = None
+
+        # setup threshold
+        self.threshold = env_config["rho_threshold"]
+
+        self.env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+
+        # breakpoint()
+
+    def act(
+        self,
+        observation: BaseObservation,
+        reward: Optional[BaseReward],
+        done: Optional[bool] = False,
+    ) -> BaseAction:
+        """
+        By definition, all "greedy" agents are acting the same way. The only thing that can differentiate multiple
+        agents is the actions that are tested.
+
+        These actions are defined in the method :func:`._get_tested_action`. This :func:`.act` method implements the
+        greedy logic: take the actions that maximizes the instantaneous reward on the simulated action.
+
+        Parameters
+        ----------
+        observation: :class:`grid2op.Observation.Observation`
+            The current observation of the :class:`grid2op.Environment.Environment`
+
+        reward: ``float``
+            The current reward. This is the reward obtained by the previous action
+
+        done: ``bool``
+            Whether the episode has ended or not. Used to maintain gym compatibility
+
+        Returns
+        -------
+        res: :class:`grid2op.Action.Action`
+            The action chosen by the bot / controller / agent.
+
+        """
+        # get all possible actions to be tested
+        self.tested_action = self._get_tested_action(observation)
+
+        # if the threshold is exceeded, act
+        if np.max(observation.to_dict()["rho"]) > self.threshold:
+            # simulate all possible actions and choose the best
+            if len(self.tested_action) > 1:
+                self.resulting_rewards = np.full(
+                    shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
+                )
+                resulting_rho_observations = np.full(
+                    shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
+                )
+                resulting_infos = []
+                for i, action in enumerate(self.tested_action):
+                    (
+                        simul_observation,
+                        _,
+                        _,
+                        simul_info,
+                    ) = observation.simulate(action)
+
+                    resulting_rho_observations[i] = np.max(
+                        simul_observation.to_dict()["rho"]
+                    )
+                    resulting_infos.append(simul_info)
+
+                    # Include extra safeguard to prevent exception actions with converging powerflow
+                    if simul_info["exception"]:
+                        resulting_rho_observations[i] = 999999
+
+                rho_idx = int(np.argmin(resulting_rho_observations))
+                best_action = self.tested_action[rho_idx]
+            else:
+                best_action = self.tested_action[0]
+        # if the threshold is not exceeded, do nothing
+        else:
+            best_action = self.tested_action[0]
+        return best_action
+
+    # def simulate(self, action, observation):
+    #     # set topology to actual topology with action
+
+    #     set_topology_action = self.action_space(
+    #         {
+    #             "set_bus": {
+    #                 act_name: [
+    #                     (line_id, bus_id)
+    #                     for line_id, bus_id in enumerate(getattr(observation, obs_name))
+    #                     if bus_id > 0
+    #                 ]
+    #                 for act_name, obs_name in [
+    #                     ("lines_ex_id", "line_ex_bus"),
+    #                     ("lines_or_id", "line_or_bus"),
+    #                     ("generators_id", "gen_bus"),
+    #                     ("loads_id", "load_bus"),
+    #                 ]
+    #             }
+    #         }
+    #     )
+
+    #     # env.set_id(scenario_id)
+
+    #     self.env.fast_forward_chronics(observation.get_time_stamp().minute / 5)
+
+    #     # get resulting observation
+    #     obs, _, _, _ = self.env.step(set_topology_action)
+
+    #     # get simulator from observation
+    #     simulator = obs.get_simulator()
+
+    #     breakpoint()
+    #     # use simulator to predict, with overwritten p_load and p_gen
+    #     something = simulator.predict(
+    #         action,
+    #         # new_load_p=observation.load_p,
+    #         # new_gen_p=observation.gen_p,
+    #         # new_gen_v=observation.gen_v,
+    #         # new_load_q=observation.load_q,
+    #         # do_copy=True,
+    #     )
+    #     breakpoint()
 
     def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
         """

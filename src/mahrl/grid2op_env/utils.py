@@ -2,8 +2,8 @@
 Utilities in the grid2op and gym convertion.
 """
 
-import os
 import json
+import os
 from typing import Any
 
 import grid2op
@@ -12,7 +12,6 @@ from grid2op.Action import BaseAction
 from grid2op.Converter import IdToAct
 from grid2op.Converter.Converters import Converter
 from grid2op.Environment import BaseEnv
-from grid2op.Reward import BaseReward
 
 
 class CustomDiscreteActions(gymnasium.spaces.Discrete):
@@ -57,18 +56,12 @@ def make_train_test_val_split(
     env_name: str,
     pct_val: float,
     pct_test: float,
-    reward_class: BaseReward,
 ) -> None:
     """
     Function that splits an environment into a train, test and validation set.
     """
     if not os.path.exists(os.path.join(library_directory, env_name, "_train")):
-        env = grid2op.make(
-            os.path.join(library_directory, env_name), reward_class=reward_class
-        )
-
-        # extract 5% of the "chronics" to be used in the validation environment, 5% for testing,
-        # 80% for training
+        env = grid2op.make(os.path.join(library_directory, env_name))
         env.train_val_split_random(
             pct_val=pct_val, pct_test=pct_test, add_for_test="test"
         )

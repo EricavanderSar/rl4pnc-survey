@@ -9,26 +9,26 @@ debugging:
 
 training:
   # tunable parameters
-  lr: 0.0005 # !grid_search [0.0005, 0.005, 0.05]
-  gamma: 0.99 # !grid_search [0.95, 0.99]
+  gamma: 0.95 # !grid_search [0.95, 0.99]
+  lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
   lambda_: 0.95
-  sgd_minibatch_size: 1024 # !grid_search [32, 64, 128]
-  train_batch_size: 80000
+  sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
+  train_batch_size: 128
   model:
     fcnet_hiddens: 
     - 256
     - 256
   _enable_learner_api: False
-
+  
 rl_module:
   _enable_rl_module_api: False
 
 explore:
   exploration_config:
-    type: StochasticSampling
+    type: EpsilonGreedy
 
 callbacks:
   callbacks: !CustomMetricsCallback
@@ -42,7 +42,7 @@ multi_agent:
 
 environment:
   env_config:
-    env_name: rte_case5_example
+    env_name: l2rpn_icaps_2021_large
     num_agents: 3
     action_space: asymmetry
     lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 

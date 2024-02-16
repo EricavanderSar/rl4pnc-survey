@@ -9,14 +9,14 @@ debugging:
 
 training:
   # tunable parameters
-  lr: 0.0005 # !grid_search [0.0005, 0.005, 0.05]
-  gamma: 0.99 # !grid_search [0.95, 0.99]
+  lr: 0.05 # !grid_search [0.0005, 0.005, 0.05]
+  gamma: 0.95 # !grid_search [0.95, 0.99]
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
   lambda_: 0.95
-  sgd_minibatch_size: 1024 # !grid_search [32, 64, 128]
-  train_batch_size: 80000
+  sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
+  train_batch_size: 128
   model:
     fcnet_hiddens: 
     - 256
@@ -38,7 +38,7 @@ framework:
 
 multi_agent:
   policy_mapping_fn: !policy_mapping_fn
-  policies_to_train: ["reinforcement_learning_policy"]
+  policies_to_train: ["reinforcement_learning_policy_0"]
 
 environment:
   env_config:
