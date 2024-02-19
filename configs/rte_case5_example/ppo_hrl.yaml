@@ -41,7 +41,7 @@ multi_agent:
   policies_to_train: ["reinforcement_learning_policy_0"]
 
 environment:
-  env_config:
+  env_config: &env_config_train
     env_name: rte_case5_example
     num_agents: 3
     action_space: asymmetry
@@ -52,3 +52,14 @@ environment:
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.95
+
+env_config_val: &env_config_val
+  <<: *env_config_train
+  env_name: rte_case5_example
+
+evaluation:
+  evaluation_interval: 10
+  evaluation_duration: 14 # as many as there are validation episodes
+  evaluation_duration_unit: episodes
+  evaluation_config: 
+    env_config: *env_config_val # use the validation environment

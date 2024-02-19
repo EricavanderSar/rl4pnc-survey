@@ -19,8 +19,13 @@ from grid2op.Reward import BaseReward
 from grid2op.Runner import Runner
 from ray.rllib.algorithms import ppo
 
-from mahrl.evaluation.evaluation_agents import RllibAgent, RllibGreedyAgent
+from mahrl.evaluation.evaluation_agents import (
+    CapaAndGreedyAgent,
+    RllibAgent,
+    TopologyGreedyAgent,
+)
 from mahrl.experiments.yaml import load_config
+from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.grid2op_env.utils import load_actions
 
 
@@ -46,6 +51,13 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
         action="store_true",
         help="Signals to evaluate a Greedy agent.",
     )
+    parser.add_argument(
+        "-r",
+        "--rule_based_hierarchical",
+        action="store_true",
+        help="Signals to evaluate a Capa and Greedy agent.",
+    )
+
     parser.add_argument(
         "-c",
         "--config",
@@ -221,7 +233,7 @@ def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> N
 
     run_runner(
         env_config=env_config,
-        agent_instance=RllibGreedyAgent(
+        agent_instance=TopologyGreedyAgent(
             action_space=setup_env.action_space,
             env_config=env_config,
             possible_actions=possible_actions,
@@ -261,11 +273,15 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
     config_path = os.path.join(args.file_path, "params.json")
     config = load_config(config_path)
     env_config = config["env_config"]
+    # change the env_name from _train to _test
+    env_config["env_name"] = env_config["env_name"].replace("_train", "_test")
+
     env_config["grid2op_kwargs"]["reward_class"] = instantiate_reward_class(
         env_config["grid2op_kwargs"]["reward_class"]
     )
 
-    if env_config["grid2op_kwargs"]["opponent_action_class"]:
+    # check if "opponent_action_class" is part of env_config["grid2op_kwargs"]
+    if "opponent_action_class" in env_config["grid2op_kwargs"]:
         env_config["grid2op_kwargs"][
             "opponent_action_class"
         ] = instantiate_opponent_classes(
@@ -289,6 +305,36 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
             policy_name="reinforcement_learning_policy",
             algorithm=ppo.PPO,
             checkpoint_name=checkpoint_name,
+            gym_wrapper=CustomizedGrid2OpEnvironment(env_config),
+        ),
+    )
+
+
+def setup_capa_greedy_evaluation(
+    env_config: dict[str, Any], setup_env: BaseEnv
+) -> None:
+    """
+    Set up the evaluation of a greedy agent on a given environment configuration.
+
+    Args:
+        env_config (dict): The configuration of the environment.
+        setup_env (object): The setup environment object.
+
+    Returns:
+        None
+    """
+    actions_path = os.path.abspath(
+        f"{env_config['lib_dir']}/data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
+    )
+
+    possible_actions = load_actions(actions_path, setup_env)
+
+    run_runner(
+        env_config=env_config,
+        agent_instance=CapaAndGreedyAgent(
+            action_space=setup_env.action_space,
+            env_config=env_config,
+            possible_actions=possible_actions,
         ),
     )
 
@@ -300,18 +346,26 @@ if __name__ == "__main__":
     args = setup_parser(init_parser)
 
     # Check which arguments are provided
-    if args.greedy or args.nothing:  # run donothing or greedy evaluation
+    if (
+        args.greedy or args.nothing or args.rule_based_hierarchical
+    ):  # run donothing or greedy evaluation
         if not args.config:
             init_parser.print_help()
-            logging.error("\nError: --actions is required for the greedy agent.")
+            logging.error("\nError: --cibfug is required for the agent.")
         else:
             # load config file
             environment_config = load_config(args.config)["environment"]["env_config"]
+            # change the env_name from _train to _test
+            environment_config["env_name"] = environment_config["env_name"].replace(
+                "_train", "_test"
+            )
             init_setup_env = grid2op.make(environment_config["env_name"])
 
             # start runners
             if args.greedy:
                 setup_greedy_evaluation(environment_config, init_setup_env)
+            elif args.rule_based_hierarchical:
+                setup_capa_greedy_evaluation(environment_config, init_setup_env)
             else:
                 setup_do_nothing_evaluation(environment_config, init_setup_env)
     else:

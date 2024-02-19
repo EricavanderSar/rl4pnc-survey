@@ -11,11 +11,20 @@ import numpy as np
 from grid2op.Action import ActionSpace, BaseAction
 from grid2op.Agent import BaseAgent, GreedyAgent
 from grid2op.dtypes import dt_float
+from grid2op.Environment import BaseEnv
+from grid2op.gym_compat import GymEnv
 from grid2op.Observation import BaseObservation
 from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
 
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from mahrl.experiments.utils import (
+    calculate_action_space_asymmetry,
+    calculate_action_space_medha,
+    calculate_action_space_tennet,
+    find_list_of_agents,
+    find_substation_per_lines,
+    get_capa_substation_id,
+)
 
 
 class RllibAgent(BaseAgent):
@@ -31,6 +40,7 @@ class RllibAgent(BaseAgent):
         policy_name: str,
         algorithm: Algorithm,
         checkpoint_name: str,
+        gym_wrapper: GymEnv,
     ):
         BaseAgent.__init__(self, action_space)
 
@@ -41,7 +51,7 @@ class RllibAgent(BaseAgent):
         )
 
         # setup env
-        self.gym_wrapper = CustomizedGrid2OpEnvironment(env_config)
+        self.gym_wrapper = gym_wrapper
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]
@@ -64,9 +74,11 @@ class RllibAgent(BaseAgent):
             action = self._rllib_agent.compute_single_action(
                 gym_obs, policy_id="reinforcement_learning_policy"
             )
-
-        # convert Rllib action to grid2op
-        return self.gym_wrapper.env_gym.action_space.from_gym(action)
+            # convert Rllib action to grid2op
+            return self.gym_wrapper.env_gym.action_space.from_gym(action)
+        # else
+        action = self.gym_wrapper.env_glop.action_space({})
+        return action
 
 
 class TopologyGreedyAgent(GreedyAgent):
@@ -172,7 +184,7 @@ class TopologyGreedyAgent(GreedyAgent):
         return self.tested_action
 
 
-class RllibGreedyAgent(GreedyAgent):
+class CapaAndGreedyAgent(GreedyAgent):
     """
     Defines the behaviour of a Greedy Agent that can perform topology changes based
     on a provided set of possible actions.
@@ -193,9 +205,17 @@ class RllibGreedyAgent(GreedyAgent):
         # setup threshold
         self.threshold = env_config["rho_threshold"]
 
-        self.env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+        setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
 
-        # breakpoint()
+        # set up greedy agents
+        self.agents = create_greedy_agent_per_substation(
+            setup_env, env_config, possible_actions
+        )
+
+        # extract line and substation information
+        self.line_info = find_substation_per_lines(
+            setup_env, find_list_of_agents(setup_env, env_config["action_space"])
+        )
 
     def act(
         self,
@@ -227,88 +247,10 @@ class RllibGreedyAgent(GreedyAgent):
             The action chosen by the bot / controller / agent.
 
         """
-        # get all possible actions to be tested
-        self.tested_action = self._get_tested_action(observation)
+        obs_batch = observation.to_dict()
+        substation_to_act_on = get_capa_substation_id(self.line_info, obs_batch)
 
-        # if the threshold is exceeded, act
-        if np.max(observation.to_dict()["rho"]) > self.threshold:
-            # simulate all possible actions and choose the best
-            if len(self.tested_action) > 1:
-                self.resulting_rewards = np.full(
-                    shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
-                )
-                resulting_rho_observations = np.full(
-                    shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
-                )
-                resulting_infos = []
-                for i, action in enumerate(self.tested_action):
-                    (
-                        simul_observation,
-                        _,
-                        _,
-                        simul_info,
-                    ) = observation.simulate(action)
-
-                    resulting_rho_observations[i] = np.max(
-                        simul_observation.to_dict()["rho"]
-                    )
-                    resulting_infos.append(simul_info)
-
-                    # Include extra safeguard to prevent exception actions with converging powerflow
-                    if simul_info["exception"]:
-                        resulting_rho_observations[i] = 999999
-
-                rho_idx = int(np.argmin(resulting_rho_observations))
-                best_action = self.tested_action[rho_idx]
-            else:
-                best_action = self.tested_action[0]
-        # if the threshold is not exceeded, do nothing
-        else:
-            best_action = self.tested_action[0]
-        return best_action
-
-    # def simulate(self, action, observation):
-    #     # set topology to actual topology with action
-
-    #     set_topology_action = self.action_space(
-    #         {
-    #             "set_bus": {
-    #                 act_name: [
-    #                     (line_id, bus_id)
-    #                     for line_id, bus_id in enumerate(getattr(observation, obs_name))
-    #                     if bus_id > 0
-    #                 ]
-    #                 for act_name, obs_name in [
-    #                     ("lines_ex_id", "line_ex_bus"),
-    #                     ("lines_or_id", "line_or_bus"),
-    #                     ("generators_id", "gen_bus"),
-    #                     ("loads_id", "load_bus"),
-    #                 ]
-    #             }
-    #         }
-    #     )
-
-    #     # env.set_id(scenario_id)
-
-    #     self.env.fast_forward_chronics(observation.get_time_stamp().minute / 5)
-
-    #     # get resulting observation
-    #     obs, _, _, _ = self.env.step(set_topology_action)
-
-    #     # get simulator from observation
-    #     simulator = obs.get_simulator()
-
-    #     breakpoint()
-    #     # use simulator to predict, with overwritten p_load and p_gen
-    #     something = simulator.predict(
-    #         action,
-    #         # new_load_p=observation.load_p,
-    #         # new_gen_p=observation.gen_p,
-    #         # new_gen_v=observation.gen_v,
-    #         # new_load_q=observation.load_q,
-    #         # do_copy=True,
-    #     )
-    #     breakpoint()
+        return self.agents[substation_to_act_on].act(observation, reward=None)
 
     def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
         """
@@ -321,3 +263,40 @@ class RllibGreedyAgent(GreedyAgent):
             res += self.possible_actions
             self.tested_action = res
         return self.tested_action
+
+
+def create_greedy_agent_per_substation(
+    env: BaseEnv,
+    env_config: dict[str, Any],
+    possible_substation_actions: list[BaseAction],
+) -> dict[int, TopologyGreedyAgent]:
+    """
+    Create a greedy agent for each substation.
+    """
+    # get changeable substations
+    if env_config["action_space"] == "asymmetry":
+        _, _, controllable_substations = calculate_action_space_asymmetry(env)
+    elif env_config["action_space"] == "medha":
+        _, _, controllable_substations = calculate_action_space_medha(env)
+    elif env_config["action_space"] == "tennet":
+        _, _, controllable_substations = calculate_action_space_tennet(env)
+    else:
+        raise ValueError("No action valid space is defined.")
+
+    actions_per_substation: dict[int, list[BaseAction]] = {
+        substation: [] for substation in controllable_substations
+    }
+
+    # get possible actions related to that substation actions_per_substation
+    for action in possible_substation_actions[1:]:  # exclude the DoNothing action
+        sub_id = int(action.as_dict()["set_bus_vect"]["modif_subs_id"][0])
+        actions_per_substation[sub_id].append(action)
+
+    # initialize greedy agents for all controllable substations
+    agents = {}
+    for sub_id in controllable_substations:
+        agents[sub_id] = TopologyGreedyAgent(
+            env.action_space, env_config, actions_per_substation[sub_id]
+        )
+
+    return agents

@@ -65,6 +65,7 @@ def setup_config(config_path: str) -> None:
     ppo_config.update(custom_config["callbacks"])
     ppo_config.update(custom_config["environment"])
     ppo_config.update(custom_config["multi_agent"])
+    ppo_config.update(custom_config["evaluation"])
 
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent

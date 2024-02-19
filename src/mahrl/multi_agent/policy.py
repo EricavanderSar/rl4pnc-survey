@@ -24,6 +24,8 @@ from ray.rllib.utils.typing import (
     TensorType,
 )
 
+from mahrl.experiments.utils import get_capa_substation_id
+
 
 def policy_mapping_fn(
     agent_id: str,
@@ -47,226 +49,96 @@ def policy_mapping_fn(
     raise NotImplementedError
 
 
-# class CapaPolicy(Policy):
-#     """
-#     Policy that that returns a substation to act on based on the CAPA heuristic.
-#     """
+class CapaPolicy(Policy):
+    """
+    Policy that that returns a substation to act on based on the CAPA heuristic.
+    """
 
-#     def __init__(
-#         self,
-#         observation_space: gymnasium.Space,
-#         action_space: gymnasium.Space,
-#         config: AlgorithmConfigDict,
-#     ):
-#         Policy.__init__(
-#             self,
-#             observation_space=observation_space,
-#             action_space=action_space,
-#             config=config,
-#         )
+    def __init__(
+        self,
+        observation_space: gymnasium.Space,
+        action_space: gymnasium.Space,
+        config: AlgorithmConfigDict,
+    ):
+        Policy.__init__(
+            self,
+            observation_space=observation_space,
+            action_space=action_space,
+            config=config,
+        )
 
-#     def compute_actions(
-#         self,
-#         obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
-#         state_batches: Optional[List[TensorType]] = None,
-#         prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
-#         prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,
-#         info_batch: Optional[Dict[str, List[Any]]] = None,
-#         episodes: Optional[List[str]] = None,
-#         explore: Optional[bool] = None,
-#         timestep: Optional[int] = None,
-#         **kwargs: Dict[str, Any],
-#     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-#         """Computes actions for the current policy."""
-#         state_outs_result: List[Any] = []
-#         info_result: Dict[str, Any] = {}
+    def compute_actions(
+        self,
+        obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
+        state_batches: Optional[List[TensorType]] = None,
+        prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
+        prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,
+        info_batch: Optional[Dict[str, List[Any]]] = None,
+        episodes: Optional[List[str]] = None,
+        explore: Optional[bool] = None,
+        timestep: Optional[int] = None,
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+        """Computes actions for the current policy."""
+        state_outs_result: List[Any] = []
+        info_result: Dict[str, Any] = {}
 
-#         line_info = self.config["model"]["custom_model_config"]["line_info"]
+        line_info = self.config["model"]["custom_model_config"]["line_info"]
 
-#         # calculate the mean rho per substation
-#         connected_rhos = {agent: [] for agent in line_info}
-#         for sub_idx in line_info:
-#             for line_idx in line_info[sub_idx]:
-#                 connected_rhos[sub_idx].append(obs_batch["rho"][0][line_idx])
-#         for sub_idx in connected_rhos:
-#             connected_rhos[sub_idx] = np.mean(connected_rhos[sub_idx])
+        substation_to_act_on = get_capa_substation_id(line_info, obs_batch)
 
-#         # find substation with max average rho
-#         # NOTE: When there are two equal max values, the first one is returned
-#         return (
-#             [max(connected_rhos, key=connected_rhos.get)],
-#             state_outs_result,
-#             info_result,
-#         )
+        # find substation with max average rho
+        # NOTE: When there are two equal max values, the first one is returned
+        return (
+            [substation_to_act_on],
+            state_outs_result,
+            info_result,
+        )
 
-#     def get_weights(self) -> ModelWeights:
-#         """No weights to save."""
-#         return {}
+    def get_weights(self) -> ModelWeights:
+        """No weights to save."""
+        return {}
 
-#     def set_weights(self, weights: ModelWeights) -> None:
-#         """No weights to set."""
+    def set_weights(self, weights: ModelWeights) -> None:
+        """No weights to set."""
 
-#     def apply_gradients(self, gradients: ModelGradients) -> None:
-#         """No gradients to apply."""
-#         raise NotImplementedError
+    def apply_gradients(self, gradients: ModelGradients) -> None:
+        """No gradients to apply."""
+        raise NotImplementedError
 
-#     def compute_gradients(
-#         self, postprocessed_batch: SampleBatch
-#     ) -> Tuple[ModelGradients, Dict[str, TensorType]]:
-#         """No gradient to compute."""
-#         return [], {}
+    def compute_gradients(
+        self, postprocessed_batch: SampleBatch
+    ) -> Tuple[ModelGradients, Dict[str, TensorType]]:
+        """No gradient to compute."""
+        return [], {}
 
-#     def loss(
-#         self, model: ModelV2, dist_class: ActionDistribution, train_batch: SampleBatch
-#     ) -> Union[TensorType, List[TensorType]]:
-#         """No loss function"""
-#         raise NotImplementedError
+    def loss(
+        self, model: ModelV2, dist_class: ActionDistribution, train_batch: SampleBatch
+    ) -> Union[TensorType, List[TensorType]]:
+        """No loss function"""
+        raise NotImplementedError
 
-#     def learn_on_batch(self, samples: SampleBatch) -> Dict[str, TensorType]:
-#         """Not implemented."""
-#         raise NotImplementedError
+    def learn_on_batch(self, samples: SampleBatch) -> Dict[str, TensorType]:
+        """Not implemented."""
+        raise NotImplementedError
 
-#     def learn_on_batch_from_replay_buffer(
-#         self, replay_actor: ActorHandle, policy_id: PolicyID
-#     ) -> Dict[str, TensorType]:
-#         """Not implemented."""
-#         raise NotImplementedError
+    def learn_on_batch_from_replay_buffer(
+        self, replay_actor: ActorHandle, policy_id: PolicyID
+    ) -> Dict[str, TensorType]:
+        """Not implemented."""
+        raise NotImplementedError
 
-#     def load_batch_into_buffer(self, batch: SampleBatch, buffer_index: int = 0) -> int:
-#         """Not implemented."""
-#         raise NotImplementedError
+    def load_batch_into_buffer(self, batch: SampleBatch, buffer_index: int = 0) -> int:
+        """Not implemented."""
+        raise NotImplementedError
 
-#     def get_num_samples_loaded_into_buffer(self, buffer_index: int = 0) -> int:
-#         """Not implemented."""
-#         raise NotImplementedError
+    def get_num_samples_loaded_into_buffer(self, buffer_index: int = 0) -> int:
+        """Not implemented."""
+        raise NotImplementedError
 
-#     def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
-#         """Not implemented."""
-#         raise NotImplementedError
-
-
-# class GreedyPolicy(Policy):
-#     """
-#     Policy that that returns a substation to act on based on the CAPA heuristic.
-#     """
-
-#     def __init__(
-#         self,
-#         observation_space: gymnasium.Space,
-#         action_space: gymnasium.Space,
-#         config: AlgorithmConfigDict,
-#     ):
-#         Policy.__init__(
-#             self,
-#             observation_space=observation_space,
-#             action_space=action_space,
-#             config=config,
-#         )
-
-#         # get env config from model config
-#         env_config = self.config["model"]["custom_model_config"]["env_config"]
-
-#         # make setup_env
-#         setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
-
-#         # load action space
-#         actions_path = os.path.abspath(
-#             f"{env_config['lib_dir']}/data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
-#         )
-#         possible_actions = load_actions(actions_path, setup_env)
-
-#         self.greedy_agent = TopologyGreedyAgent(
-#             action_space=setup_env.action_space,
-#             env_config=env_config,
-#             possible_actions=possible_actions,
-#         )
-
-#     def compute_actions(
-#         self,
-#         obs_batch: Dict[str, Any],
-#         state_batches: Optional[List[TensorType]] = None,
-#         prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
-#         prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,
-#         info_batch: Optional[Dict[str, List[Any]]] = None,
-#         episodes: Optional[List[str]] = None,
-#         explore: Optional[bool] = None,
-#         timestep: Optional[int] = None,
-#         **kwargs: Dict[str, Any],
-#     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-#         """Computes actions for the current policy."""
-#         state_outs_result: List[Any] = []
-#         info_result: Dict[str, Any] = {}
-
-#         # PLAN: MAKE ACTION TO GET TOPOLOGY, OVERWRITE LOADES
-
-#         # TODO
-#         # print(f"Obs: {BaseObservation(obs_batch)}")
-#         # action = self.greedy_agent.act(
-#         #     BaseObservation(obs_batch), reward=None, done=False
-#         # )
-#         # Create a new BaseObservation instance
-#         obs = BaseObservation()
-
-#         # Set the attributes from the OrderedDict
-#         for key, value in obs_batch.items():
-#             if hasattr(obs, key):
-#                 setattr(obs, key, value)
-
-#         print(f"Obs: {obs}")
-#         action = self.greedy_agent.act(
-#             BaseObservation(obs_batch), reward=None, done=False
-#         )
-#         print(f"Action: {action}")
-#         return (
-#             [action],
-#             state_outs_result,
-#             info_result,
-#         )
-
-#     def get_weights(self) -> ModelWeights:
-#         """No weights to save."""
-#         return {}
-
-#     def set_weights(self, weights: ModelWeights) -> None:
-#         """No weights to set."""
-
-#     def apply_gradients(self, gradients: ModelGradients) -> None:
-#         """No gradients to apply."""
-#         raise NotImplementedError
-
-#     def compute_gradients(
-#         self, postprocessed_batch: SampleBatch
-#     ) -> Tuple[ModelGradients, Dict[str, TensorType]]:
-#         """No gradient to compute."""
-#         return [], {}
-
-#     def loss(
-#         self, model: ModelV2, dist_class: ActionDistribution, train_batch: SampleBatch
-#     ) -> Union[TensorType, List[TensorType]]:
-#         """No loss function"""
-#         raise NotImplementedError
-
-#     def learn_on_batch(self, samples: SampleBatch) -> Dict[str, TensorType]:
-#         """Not implemented."""
-#         raise NotImplementedError
-
-#     def learn_on_batch_from_replay_buffer(
-#         self, replay_actor: ActorHandle, policy_id: PolicyID
-#     ) -> Dict[str, TensorType]:
-#         """Not implemented."""
-#         raise NotImplementedError
-
-#     def load_batch_into_buffer(self, batch: SampleBatch, buffer_index: int = 0) -> int:
-#         """Not implemented."""
-#         raise NotImplementedError
-
-#     def get_num_samples_loaded_into_buffer(self, buffer_index: int = 0) -> int:
-#         """Not implemented."""
-#         raise NotImplementedError
-
-#     def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
-#         """Not implemented."""
-#         raise NotImplementedError
+    def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
+        """Not implemented."""
+        raise NotImplementedError
 
 
 class DoNothingPolicy(Policy):

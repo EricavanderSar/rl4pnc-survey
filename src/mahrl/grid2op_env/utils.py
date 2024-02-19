@@ -48,7 +48,6 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
 
     def close(self) -> None:
         """Not implemented."""
-        raise NotImplementedError
 
 
 def make_train_test_val_split(

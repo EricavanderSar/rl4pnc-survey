@@ -1,6 +1,7 @@
 """
 Implements callbacks.
 """
+
 from typing import Any, Dict, Optional
 
 from grid2op.Environment import BaseEnv
@@ -28,7 +29,10 @@ class CustomMetricsCallback(DefaultCallbacks):
         """
         agents_steps = {k: len(v) for k, v in episode._agent_reward_history.items()}
         episode.custom_metrics["corrected_ep_len"] = agents_steps["high_level_agent"]
-        episode.custom_metrics["RL_ep_len_pct"] = (
-            agents_steps["reinforcement_learning_agent"]
-            / agents_steps["high_level_agent"]
-        )
+        if "reinforcement_learning_agent" in agents_steps:
+            episode.custom_metrics["RL_ep_len_pct"] = (
+                agents_steps["reinforcement_learning_agent"]
+                / agents_steps["high_level_agent"]
+            )
+        else:
+            episode.custom_metrics["RL_ep_len_pct"] = 0.0

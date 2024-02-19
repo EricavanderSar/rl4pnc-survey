@@ -3,7 +3,9 @@ Utilities in the grid2op experiments.
 """
 
 import logging
+from typing import Any, Dict, List, OrderedDict, Union
 
+import numpy as np
 from grid2op.Environment import BaseEnv
 
 
@@ -28,7 +30,8 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, list[int]]
 
         alpha = 2 ** (nr_elements - 1) - (2**nr_non_lines - 1)
         action_space += alpha if alpha > 1 else 0
-        controllable_substations.append(sub) if alpha > 1 else 0
+        if alpha > 1:
+            controllable_substations.append(sub)
         possible_topologies *= max(alpha, 1)
 
     logging.info(f"actions {action_space}")
@@ -59,7 +62,8 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, list[int]]:
         gamma = 2**nr_non_lines - 1 - nr_non_lines
         combined = alpha - beta - gamma
         action_space += combined if combined > 1 else 0
-        controllable_substations.append(sub) if combined > 1 else 0
+        if combined > 1:
+            controllable_substations.append(sub)
         possible_topologies *= max(combined, 1)
 
     logging.info(f"actions {action_space}")
@@ -109,10 +113,74 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
         ) / 2  # remove symmetries
 
         action_space += int(combined) if combined > 1 else 0
-        controllable_substations.append(sub) if combined > 1 else 0
+        if combined > 1:
+            controllable_substations.append(sub)
         possible_topologies *= max(combined, 1)
 
     logging.info(f"actions {action_space}")
     logging.info(f"topologies {possible_topologies}")
     logging.info(f"controllable substations {controllable_substations}")
     return action_space, possible_topologies, controllable_substations
+
+
+def get_capa_substation_id(
+    line_info: dict[int, list[int]],
+    obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
+) -> int:
+    """
+    Returns the substation id of the substation to act on according to CAPA.
+    """
+    # calculate the mean rho per substation
+    connected_rhos: dict[int, list[float]] = {agent: [] for agent in line_info}
+    for sub_idx in line_info:
+        for line_idx in line_info[sub_idx]:
+            # TODO check if works during training
+            if isinstance(obs_batch, OrderedDict):
+                connected_rhos[sub_idx].append(obs_batch["rho"][0][line_idx])
+            elif isinstance(obs_batch, dict):
+                connected_rhos[sub_idx].append(obs_batch["rho"][line_idx])
+            else:
+                raise ValueError("The observation batch is not supported.")
+    for sub_idx in connected_rhos:
+        connected_rhos[sub_idx] = np.mean(connected_rhos[sub_idx])
+
+    # find substation with max average rho
+    # NOTE: When there are two equal max values, the first one is returned
+    max_value = max(connected_rhos.values())
+    return [key for key, value in connected_rhos.items() if value == max_value][0]
+
+
+def find_list_of_agents(env: BaseEnv, action_space: str) -> list[int]:
+    """
+    Function that returns the number of controllable substations.
+    """
+    if action_space == "asymmetry":
+        _, _, list_of_agents = calculate_action_space_asymmetry(env)
+        return list_of_agents
+    if action_space == "medha":
+        _, _, list_of_agents = calculate_action_space_medha(env)
+        return list_of_agents
+    if action_space == "tennet":
+        _, _, list_of_agents = calculate_action_space_tennet(env)
+        return list_of_agents
+    raise ValueError("The action space is not supported.")
+
+
+def find_substation_per_lines(
+    env: BaseEnv, list_of_agents: list[int]
+) -> dict[int, list[int]]:
+    """
+    Returns a dictionary connecting line ids to substations.
+    """
+    line_info: dict[int, list[int]] = {agent: [] for agent in list_of_agents}
+    for sub_idx in list_of_agents:
+        for or_id in env.observation_space.get_obj_connect_to(substation_id=sub_idx)[
+            "lines_or_id"
+        ]:
+            line_info[sub_idx].append(or_id)
+        for ex_id in env.observation_space.get_obj_connect_to(substation_id=sub_idx)[
+            "lines_ex_id"
+        ]:
+            line_info[sub_idx].append(ex_id)
+
+    return line_info
