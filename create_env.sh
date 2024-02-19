@@ -4,16 +4,16 @@
 #SBATCH -t 00:20:00
 #SBATCH --output=init_env_%j.out
 
-echo "test test"
+echo "*** START create env job ***"
 
-# module load 2022
-# module load Anaconda3/2022.05
+module load 2022
+module load Anaconda3/2022.05
 
-# echo "Start updating conda"
-# conda init
-# conda update conda
-# echo "Create mahrl_grid2op env"
-# time conda create -n mahrl_grid2op python=3.10 
+echo "Start updating conda"
+conda init
+conda update conda
+echo "Create mahrl_grid2op env"
+time conda create -n mahrl_grid2op python=3.10
 echo "********** activate Env **********"
 source activate mahrl_grid2op
 export PYTHONPATH=$PYTHONPATH:$PWD
