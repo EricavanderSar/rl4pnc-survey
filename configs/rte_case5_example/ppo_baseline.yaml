@@ -1,6 +1,6 @@
 setup:
-  nb_timesteps: &nb_timesteps 100_000
-  checkpoint_freq: 10_000
+  nb_timesteps: 1_000
+  checkpoint_freq: 1_000
   checkpoint_trainable_policies_only: True
   verbose: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
@@ -15,10 +15,10 @@ training:
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
-  lambda_: 0.95
+  lambda_: 0.9
   num_sgd_iter: 4
-  sgd_minibatch_size: 16
-  train_batch_size: 64 # !grid_search [32, 64, 128]
+  sgd_minibatch_size: 32
+  train_batch_size: &train_batch_size 128 # !grid_search [32, 64, 128]
   batch_mode: complete_episodes
   model:
     fcnet_hiddens:
@@ -31,7 +31,7 @@ rl_module:
 
 explore:
   exploration_config:
-    type: EpsilonGreedy
+    type: StochasticSampling
 
 callbacks:
   callbacks: !CustomMetricsCallback
@@ -50,7 +50,7 @@ environment:
     num_agents: 3
     action_space: asymmetry
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
-    max_tsteps: *nb_timesteps
+    max_tsteps: *train_batch_size
     grid2op_kwargs:
       # general kwargs
       test: True

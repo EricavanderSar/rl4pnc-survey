@@ -12,19 +12,11 @@ from ray import air, tune
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
-from ray.rllib.algorithms.ppo.ppo_torch_policy import PPOTorchPolicy
-from ray.rllib.policy.torch_policy_template import build_policy_class
 
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
 from mahrl.algorithms.custom_ppo import CustomPPO
-
-from ray.rllib.policy.sample_batch import MultiAgentBatch
-
-from ray.rllib.core.rl_module.rl_module import SingleAgentRLModuleSpec
-from ray.rllib.core.rl_module.marl_module import MultiAgentRLModuleSpec
-
 
 def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     """
@@ -49,13 +41,13 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
         trainable=CustomPPO,
         param_space=config,
         run_config=air.RunConfig(
-            stop={"training_iteration": 5}, #"timesteps_total": setup["nb_timesteps"]},
+            stop={"timesteps_total": setup["nb_timesteps"]}, #"training_iteration": 5}, #
             storage_path=os.path.abspath(setup["storage_path"]),
-            # checkpoint_config=air.CheckpointConfig(
-            #     checkpoint_frequency=setup["checkpoint_freq"],
-            #     checkpoint_at_end=True,
-            #     checkpoint_score_attribute="evaluation/episode_reward_mean",
-            # ),
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=setup["checkpoint_freq"],
+                checkpoint_at_end=True,
+                checkpoint_score_attribute="evaluation/episode_reward_mean",
+            ),
             verbose=setup["verbose"],
         ),
     )
