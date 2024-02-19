@@ -1,5 +1,5 @@
 """
-Trains PPO baseline agent.
+Trains PPO hrl agent.
 """
 
 import argparse
@@ -7,6 +7,7 @@ import logging
 import os
 from typing import Any
 
+import grid2op
 import ray
 from gymnasium.spaces import Discrete
 from ray import air, tune
@@ -14,9 +15,12 @@ from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 
+from mahrl.experiments.utils import find_list_of_agents, find_substation_per_lines
 from mahrl.experiments.yaml import load_config
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
+from mahrl.grid2op_env.custom_environment import (
+    GreedyHierarchicalCustomizedGrid2OpEnvironment,
+)
+from mahrl.multi_agent.policy import CapaPolicy, DoNothingPolicy, SelectAgentPolicy
 
 
 def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
@@ -67,6 +71,18 @@ def setup_config(config_path: str) -> None:
     ppo_config.update(custom_config["multi_agent"])
     ppo_config.update(custom_config["evaluation"])
 
+    setup_env = grid2op.make(custom_config["environment"]["env_config"]["env_name"])
+    # Make as number additional policies as controllable substations
+    list_of_agents = find_list_of_agents(
+        setup_env,
+        custom_config["environment"]["env_config"]["action_space"],
+    )
+
+    line_info = find_substation_per_lines(setup_env, list_of_agents)
+    # TODO: Give these policies own parameters
+    # TODO: First use the rule-based policies
+    # TODO adjust policies to train config
+
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy,
@@ -93,11 +109,24 @@ def setup_config(config_path: str) -> None:
                 .rollouts(preprocessor_pref=None)
             ),
         ),
-        "reinforcement_learning_policy": PolicySpec(  # performs RL topology
-            policy_class=None,  # use default policy of PPO
+        "choose_substation_policy": PolicySpec(  # rule based substation selection
+            policy_class=CapaPolicy,
             observation_space=None,  # infer automatically from env
-            action_space=None,  # infer automatically from env
-            config=None,
+            action_space=Discrete(len(list_of_agents)),  # infer automatically from env
+            config=(
+                AlgorithmConfig()
+                .training(
+                    _enable_learner_api=False,
+                    model={"custom_model_config": {"line_info": line_info}},
+                )
+                .rl_module(_enable_rl_module_api=False)
+                .exploration(
+                    exploration_config={
+                        "type": "EpsilonGreedy",
+                    }
+                )
+                .rollouts(preprocessor_pref=None)
+            ),
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,
@@ -116,9 +145,38 @@ def setup_config(config_path: str) -> None:
         ),
     }
 
+    # TODO: Change the rl policy to another reward function
+    # Add reinforcement learning policies to the dictionary
+    for sub_idx in list_of_agents:
+        policies[
+            f"reinforcement_learning_policy_{sub_idx}"
+        ] = PolicySpec(  # rule based substation selection
+            policy_class=None,
+            observation_space=None,  # infer automatically from env
+            action_space=None,  # infer automatically from env
+            config=(
+                AlgorithmConfig()
+                .training(
+                    _enable_learner_api=False,
+                    model={
+                        "custom_model_config": {
+                            "env_config": custom_config["environment"]["env_config"]
+                        }
+                    },
+                )
+                .rl_module(_enable_rl_module_api=False)
+                .exploration(
+                    exploration_config={
+                        "type": "EpsilonGreedy",
+                    }
+                )
+                .rollouts(preprocessor_pref=None)
+            ),
+        )
+
     # load environment and agents manually
     ppo_config.update({"policies": policies})
-    ppo_config.update({"env": CustomizedGrid2OpEnvironment})
+    ppo_config.update({"env": GreedyHierarchicalCustomizedGrid2OpEnvironment})
 
     run_training(ppo_config, custom_config["setup"])
 
@@ -137,10 +195,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Access the parsed arguments
-    input_config = args.config
+    input_config_path = args.config
 
-    if input_config:
-        setup_config(input_config)
+    if input_config_path:
+        setup_config(input_config_path)
     else:
         parser.print_help()
-        logging.error("\nError: --config is required to specify config location.")
+        logging.error("\nError: --file_path is required to specify config location.")

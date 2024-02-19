@@ -30,7 +30,7 @@ def create_action_spaces(
     env = grid2op.make(env_name)
 
     if "asymmetry" in action_spaces_to_create:
-        mathematically_possible_actions, _ = calculate_action_space_asymmetry(env)
+        mathematically_possible_actions, _, _ = calculate_action_space_asymmetry(env)
         possible_actions = get_asymmetrical_action_space(env)
         if mathematically_possible_actions != len(possible_actions):
             raise ValueError(
@@ -40,7 +40,7 @@ def create_action_spaces(
         file_path = os.path.join(save_path, f"{env_name}/asymmetry.json")
         save_to_json(possible_actions, file_path)
     if "medha" in action_spaces_to_create:
-        mathematically_possible_actions, _ = calculate_action_space_medha(env)
+        mathematically_possible_actions, _, _ = calculate_action_space_medha(env)
         possible_actions = get_medha_action_space(env)
         if mathematically_possible_actions != len(possible_actions):
             raise ValueError(
@@ -50,7 +50,7 @@ def create_action_spaces(
         file_path = os.path.join(save_path, f"{env_name}/medha.json")
         save_to_json(possible_actions, file_path)
     if "tennet" in action_spaces_to_create:
-        mathematically_possible_actions, _ = calculate_action_space_tennet(env)
+        mathematically_possible_actions, _, _ = calculate_action_space_tennet(env)
         possible_actions = get_tennet_action_space(env)
         if mathematically_possible_actions != len(possible_actions):
             raise ValueError(

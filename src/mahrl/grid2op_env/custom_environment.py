@@ -1,6 +1,7 @@
 """
 Class that defines the custom Grid2op to gym environment with the set observation and action spaces.
 """
+
 import json
 import logging
 import os
@@ -15,6 +16,7 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
+from mahrl.evaluation.evaluation_agents import create_greedy_agent_per_substation
 from mahrl.grid2op_env.utils import (
     CustomDiscreteActions,
     get_possible_topologies,
@@ -55,6 +57,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             env_config["env_name"], **env_config["grid2op_kwargs"]
         )
         self.env_glop.seed(env_config["seed"])
+        # TODO: CHeck if wnat to use
+        self.env_glop.chronics_handler.set_chunk_size(288)
 
         # 1.a. Setting up custom action space
         if (
@@ -66,9 +70,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 lib_dir,
                 f"data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
             )
-            possible_substation_actions = self.load_action_space(path)
+            self.possible_substation_actions = self.load_action_space(path)
         elif env_config["action_space"] == "erica":
-            possible_substation_actions = get_possible_topologies(
+            self.possible_substation_actions = get_possible_topologies(
                 self.env_glop, CHANGEABLE_SUBSTATIONS
             )
         else:
@@ -76,15 +80,15 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 lib_dir,
                 f"data/action_spaces/{env_config['env_name']}/asymmetry.json",
             )
-            possible_substation_actions = self.load_action_space(path)
+            self.possible_substation_actions = self.load_action_space(path)
             logging.warning(
                 "No valid space is defined, using asymmetrical action space."
             )
 
-        logging.info(f"LEN ACTIONS={len(possible_substation_actions)}")
+        logging.info(f"LEN ACTIONS={len(self.possible_substation_actions)}")
         # Add the do-nothing action at index 0
         do_nothing_action = self.env_glop.action_space({})
-        possible_substation_actions.insert(0, do_nothing_action)
+        self.possible_substation_actions.insert(0, do_nothing_action)
 
         # 2. create the gym environment
         self.env_gym = GymEnv(self.env_glop)
@@ -92,7 +96,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         # 3. customize action and observation space space to only change bus
         # create converter
-        converter = setup_converter(self.env_glop, possible_substation_actions)
+        converter = setup_converter(self.env_glop, self.possible_substation_actions)
 
         # set gym action space to discrete
         self.env_gym.action_space = CustomDiscreteActions(
@@ -107,14 +111,15 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.env_gym.observation_space = ob_space
 
         # 4. specific to rllib
-        self.action_space = gymnasium.spaces.Discrete(len(possible_substation_actions))
+        self.action_space = gymnasium.spaces.Discrete(
+            len(self.possible_substation_actions)
+        )
         self.observation_space = gymnasium.spaces.Dict(
             dict(self.env_gym.observation_space.spaces.items())
         )
 
         self.previous_obs: OrderedDict[str, Any] = OrderedDict()
         self.step_nb = 0
-        self.reconnect_line = None
 
     def reset(
         self,
@@ -225,6 +230,16 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         Loads the action space from a specified folder.
         """
+        # if the path contains _per_day or _train or _test or _val, then ignore this part of the string
+        if "_per_day" in path:
+            path = path.replace("_per_day", "")
+        if "_train" in path:
+            path = path.replace("_train", "")
+        if "_test" in path:
+            path = path.replace("_test", "")
+        if "_val" in path:
+            path = path.replace("_val", "")
+
         with open(path, "rt", encoding="utf-8") as action_set_file:
             return list(
                 (
@@ -235,3 +250,158 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)
+
+
+class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
+    """
+    Implement step function for hierarchical environment. This is made to work with greedy-agent lower
+    level agents. Their action is build-in the environment.
+    """
+
+    def __init__(self, env_config: dict[str, Any]):
+        super().__init__(env_config)
+
+        self.g2op_obs = None
+        self.agents = create_greedy_agent_per_substation(
+            self.env_glop, env_config, self.possible_substation_actions
+        )
+
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[MultiAgentDict, MultiAgentDict]:
+        """
+        This function resets the environment.
+        """
+        # Adjusted reset to also get g2op_obs
+        self.g2op_obs = self.env_glop.reset()
+        self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
+        observations = {"high_level_agent": self.previous_obs}
+        return observations, {}
+
+    def step(
+        self, action_dict: MultiAgentDict
+    ) -> Tuple[
+        MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict
+    ]:
+        """
+        This function performs a single step in the environment.
+        """
+
+        # Increase step
+        self.step_nb = self.step_nb + 1
+
+        # Build termination dict
+        terminateds = {
+            "__all__": self.step_nb >= self.max_tsteps,
+        }
+
+        truncateds = {
+            "__all__": False,
+        }
+
+        rewards: Dict[str, Any] = {}
+        infos: Dict[str, Any] = {}
+
+        logging.info(f"ACTION_DICT = {action_dict}")
+
+        if "high_level_agent" in action_dict.keys():
+            action = action_dict["high_level_agent"]
+            if action == 0:
+                # do something
+                observations = {"choose_substation_agent": self.previous_obs}
+            elif action == 1:
+                # do nothing
+                observations = {"do_nothing_agent": self.previous_obs}
+            else:
+                raise ValueError(
+                    "An invalid action is selected by the high_level_agent in step()."
+                )
+        elif "do_nothing_agent" in action_dict.keys():
+            logging.info("do_nothing_agent IS CALLED: DO NOTHING")
+
+            # overwrite action in action_dict to nothing
+            g2op_action = self.env_glop.action_space({})
+
+            self.g2op_obs, reward, terminated, _ = self.env_glop.step(g2op_action)
+
+            self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
+
+            # still give reward to RL agent
+            rewards = {"choose_substation_agent": reward}
+            observations = {"high_level_agent": self.previous_obs}
+            terminateds = {"__all__": terminated}
+            truncateds = {"__all__": terminated}
+            infos = {}
+        elif "choose_substation_agent" in action_dict.keys():
+            logging.info("choose_substation_agent IS CALLED: DO SOMETHING")
+
+            action = action_dict["choose_substation_agent"]
+
+            # Implement correct action on environment side, e.g. don't step
+            # on gym side, but step on grid2op side and return gym observation
+            # determine action with greedy agent
+            g2op_action = self.agents[action].act(self.g2op_obs, reward=None)
+            self.g2op_obs, reward, terminated, _ = self.env_glop.step(g2op_action)
+            self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
+
+            # TODO: Manually setup terminated (episode complete) or truncated (episode fail prematurely)
+            rewards = {"choose_substation_agent": reward}
+            observations = {"high_level_agent": self.previous_obs}
+            terminateds = {"__all__": terminated}
+            truncateds = {"__all__": terminated}
+            infos = {}
+        elif bool(action_dict) is False:
+            logging.info("Caution: Empty action dictionary!")
+            rewards = {}
+            observations = {}
+            infos = {}
+        else:
+            logging.info(f"ACTION_DICT={action_dict}")
+            raise ValueError("No agent found in action dictionary in step().")
+
+        return observations, rewards, terminateds, truncateds, infos
+
+    def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
+        """
+        Not implemented.
+        """
+        raise NotImplementedError
+
+
+register_env(
+    "GreedyHierarchicalCustomizedGrid2OpEnvironment",
+    GreedyHierarchicalCustomizedGrid2OpEnvironment,
+)
+
+# elif any(
+#     key.startswith("reinforcement_learning_agent") for key in action_dict.keys()
+# ):
+#     raise NotImplementedError
+# logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
+
+# # extract key
+# if len(action_dict) == 1:
+#     key = next(iter(action_dict))
+# else:
+#     raise ValueError(
+#         "Only one reinforcement_learning_agent should be in action_dict."
+#     )
+
+# # Implement correct action on environment side, e.g. don't step
+# # on gym side, but step on grid2op side and return gym observation
+# # TODO: Check if env_glop is at the same state as env_gym
+# g2op_action = self.agents[]  # TODO determine action with greedy agent
+# self.g2op_obs, reward, terminated, info = self.env_glop.step(g2op_action)
+
+# self.previous_obs = self.observation_space.to_gym(self.g2op_obs)
+
+# # TODO: How to setup reward system?
+# # TODO: Manually setup terminated (episode complete) or truncated (episode fail prematurely)
+# rewards = {key: reward}
+# observations = {"high_level_agent": self.previous_obs}
+# terminateds = {"__all__": terminated}
+# truncateds = {"__all__": terminated}
+# infos = {}
