@@ -73,6 +73,10 @@ def setup_config(config_path: str) -> None:
     Loads the json as config and sets it up for training.
     """
     # load base PPO config and load in hyperparameters
+    if os.path.exists(config_path):
+        print("path exist! path: ", config_path)
+    else:
+        print("path does not exist: ", config_path)
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
     ppo_config.update(custom_config["training"])
