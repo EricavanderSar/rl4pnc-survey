@@ -1,6 +1,6 @@
 setup:
   nb_timesteps: &nb_timesteps 1000000
-  checkpoint_freq: 10000
+  checkpoint_freq: 100000
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
 
@@ -9,8 +9,8 @@ debugging:
 
 training:
   # tunable parameters
-  lr: 0.005 # !grid_search [0.0005, 0.005, 0.05]
-  gamma: !grid_search [0.95, 0.99, 1]
+  lr: 0.00005 #!grid_search [0.00005, 0.0005, 0.005]
+  gamma: 0.95 # !grid_search [0.95, 0.99]
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
