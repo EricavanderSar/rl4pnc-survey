@@ -161,3 +161,6 @@ data_grid2op/*
 
 # Submodule
 lightsim2grid
+
+# batchjob output
+*.out

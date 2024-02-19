@@ -1,0 +1,59 @@
+setup:
+  nb_timesteps: &nb_timesteps 1_000
+  checkpoint_freq: 5_000
+  checkpoint_trainable_policies_only: True
+  verbose: 1
+  storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
+
+debugging:
+  seed: &seed 14
+
+training:
+  # tunable parameters
+  gamma: 0.95 # !grid_search [0.95, 0.99]
+  lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
+  vf_loss_coeff: 0.5
+  entropy_coeff: 0.01
+  clip_param: 0.2
+  lambda_: 0.90
+  num_sgd_iter: 5
+  sgd_minibatch_size: 16 # !grid_search [32, 64, 128]
+  train_batch_size: &train_batch_size 80 # !grid_search [32, 64, 128]
+  batch_mode: complete_episodes
+  model:
+    fcnet_hiddens: 
+    - 128
+    - 128
+    - 128
+  _enable_learner_api: False
+  
+rl_module:
+  _enable_rl_module_api: False
+
+explore:
+  exploration_config:
+    type: StochasticSampling
+
+callbacks:
+  callbacks: !CustomMetricsCallback
+
+framework:
+  framework: torch
+
+multi_agent:
+  policy_mapping_fn: !policy_mapping_fn
+  policies_to_train: ["reinforcement_learning_policy"]
+  count_steps_by: agent_steps
+
+environment:
+  env_config:
+    env_name: rte_case14_realistic
+    num_agents: 3
+    action_space: tennet
+    lib_dir: "$TMPDIR"/
+    max_tsteps: *train_batch_size
+    grid2op_kwargs:
+      # general kwargs
+      reward_class: !LossReward
+    seed: *seed
+    rho_threshold: 0.90
