@@ -157,6 +157,7 @@ cython_debug/
 # Pycharm project settings
 .idea
 */runs/*
+data_grid2op/*
 
 # Submodule
 lightsim2grid
