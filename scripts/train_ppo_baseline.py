@@ -42,7 +42,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
         param_space=config,
         run_config=air.RunConfig(
             stop={"timesteps_total": setup["nb_timesteps"]}, #"training_iteration": 5}, #
-            storage_path=os.path.abspath(setup["storage_path"]),
+            # storage_path=os.path.abspath(setup["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=setup["checkpoint_freq"],
                 checkpoint_at_end=True,
@@ -63,7 +63,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
         result = result_grid[i]
         if not result.error:
             print(f"Trial finishes successfully with metrics"
-                  f"{result.metrics}.")
+                  f"{result.metrics['custom_metrics']}.")
         else:
             print(f"Trial failed with error {result.error}.")
 
@@ -163,12 +163,21 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default= "../configs/rte_case14_realistic/ppo_baseline_batchjob.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
+        default= "../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
         help="Path to the config file.",
+    )
+    parser.add_argument(
+        "-wd",
+        "--workdir",
+        type=str,
+        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/scripts/runs",
+        help="path do store results.",
     )
 
     # Parse the command-line arguments
     args = parser.parse_args()
+
+    os.environ["RAY_AIR_LOCAL_CACHE_DIR"] = args.storage_path
 
     # Access the parsed arguments
     input_file_path = args.file_path
