@@ -50,7 +50,7 @@ environment:
     env_name: rte_case14_realistic
     num_agents: 3
     action_space: tennet
-    lib_dir: $TMPDIR/
+    lib_dir: ./
     max_tsteps: *train_batch_size
     grid2op_kwargs:
       # general kwargs
