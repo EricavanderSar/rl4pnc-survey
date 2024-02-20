@@ -6,6 +6,8 @@ import logging
 import os
 from typing import Any
 
+import grid2op
+
 import ray
 from gymnasium.spaces import Discrete
 from ray import air, tune
@@ -62,17 +64,19 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     for i in range(len(result_grid)):
         result = result_grid[i]
         if not result.error:
-            print(f"Trial finishes successfully with metrics"
+            print(f"Trial finishes successfully with custom_metrics "
                   f"{result.metrics['custom_metrics']}.")
         else:
             print(f"Trial failed with error {result.error}.")
 
 
-def setup_config(config_path: str) -> None:
+def setup_config(workdir_path: str, input_path: str) -> None:
     """
     Loads the json as config and sets it up for training.
     """
     # load base PPO config and load in hyperparameters
+    # Access the parsed arguments
+    config_path = os.path.join(workdir_path, input_path)
     if os.path.exists(config_path):
         print("path exist! path: ", config_path)
     else:
@@ -89,6 +93,7 @@ def setup_config(config_path: str) -> None:
     ppo_config.update(custom_config["multi_agent"])
     # ppo_config.update(custom_config["evaluation"])
 
+    change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy,
@@ -107,11 +112,6 @@ def setup_config(config_path: str) -> None:
                     },
                 )
                 .rl_module(_enable_rl_module_api=False)
-                # .exploration(
-                #     exploration_config={
-                #         "type": "EpsilonGreedy",
-                #     }
-                # )
                 .rollouts(preprocessor_pref=None)
             ),
         ),
@@ -119,17 +119,6 @@ def setup_config(config_path: str) -> None:
             policy_class=None,  # use default policy of PPO
             observation_space=None,  # infer automatically from env
             action_space=None,  # infer automatically from env
-            # config=(
-            #     ppo.PPOConfig()
-            #     .training(**custom_config["training"])
-            #     .rl_module(_enable_rl_module_api=False)
-            #     # .evaluation_config()
-            #     # .exploration(
-            #     #     exploration_config={
-            #     #         "type": "EpsilonGreedy",
-            #     #     }
-            #     # )
-            # ),
             config=None,
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
@@ -140,11 +129,6 @@ def setup_config(config_path: str) -> None:
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
                 .rl_module(_enable_rl_module_api=False)
-                # .exploration(
-                #     exploration_config={
-                #         "type": "EpsilonGreedy",
-                #     }
-                # )
             ),
         ),
     }
@@ -154,6 +138,19 @@ def setup_config(config_path: str) -> None:
     ppo_config.update({"env": CustomizedGrid2OpEnvironment})
 
     run_training(ppo_config, custom_config["setup"])
+
+
+def change_workdir(workdir: str, env_name: str) -> None:
+    # Change grid2op path if this exists
+    env_path = os.path.join(workdir, f"data_grid2op/{env_name}")
+    if os.path.exists(env_path):
+        grid2op_data_dir = os.path.join(workdir, "data_grid2op")
+        grid2op.change_local_dir(grid2op_data_dir)
+    else:
+        grid2op.change_local_dir(os.path.expanduser("~/data_grid2op"))
+    print(f"Environment data location used is: {grid2op.get_current_local_dir()}")
+    # Change dir for RLlib ray_results output tensorboard
+    os.environ["RAY_AIR_LOCAL_CACHE_DIR"] = os.path.join(workdir, "runs")
 
 
 if __name__ == "__main__":
@@ -170,20 +167,15 @@ if __name__ == "__main__":
         "-wd",
         "--workdir",
         type=str,
-        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/scripts/runs",
+        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/scripts/",
         help="path do store results.",
     )
 
     # Parse the command-line arguments
     args = parser.parse_args()
 
-    os.environ["RAY_AIR_LOCAL_CACHE_DIR"] = args.storage_path
-
-    # Access the parsed arguments
-    input_file_path = args.file_path
-
-    if input_file_path:
-        setup_config(input_file_path)
+    if args.file_path:
+        setup_config(args.workdir, args.file_path)
     else:
         parser.print_help()
         logging.error("\nError: --file_path is required to specify config location.")

@@ -35,8 +35,6 @@ class CustomMetricsCallback(DefaultCallbacks):
         #     / agents_steps["high_level_agent"]
         # )
 
-        # print("agent steps: ", agents_steps)
-
     # def on_learn_on_batch(
     #         self, *, policy: Policy, train_batch: SampleBatch, result: dict, **kwargs
     #     ) -> None:
