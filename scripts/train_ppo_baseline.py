@@ -77,10 +77,6 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     # load base PPO config and load in hyperparameters
     # Access the parsed arguments
     config_path = os.path.join(workdir_path, input_path)
-    if os.path.exists(config_path):
-        print("path exist! path: ", config_path)
-    else:
-        print("path does not exist: ", config_path)
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
     ppo_config.update(custom_config["training"])
@@ -91,6 +87,8 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     ppo_config.update(custom_config["callbacks"])
     ppo_config.update(custom_config["environment"])
     ppo_config.update(custom_config["multi_agent"])
+    ppo_config.update(custom_config["resources"])
+    ppo_config.update(custom_config["rollouts"])
     # ppo_config.update(custom_config["evaluation"])
 
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
@@ -160,7 +158,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default= "../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
+        default= "../configs/rte_case14_realistic/ppo_baseline_batchjob.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
         help="Path to the config file.",
     )
     parser.add_argument(
