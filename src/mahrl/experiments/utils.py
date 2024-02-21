@@ -126,7 +126,8 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
 def get_capa_substation_id(
     line_info: dict[int, list[int]],
     obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
-) -> int:
+    controllable_substations: list[int],
+) -> list[int]:
     """
     Returns the substation id of the substation to act on according to CAPA.
     """
@@ -134,7 +135,6 @@ def get_capa_substation_id(
     connected_rhos: dict[int, list[float]] = {agent: [] for agent in line_info}
     for sub_idx in line_info:
         for line_idx in line_info[sub_idx]:
-            # TODO check if works during training
             if isinstance(obs_batch, OrderedDict):
                 connected_rhos[sub_idx].append(obs_batch["rho"][0][line_idx])
             elif isinstance(obs_batch, dict):
@@ -144,10 +144,23 @@ def get_capa_substation_id(
     for sub_idx in connected_rhos:
         connected_rhos[sub_idx] = np.mean(connected_rhos[sub_idx])
 
-    # find substation with max average rho
-    # NOTE: When there are two equal max values, the first one is returned
-    max_value = max(connected_rhos.values())
-    return [key for key, value in connected_rhos.items() if value == max_value][0]
+    # set non-controllable substations to 0
+    for sub_idx in connected_rhos:
+        if sub_idx not in controllable_substations:
+            connected_rhos[sub_idx] = [0.0]
+
+    # order the substations by the mean rho, maximum first
+    connected_rhos = dict(
+        sorted(connected_rhos.items(), key=lambda item: item[1], reverse=True)
+    )
+
+    # # find substation with max average rho
+    # max_value = max(connected_rhos.values())
+    # return [key for key, value in connected_rhos.items() if value == max_value][0]
+
+    # return the initial three keys of the ordered entries
+    # NOTE: When there are two equal max values, the first one is returned first
+    return list(connected_rhos.keys())[:3]
 
 
 def find_list_of_agents(env: BaseEnv, action_space: str) -> list[int]:

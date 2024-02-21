@@ -117,7 +117,12 @@ def setup_config(config_path: str) -> None:
                 AlgorithmConfig()
                 .training(
                     _enable_learner_api=False,
-                    model={"custom_model_config": {"line_info": line_info}},
+                    model={
+                        "custom_model_config": {
+                            "line_info": line_info,
+                            "environment": custom_config["environment"],
+                        },
+                    },
                 )
                 .rl_module(_enable_rl_module_api=False)
                 .exploration(

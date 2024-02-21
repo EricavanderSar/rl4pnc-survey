@@ -7,19 +7,19 @@ import logging
 import math
 import os
 import shutil
+from typing import Iterator
 
 import grid2op
 from grid2op.Environment import BaseEnv
 
 from mahrl.experiments.yaml import load_config
 
-# TODO: Double check if threshold like this is okay
-THRESHOLD = 2
+RHO_THRESHOLD = 1
 LENGTH_DAY = 288
 TIME = 3  # reset point (3AM)
 
 
-def check_safe_starting_point(env: BaseEnv, scenario_id: int, day: int) -> bool:
+def check_safe_starting_point(env: BaseEnv, scenario_id: int, tsteps: int) -> bool:
     """
     Checks if the starting point of the environment is safe.
 
@@ -36,11 +36,11 @@ def check_safe_starting_point(env: BaseEnv, scenario_id: int, day: int) -> bool:
     env.reset()
 
     # fast forward to current point
-    env.fast_forward_chronics(day)
+    env.fast_forward_chronics(tsteps)
     obs, _, _, _ = env.step(env.action_space())
 
     # check if the starting point is safe
-    if max(obs.to_dict()["rho"]) > THRESHOLD:
+    if max(obs.to_dict()["rho"]) > RHO_THRESHOLD:
         return False
     return True
 
@@ -68,7 +68,6 @@ def flatten_directory(root_dir: str) -> None:
 
 def save_chronic(
     env: BaseEnv,
-    tsteps: int,
     save_path: str,
     dict_beg: dict[str, str],
     dict_end: dict[str, str],
@@ -93,33 +92,92 @@ def save_chronic(
     Returns:
         None
     """
-    # Check if grid is safe
-    if check_safe_starting_point(env, env.chronics_handler.get_id(), day + tsteps):
-        # create folder if necessary
-        file_path = os.path.join(
-            save_path,
-            f"{env.env_name}/generated_chronics/",
-            scenario_name,
-        )
-        if not os.path.exists(os.path.abspath(file_path)):
-            os.makedirs(os.path.abspath(file_path))
+    # create folder if necessary
+    file_path = os.path.join(
+        save_path,
+        f"{env.env_name}/generated_chronics/",
+        scenario_name,
+    )
+    if not os.path.exists(os.path.abspath(file_path)):
+        os.makedirs(os.path.abspath(file_path))
 
-        # generate splits
-        try:
-            env.chronics_handler.real_data.split_and_save(
-                dict_beg,
-                dict_end,
-                path_out=os.path.abspath(file_path),
-            )
-            flatten_directory(file_path)
-        except Exception as exc:
-            raise AssertionError(
-                f"Not complete. Crashed with day {day} chronics {dict_beg} {dict_end}"
-            ) from exc
-    else:
-        raise AssertionError(
-            f"Safe starting point not found for {env.chronics_handler.get_id()} at day {day}"
+    # generate splits
+    try:
+        env.chronics_handler.real_data.split_and_save(
+            dict_beg,
+            dict_end,
+            path_out=os.path.abspath(file_path),
         )
+        flatten_directory(file_path)
+    except Exception as exc:
+        raise AssertionError(
+            f"Not complete. Crashed with day {day} chronics {dict_beg} {dict_end}"
+        ) from exc
+
+
+def generate_split_points(
+    env: BaseEnv, delta: int
+) -> tuple[dict[str, list[int]], Iterator[str]]:
+    """
+    Generate splitting points for scenarios based on the given environment and delta.
+
+    Args:
+        env (BaseEnv): The environment object.
+        delta (int): The time interval between splitting points.
+
+    Returns:
+        tuple[dict[str, list[int]], Iterable[str]]: A tuple containing the splitting points
+        for each scenario and an iterable of formatted scenario IDs.
+    """
+    # determine environment specific parameters
+    episode_duration = env.chronics_handler.real_data.max_timestep()
+    total_number_of_days = math.ceil(
+        episode_duration / (LENGTH_DAY * delta)
+    )  # round up in case (LENGTH_DAY * delta) does not divide episode_duration evenly
+
+    splitting_points: dict[str, list[int]] = {}
+
+    # loop over all scenarios to create a scenario for each day
+    for scenario_id in env.chronics_handler.subpaths:
+        # print(f"init timestep: {0 + int(TIME * 60 / 5) - 1}")
+        splitting_points[scenario_id] = []
+        if check_safe_starting_point(env, scenario_id, 0 + int(TIME * 60 / 5) - 1):
+            _, _, _, _ = env.step(env.action_space())
+            splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
+        else:
+            raise AssertionError(
+                f"Safe starting point not found for {scenario_id} at day 0"
+            )
+
+        for tsteps in range(LENGTH_DAY * delta, episode_duration, LENGTH_DAY * delta):
+            number_of_days = int(tsteps / (LENGTH_DAY * delta))
+
+            if number_of_days < total_number_of_days:
+                total_tsteps = tsteps + int(TIME * 60 / 5) - 1
+            else:  # for the last day, go from midnight to midnight
+                total_tsteps = tsteps
+
+            if check_safe_starting_point(env, scenario_id, total_tsteps):
+                _, _, _, _ = env.step(env.action_space())
+                splitting_points[scenario_id].append(total_tsteps)
+            else:
+                continue
+
+        # append final starting/ending point
+        splitting_points[scenario_id].append(episode_duration)
+
+    # flatten 2d list starting_points to find total number of scenarios
+    total_number_of_generated_scenarios = 0
+    for _, points in splitting_points.items():
+        total_number_of_generated_scenarios += len(points) - 1
+
+    formatted_scenario_ids_iter = iter(
+        [
+            f"{id:0{len(str(total_number_of_generated_scenarios))}d}"
+            for id in range(total_number_of_generated_scenarios)
+        ]
+    )
+    return splitting_points, formatted_scenario_ids_iter
 
 
 def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
@@ -133,43 +191,28 @@ def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
     Returns:
         None
     """
-    # determine environment specific parameters
-    episode_duration = env.chronics_handler.real_data.max_timestep()
     total_number_of_days = math.ceil(
-        episode_duration / (LENGTH_DAY * delta)
+        env.chronics_handler.real_data.max_timestep() / (LENGTH_DAY * delta)
     )  # round up in case (LENGTH_DAY * delta) does not divide episode_duration evenly
-    total_number_of_generated_scenarios = total_number_of_days * len(
-        env.chronics_handler.subpaths
-    )
 
-    # setup iterative scenario IDs so all have the same number of digits
-    formatted_scenario_ids_iter = iter(
-        [
-            f"{id:0{len(str(total_number_of_generated_scenarios))}d}"
-            for id in range(total_number_of_generated_scenarios)
-        ]
-    )
+    splitting_points, formatted_scenario_ids_iter = generate_split_points(env, delta)
 
-    # loop over all scenarios to create a scenario for each day
-    for _ in range(len(env.chronics_handler.subpaths)):
+    for scenario_id, list_with_points in splitting_points.items():
+        env.set_id(scenario_id)
         _ = env.reset()
-        env.fast_forward_chronics(TIME * 60 / 5 - 1)
+        env.fast_forward_chronics(list_with_points[0])
         previous_obs, _, _, _ = env.step(env.action_space())
 
-        for tsteps in range(0, episode_duration, LENGTH_DAY * delta):
-            number_of_days = int(tsteps / (LENGTH_DAY * delta))
-
+        for number_of_days, tsteps in enumerate(list_with_points[1:]):
             # go to the next day
+            env.set_id(scenario_id)
             _ = env.reset()
-            env.fast_forward_chronics(
-                min(tsteps + ((LENGTH_DAY * delta) - 1), episode_duration - 1)
-            )
+            env.fast_forward_chronics(tsteps - 1)
 
-            scenario_id = os.path.basename(env.chronics_handler.get_id())
             if number_of_days < total_number_of_days - 1:
                 time_str = f"0{TIME}:00"
-                # set at the specified starting night time
-                env.fast_forward_chronics(TIME * 60 / 5)
+                # # set at the specified starting night time
+                # env.fast_forward_chronics(TIME * 60 / 5)
             else:  # for the last day, go from midnight to midnight
                 time_str = "00:00"
 
@@ -177,15 +220,20 @@ def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
             obs, _, _, _ = env.step(env.action_space())
 
             dict_beg = {
-                scenario_id: f"{previous_obs.year}-{previous_obs.month}-{previous_obs.day} {time_str}"
+                os.path.basename(
+                    scenario_id
+                ): f"{previous_obs.year}-{previous_obs.month}-{previous_obs.day} {time_str}"
             }
-            dict_end = {scenario_id: f"{obs.year}-{obs.month}-{obs.day} {time_str}"}
+            dict_end = {
+                os.path.basename(
+                    scenario_id
+                ): f"{obs.year}-{obs.month}-{obs.day} {time_str}"
+            }
 
             previous_obs = obs
 
             save_chronic(
                 env,
-                tsteps,
                 save_path,
                 dict_beg,
                 dict_end,
@@ -236,6 +284,8 @@ if __name__ == "__main__":
             **custom_config["environment"]["env_config"]["grid2op_kwargs"],
         )
         setup_env.seed(custom_config["environment"]["env_config"]["seed"])
+        # generate_split_points(setup_env, input_days)
+
         split_chronics_into_days(setup_env, input_save_path, input_days)
     else:
         parser.print_help()

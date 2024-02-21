@@ -149,6 +149,8 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         # if not, create the folder
         os.makedirs(store_trajectories_folder)
 
+    start_time = time.time()
+
     # run the environment 10 times if an opponent is active, with different seeds
     for i in range(10 if "opponent_kwargs" in env_config["grid2op_kwargs"] else 1):
         env_config["seed"] = env_config["seed"] + i
@@ -183,7 +185,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         individual_timesteps = []
 
         logging.info(f"The results for {agent_instance} agent are:")
-        for _, chron_name, cum_reward, nb_time_step, max_ts in res:
+        for _, chron_name, _, nb_time_step, max_ts in res:
             with open(
                 f"{results_folder}/{file_name}",
                 "a",
@@ -191,14 +193,12 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             ) as file:
                 file.write(
                     f"\n\tFor chronics with id {chron_name}\n"
-                    + f"\t\t - cumulative reward: {cum_reward:.6f}\n"
                     + f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
                 )
 
             individual_timesteps.append(nb_time_step)
             logging.info(
                 f"\n\tFor chronics with id {chron_name}\n"
-                + f"\t\t - cumulative reward: {cum_reward:.6f}\n"
                 + f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
             )
 
@@ -208,9 +208,10 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             encoding="utf-8",
         ) as file:
             file.write(
-                f"\nAverage timesteps survived: {mean(individual_timesteps)}\n{individual_timesteps}"
+                f"\nAverage timesteps survived: {mean(individual_timesteps)}\n{individual_timesteps}\n"
+                + f"Total time = {time.time() - start_time}"
             )
-
+        logging.info(f"Total time = {time.time() - start_time}")
         logging.info(f"Average timesteps survived: {mean(individual_timesteps)}")
 
 
@@ -340,8 +341,6 @@ def setup_capa_greedy_evaluation(
 
 
 if __name__ == "__main__":
-    start_time = time.time()
-
     init_parser = argparse.ArgumentParser(description="Process possible variables.")
     args = setup_parser(init_parser)
 
@@ -387,5 +386,3 @@ if __name__ == "__main__":
                     file_path=args.file_path,
                     checkpoint_name=args.checkpoint_name,
                 )
-
-    logging.info(f"Total time = {time.time() - start_time}")

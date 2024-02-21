@@ -17,6 +17,11 @@ from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
 from mahrl.evaluation.evaluation_agents import create_greedy_agent_per_substation
+from mahrl.experiments.utils import (
+    calculate_action_space_asymmetry,
+    calculate_action_space_medha,
+    calculate_action_space_tennet,
+)
 from mahrl.grid2op_env.utils import (
     CustomDiscreteActions,
     get_possible_topologies,
@@ -262,8 +267,26 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
         super().__init__(env_config)
 
         self.g2op_obs = None
+
+        # get changeable substations
+        if env_config["action_space"] == "asymmetry":
+            _, _, controllable_substations = calculate_action_space_asymmetry(
+                self.env_glop
+            )
+        elif env_config["action_space"] == "medha":
+            _, _, controllable_substations = calculate_action_space_medha(self.env_glop)
+        elif env_config["action_space"] == "tennet":
+            _, _, controllable_substations = calculate_action_space_tennet(
+                self.env_glop
+            )
+        else:
+            raise ValueError("No action valid space is defined.")
+
         self.agents = create_greedy_agent_per_substation(
-            self.env_glop, env_config, self.possible_substation_actions
+            self.env_glop,
+            env_config,
+            controllable_substations,
+            self.possible_substation_actions,
         )
 
     def reset(

@@ -207,15 +207,33 @@ class CapaAndGreedyAgent(GreedyAgent):
 
         setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
 
+        # get changeable substations
+        if env_config["action_space"] == "asymmetry":
+            _, _, self.controllable_substations = calculate_action_space_asymmetry(
+                setup_env
+            )
+        elif env_config["action_space"] == "medha":
+            _, _, self.controllable_substations = calculate_action_space_medha(
+                setup_env
+            )
+        elif env_config["action_space"] == "tennet":
+            _, _, self.controllable_substations = calculate_action_space_tennet(
+                setup_env
+            )
+        else:
+            raise ValueError("No action valid space is defined.")
+
         # set up greedy agents
         self.agents = create_greedy_agent_per_substation(
-            setup_env, env_config, possible_actions
+            setup_env, env_config, self.controllable_substations, possible_actions
         )
 
         # extract line and substation information
         self.line_info = find_substation_per_lines(
             setup_env, find_list_of_agents(setup_env, env_config["action_space"])
         )
+
+        self.idx = 0
 
     def act(
         self,
@@ -248,7 +266,113 @@ class CapaAndGreedyAgent(GreedyAgent):
 
         """
         obs_batch = observation.to_dict()
-        substation_to_act_on = get_capa_substation_id(self.line_info, obs_batch)
+        substation_to_act_on = get_capa_substation_id(
+            self.line_info, obs_batch, self.controllable_substations
+        )[self.idx % 3]
+
+        self.idx += 1
+        # print("substation_to_act_on: ", substation_to_act_on)
+
+        return self.agents[substation_to_act_on].act(observation, reward=None)
+
+    def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
+        """
+        Adds all possible actions to be tested.
+        """
+        if not self.tested_action:
+            # add the do nothing
+            res = [self.action_space({})]
+            # add all possible actions
+            res += self.possible_actions
+            self.tested_action = res
+        return self.tested_action
+
+
+class RandomAndGreedyAgent(GreedyAgent):
+    """
+    Defines the behaviour of a Greedy Agent that can perform topology changes based
+    on a provided set of possible actions.
+    """
+
+    def __init__(
+        self,
+        action_space: ActionSpace,
+        env_config: dict[str, Any],
+        possible_actions: list[BaseAction],
+    ):
+        GreedyAgent.__init__(self, action_space)
+        self.tested_action: list[BaseAction] = []
+        self.action_space = action_space
+        self.possible_actions = possible_actions
+        self.reconnect_line = None
+
+        # setup threshold
+        self.threshold = env_config["rho_threshold"]
+
+        setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+
+        # get changeable substations
+        if env_config["action_space"] == "asymmetry":
+            _, _, controllable_substations = calculate_action_space_asymmetry(setup_env)
+        elif env_config["action_space"] == "medha":
+            _, _, controllable_substations = calculate_action_space_medha(setup_env)
+        elif env_config["action_space"] == "tennet":
+            _, _, controllable_substations = calculate_action_space_tennet(setup_env)
+        else:
+            raise ValueError("No action valid space is defined.")
+
+        # set up greedy agents
+        self.agents = create_greedy_agent_per_substation(
+            setup_env, env_config, controllable_substations, possible_actions
+        )
+
+        # get changeable substations
+        if env_config["action_space"] == "asymmetry":
+            _, _, self.controllable_substations = calculate_action_space_asymmetry(
+                setup_env
+            )
+        elif env_config["action_space"] == "medha":
+            _, _, self.controllable_substations = calculate_action_space_medha(
+                setup_env
+            )
+        elif env_config["action_space"] == "tennet":
+            _, _, self.controllable_substations = calculate_action_space_tennet(
+                setup_env
+            )
+        else:
+            raise ValueError("No action valid space is defined.")
+
+    def act(
+        self,
+        observation: BaseObservation,
+        reward: Optional[BaseReward],
+        done: Optional[bool] = False,
+    ) -> BaseAction:
+        """
+        By definition, all "greedy" agents are acting the same way. The only thing that can differentiate multiple
+        agents is the actions that are tested.
+
+        These actions are defined in the method :func:`._get_tested_action`. This :func:`.act` method implements the
+        greedy logic: take the actions that maximizes the instantaneous reward on the simulated action.
+
+        Parameters
+        ----------
+        observation: :class:`grid2op.Observation.Observation`
+            The current observation of the :class:`grid2op.Environment.Environment`
+
+        reward: ``float``
+            The current reward. This is the reward obtained by the previous action
+
+        done: ``bool``
+            Whether the episode has ended or not. Used to maintain gym compatibility
+
+        Returns
+        -------
+        res: :class:`grid2op.Action.Action`
+            The action chosen by the bot / controller / agent.
+
+        """
+        substation_to_act_on = np.random.choice(self.controllable_substations)
 
         return self.agents[substation_to_act_on].act(observation, reward=None)
 
@@ -268,21 +392,12 @@ class CapaAndGreedyAgent(GreedyAgent):
 def create_greedy_agent_per_substation(
     env: BaseEnv,
     env_config: dict[str, Any],
+    controllable_substations: list[int],
     possible_substation_actions: list[BaseAction],
 ) -> dict[int, TopologyGreedyAgent]:
     """
     Create a greedy agent for each substation.
     """
-    # get changeable substations
-    if env_config["action_space"] == "asymmetry":
-        _, _, controllable_substations = calculate_action_space_asymmetry(env)
-    elif env_config["action_space"] == "medha":
-        _, _, controllable_substations = calculate_action_space_medha(env)
-    elif env_config["action_space"] == "tennet":
-        _, _, controllable_substations = calculate_action_space_tennet(env)
-    else:
-        raise ValueError("No action valid space is defined.")
-
     actions_per_substation: dict[int, list[BaseAction]] = {
         substation: [] for substation in controllable_substations
     }

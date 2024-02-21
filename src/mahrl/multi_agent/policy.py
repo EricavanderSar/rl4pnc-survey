@@ -6,6 +6,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import grid2op
 import gymnasium
 import numpy as np
 from ray.actor import ActorHandle
@@ -24,7 +25,12 @@ from ray.rllib.utils.typing import (
     TensorType,
 )
 
-from mahrl.experiments.utils import get_capa_substation_id
+from mahrl.experiments.utils import (
+    calculate_action_space_asymmetry,
+    calculate_action_space_medha,
+    calculate_action_space_tennet,
+    get_capa_substation_id,
+)
 
 
 def policy_mapping_fn(
@@ -67,6 +73,27 @@ class CapaPolicy(Policy):
             config=config,
         )
 
+        env_config = config["model"]["custom_model_config"]["environment"]["env_config"]
+        setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+
+        # get changeable substations
+        if env_config["action_space"] == "asymmetry":
+            _, _, self.controllable_substations = calculate_action_space_asymmetry(
+                setup_env
+            )
+        elif env_config["action_space"] == "medha":
+            _, _, self.controllable_substations = calculate_action_space_medha(
+                setup_env
+            )
+        elif env_config["action_space"] == "tennet":
+            _, _, self.controllable_substations = calculate_action_space_tennet(
+                setup_env
+            )
+        else:
+            raise ValueError("No action valid space is defined.")
+
+        self.idx = 0
+
     def compute_actions(
         self,
         obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
@@ -85,10 +112,14 @@ class CapaPolicy(Policy):
 
         line_info = self.config["model"]["custom_model_config"]["line_info"]
 
-        substation_to_act_on = get_capa_substation_id(line_info, obs_batch)
+        substation_to_act_on = get_capa_substation_id(
+            line_info, obs_batch, self.controllable_substations
+        )[self.idx % 3]
+
+        self.idx += 1
 
         # find substation with max average rho
-        # NOTE: When there are two equal max values, the first one is returned
+        # NOTE: When there are two equal max values, the first one is returned first
         return (
             [substation_to_act_on],
             state_outs_result,
