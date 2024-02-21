@@ -57,3 +57,9 @@ environment:
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.95
+
+resources:
+  num_learner_workers: 2
+
+rollouts:
+  num_rollout_workers: 2

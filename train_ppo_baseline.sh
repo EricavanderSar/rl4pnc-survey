@@ -6,11 +6,11 @@
 #SBATCH --cpus-per-task=18
 #SBATCH --gpus=1
 #SBATCH --partition=gpu
-#SBATCH --time=10:00:00
-#SBATCH --output=TrainFull_gpu_train_ppo_baseline_%j.out
+#SBATCH --time=1:00:00
+#SBATCH --output=TrainFull_gpu_case5_ppo_baseline_%j.out
 
 
-ENVNAME=rte_case14_realistic
+ENVNAME=rte_case5_example
 WORKDIR=$TMPDIR/evds_output_dir
 
 # function to handle the SIGTERM signal

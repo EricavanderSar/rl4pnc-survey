@@ -47,7 +47,6 @@ multi_agent:
 environment:
   env_config:
     env_name: rte_case5_example
-    num_agents: 3
     action_space: asymmetry
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
     max_tsteps: *train_batch_size
@@ -62,3 +61,9 @@ evaluation:
   evaluation_interval: 2
   evaluation_duration: 3
   evaluation_duration_unit: "episodes"
+
+resources:
+  num_learner_workers: 2
+
+rollouts:
+  num_rollout_workers: 2
