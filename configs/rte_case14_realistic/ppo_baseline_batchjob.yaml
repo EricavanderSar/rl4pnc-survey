@@ -1,6 +1,6 @@
 setup:
-  nb_timesteps: &nb_timesteps 1_000
-  checkpoint_freq: 5_000
+  nb_timesteps: &nb_timesteps 100_000
+  checkpoint_freq: 1000
   checkpoint_trainable_policies_only: True
   verbose: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
@@ -10,12 +10,12 @@ debugging:
 
 training:
   # tunable parameters
-  gamma: 0.95 # !grid_search [0.95, 0.99]
-  lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
+  gamma: 0.996 # !grid_search [0.95, 0.99]
+  lr: 0.0013 # !grid_search [0.0005, 0.005, 0.05]
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
-  clip_param: 0.2
-  lambda_: 0.90
+  clip_param: 0.18
+  lambda_: 0.91
   num_sgd_iter: 5
   sgd_minibatch_size: 16 # !grid_search [32, 64, 128]
   train_batch_size: &train_batch_size 80 # !grid_search [32, 64, 128]
@@ -60,7 +60,8 @@ environment:
 
 resources:
   num_gpus: 1
-  num_learner_workers: 2
+  num_learner_workers: 4
 
 rollouts:
   num_rollout_workers: 4
+
