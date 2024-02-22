@@ -38,7 +38,7 @@ framework:
 
 multi_agent:
   policy_mapping_fn: !policy_mapping_fn
-  policies_to_train: ["reinforcement_learning_policy_0"]
+  policies_to_train: []
 
 environment:
   env_config: &env_config_train

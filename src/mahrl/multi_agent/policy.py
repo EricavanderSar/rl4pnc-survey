@@ -93,7 +93,7 @@ class CapaPolicy(Policy):
             raise ValueError("No action valid space is defined.")
 
         self.idx = 0
-        self.substation_to_act_on = None
+        self.substation_to_act_on = []
 
     def compute_actions(
         self,
@@ -113,10 +113,8 @@ class CapaPolicy(Policy):
 
         line_info = self.config["model"]["custom_model_config"]["line_info"]
 
-        # print(f"obs_batch: {obs_batch}")
-
         # if no list is created yet, do so
-        if obs_batch["reset_capa_idx"][0] is True:
+        if obs_batch["reset_capa_idx"][0] == True:
             self.idx = 0
             self.substation_to_act_on = get_capa_substation_id(
                 line_info, obs_batch, self.controllable_substations

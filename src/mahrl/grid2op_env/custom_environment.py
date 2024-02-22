@@ -481,8 +481,8 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
 
                 observation_for_middle_agent = OrderedDict(
                     {
-                        "proposed_actions": self.proposed_actions,
                         **self.previous_obs,
+                        "proposed_actions": self.proposed_actions,
                         "do_nothing_action": self.env_glop.action_space({}),
                         "reset_capa_idx": self.reset_capa_idx,
                     }

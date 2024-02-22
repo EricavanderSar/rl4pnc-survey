@@ -139,7 +139,7 @@ def generate_split_points(
     reduction_in_days: dict[str, list[int]] = {}
     # loop over all scenarios to create a scenario for each day
     for scenario_id in env.chronics_handler.subpaths:
-        reduction_in_days["scenario_id"] = []
+        reduction_in_days[scenario_id] = []
         # print(f"init timestep: {0 + int(TIME * 60 / 5) - 1}")
         splitting_points[scenario_id] = []
         if check_safe_starting_point(env, scenario_id, 0 + int(TIME * 60 / 5) - 1):
@@ -162,7 +162,7 @@ def generate_split_points(
                 _, _, _, _ = env.step(env.action_space())
                 splitting_points[scenario_id].append(total_tsteps)
             else:
-                reduction_in_days["scenario_id"].append(True)
+                reduction_in_days[scenario_id].append(True)
                 continue
 
         # append final starting/ending point
@@ -199,6 +199,7 @@ def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
         reduction_in_days,
     ) = generate_split_points(env, delta)
 
+    print(reduction_in_days)
     for scenario_id, list_with_points in splitting_points.items():
         env.set_id(scenario_id)
         _ = env.reset()
