@@ -97,7 +97,6 @@ class TopologyGreedyAgent(GreedyAgent):
         self.tested_action: list[BaseAction] = []
         self.action_space = action_space
         self.possible_actions = possible_actions
-        self.reconnect_line = None
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]
@@ -200,7 +199,6 @@ class CapaAndGreedyAgent(GreedyAgent):
         self.tested_action: list[BaseAction] = []
         self.action_space = action_space
         self.possible_actions = possible_actions
-        self.reconnect_line = None
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]
@@ -234,6 +232,7 @@ class CapaAndGreedyAgent(GreedyAgent):
         )
 
         self.idx = 0
+        self.substation_to_act_on = []
 
     def act(
         self,
@@ -265,15 +264,37 @@ class CapaAndGreedyAgent(GreedyAgent):
             The action chosen by the bot / controller / agent.
 
         """
+        # TODO: redo implementation of policy
         obs_batch = observation.to_dict()
-        substation_to_act_on = get_capa_substation_id(
-            self.line_info, obs_batch, self.controllable_substations
-        )[self.idx % 3]
+        if np.max(obs_batch["rho"]) > self.threshold:
+            # if no list is created yet, do so
+            if self.idx == 0:
+                self.substation_to_act_on = get_capa_substation_id(
+                    self.line_info, obs_batch, self.controllable_substations
+                )
 
-        self.idx += 1
-        # print("substation_to_act_on: ", substation_to_act_on)
+            # find an action that is not the do nothing action by looping over the substations
+            chosen_action = self.action_space({})
+            while not chosen_action.as_dict() and self.idx < len(
+                self.controllable_substations
+            ):
+                single_substation = self.substation_to_act_on[
+                    self.idx % len(self.controllable_substations)
+                ]
 
-        return self.agents[substation_to_act_on].act(observation, reward=None)
+                self.idx += 1
+                chosen_action = self.agents[single_substation].act(
+                    observation, reward=None
+                )
+
+                # if it's not the do nothing action, return action
+                # if it's the do nothing action, continue the loop
+                if chosen_action.as_dict():
+                    return chosen_action
+
+        # grid is safe or no action is found, reset list count and return DoNothing
+        self.idx = 0
+        return self.action_space({})
 
     def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
         """
@@ -304,7 +325,6 @@ class RandomAndGreedyAgent(GreedyAgent):
         self.tested_action: list[BaseAction] = []
         self.action_space = action_space
         self.possible_actions = possible_actions
-        self.reconnect_line = None
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]

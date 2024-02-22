@@ -2,6 +2,7 @@
 Script that runs analysis on the behaviour of the agents.
 Has to be run after the evaluation of agents is run.
 """
+
 import argparse
 import logging
 
@@ -38,7 +39,8 @@ def run_statistics(path: str, episode_list: list[EpisodeData]) -> None:
             )
 
             if implicit_do_nothing and episode.actions[idx].as_dict() != {}:
-                print("IMPLICIT DO NOTHING CAUGHT")
+                # print("IMPLICIT DO NOTHING CAUGHT")
+                pass
 
             if episode.actions[idx].as_dict() != {} and not implicit_do_nothing:
                 # print(f"Played Action: {episode.actions[idx].as_dict()}")

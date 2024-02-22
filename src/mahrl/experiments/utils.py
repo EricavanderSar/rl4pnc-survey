@@ -158,9 +158,9 @@ def get_capa_substation_id(
     # max_value = max(connected_rhos.values())
     # return [key for key, value in connected_rhos.items() if value == max_value][0]
 
-    # return the initial three keys of the ordered entries
+    # return the ordered entries
     # NOTE: When there are two equal max values, the first one is returned first
-    return list(connected_rhos.keys())[:3]
+    return list(connected_rhos.keys())
 
 
 def find_list_of_agents(env: BaseEnv, action_space: str) -> list[int]:

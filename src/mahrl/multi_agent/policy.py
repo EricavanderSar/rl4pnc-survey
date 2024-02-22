@@ -93,6 +93,7 @@ class CapaPolicy(Policy):
             raise ValueError("No action valid space is defined.")
 
         self.idx = 0
+        self.substation_to_act_on = None
 
     def compute_actions(
         self,
@@ -112,19 +113,52 @@ class CapaPolicy(Policy):
 
         line_info = self.config["model"]["custom_model_config"]["line_info"]
 
-        substation_to_act_on = get_capa_substation_id(
-            line_info, obs_batch, self.controllable_substations
-        )[self.idx % 3]
+        # print(f"obs_batch: {obs_batch}")
 
-        self.idx += 1
+        # if no list is created yet, do so
+        if obs_batch["reset_capa_idx"][0] is True:
+            self.idx = 0
+            self.substation_to_act_on = get_capa_substation_id(
+                line_info, obs_batch, self.controllable_substations
+            )
+
+        # find an action that is not the do nothing action by looping over the substations
+        chosen_action = obs_batch["do_nothing_action"][0]
+        # print(f"initial chosen action: {chosen_action}")
+        while not chosen_action.as_dict() and self.idx < len(
+            self.controllable_substations
+        ):
+            single_substation = self.substation_to_act_on[
+                self.idx % len(self.controllable_substations)
+            ]
+
+            self.idx += 1
+            chosen_action = obs_batch["proposed_actions"][0][single_substation]
+            # print(f"loop chosen action: {chosen_action}")
+
+            # if it's not the do nothing action, return action
+            # if it's the do nothing action, continue the loop
+            if chosen_action.as_dict():
+                return ([chosen_action], state_outs_result, info_result)
+
+        # grid is safe or no action is found, reset list count and return DoNothing
+        self.idx = 0
+        return ([chosen_action], state_outs_result, info_result)
+
+        # print(f"obs_batch: {obs_batch}")
+        # substation_to_act_on = get_capa_substation_id(
+        #     line_info, obs_batch, self.controllable_substations
+        # )[self.idx % 3]
+
+        # self.idx += 1
 
         # find substation with max average rho
         # NOTE: When there are two equal max values, the first one is returned first
-        return (
-            [substation_to_act_on],
-            state_outs_result,
-            info_result,
-        )
+        # return (
+        #     [substation_to_act_on],
+        #     state_outs_result,
+        #     info_result,
+        # )
 
     def get_weights(self) -> ModelWeights:
         """No weights to save."""

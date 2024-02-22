@@ -117,7 +117,7 @@ def save_chronic(
 
 def generate_split_points(
     env: BaseEnv, delta: int
-) -> tuple[dict[str, list[int]], Iterator[str]]:
+) -> tuple[dict[str, list[int]], Iterator[str], dict[str, list[int]]]:
     """
     Generate splitting points for scenarios based on the given environment and delta.
 
@@ -136,9 +136,10 @@ def generate_split_points(
     )  # round up in case (LENGTH_DAY * delta) does not divide episode_duration evenly
 
     splitting_points: dict[str, list[int]] = {}
-
+    reduction_in_days: dict[str, list[int]] = {}
     # loop over all scenarios to create a scenario for each day
     for scenario_id in env.chronics_handler.subpaths:
+        reduction_in_days["scenario_id"] = []
         # print(f"init timestep: {0 + int(TIME * 60 / 5) - 1}")
         splitting_points[scenario_id] = []
         if check_safe_starting_point(env, scenario_id, 0 + int(TIME * 60 / 5) - 1):
@@ -161,6 +162,7 @@ def generate_split_points(
                 _, _, _, _ = env.step(env.action_space())
                 splitting_points[scenario_id].append(total_tsteps)
             else:
+                reduction_in_days["scenario_id"].append(True)
                 continue
 
         # append final starting/ending point
@@ -177,7 +179,7 @@ def generate_split_points(
             for id in range(total_number_of_generated_scenarios)
         ]
     )
-    return splitting_points, formatted_scenario_ids_iter
+    return splitting_points, formatted_scenario_ids_iter, reduction_in_days
 
 
 def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
@@ -191,11 +193,11 @@ def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
     Returns:
         None
     """
-    total_number_of_days = math.ceil(
-        env.chronics_handler.real_data.max_timestep() / (LENGTH_DAY * delta)
-    )  # round up in case (LENGTH_DAY * delta) does not divide episode_duration evenly
-
-    splitting_points, formatted_scenario_ids_iter = generate_split_points(env, delta)
+    (
+        splitting_points,
+        formatted_scenario_ids_iter,
+        reduction_in_days,
+    ) = generate_split_points(env, delta)
 
     for scenario_id, list_with_points in splitting_points.items():
         env.set_id(scenario_id)
@@ -209,7 +211,12 @@ def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
             _ = env.reset()
             env.fast_forward_chronics(tsteps - 1)
 
-            if number_of_days < total_number_of_days - 1:
+            if (number_of_days + len(reduction_in_days[scenario_id])) < (
+                math.ceil(  # round up in case (LENGTH_DAY * delta) does not divide episode_duration evenly
+                    env.chronics_handler.real_data.max_timestep() / (LENGTH_DAY * delta)
+                )
+                - 1
+            ):  # should be less than total number of days,
                 time_str = f"0{TIME}:00"
                 # # set at the specified starting night time
                 # env.fast_forward_chronics(TIME * 60 / 5)
