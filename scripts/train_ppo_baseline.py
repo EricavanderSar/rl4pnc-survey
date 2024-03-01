@@ -10,6 +10,7 @@ from typing import Any
 import ray
 from gymnasium.spaces import Discrete
 from ray import air, tune
+from ray.air.integrations.mlflow import MLflowLoggerCallback
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
@@ -30,13 +31,22 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     tuner = tune.Tuner(
         ppo.PPO,
         param_space=config,
+        tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
         run_config=air.RunConfig(
+            name="mlflow",
+            callbacks=[
+                MLflowLoggerCallback(
+                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+                    experiment_name=setup["experiment_name"],
+                    save_artifact=setup["save_artifact"],
+                )
+            ],
             stop={"timesteps_total": setup["nb_timesteps"]},
             storage_path=os.path.abspath(setup["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=setup["checkpoint_freq"],
+                # checkpoint_frequency=setup["checkpoint_freq"],
                 checkpoint_at_end=True,
-                checkpoint_score_attribute="evaluation/episode_reward_mean",
+                # checkpoint_score_attribute="evaluation/episode_reward_mean",
             ),
             verbose=setup["verbose"],
         ),
@@ -50,13 +60,16 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
         ray.shutdown()
 
 
-def setup_config(config_path: str) -> None:
+def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     """
     Loads the json as config and sets it up for training.
     """
     # load base PPO config and load in hyperparameters
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
+    if checkpoint_path:
+        custom_config["setup"]["checkpoint_path"] = checkpoint_path
+
     ppo_config.update(custom_config["training"])
     ppo_config.update(custom_config["debugging"])
     ppo_config.update(custom_config["framework"])
@@ -85,11 +98,11 @@ def setup_config(config_path: str) -> None:
                     },
                 )
                 .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
+                # .exploration(
+                #     exploration_config={
+                #         "type": "EpsilonGreedy",
+                #     }
+                # )
                 .rollouts(preprocessor_pref=None)
             ),
         ),
@@ -107,11 +120,11 @@ def setup_config(config_path: str) -> None:
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
                 .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
+                # .exploration(
+                #     exploration_config={
+                #         "type": "EpsilonGreedy",
+                #     }
+                # )
             ),
         ),
     }
@@ -133,14 +146,21 @@ if __name__ == "__main__":
         help="Path to the config file.",
     )
 
+    parser.add_argument(
+        "-r",
+        "--retrain",
+        type=str,
+        help="Path to the checkpoint file for retraining.",
+    )
+
     # Parse the command-line arguments
     args = parser.parse_args()
 
-    # Access the parsed arguments
-    input_config = args.config
-
-    if input_config:
-        setup_config(input_config)
+    if args.config:
+        if args.retrain:
+            setup_config(args.config, args.retrain)
+        else:
+            setup_config(args.config, None)
     else:
         parser.print_help()
         logging.error("\nError: --config is required to specify config location.")

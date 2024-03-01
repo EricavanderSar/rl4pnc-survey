@@ -101,11 +101,6 @@ def setup_config(config_path: str) -> None:
                     },
                 )
                 .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
                 .rollouts(preprocessor_pref=None)
             ),
         ),
@@ -125,11 +120,6 @@ def setup_config(config_path: str) -> None:
                     },
                 )
                 .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
                 .rollouts(preprocessor_pref=None)
             ),
         ),
@@ -141,43 +131,39 @@ def setup_config(config_path: str) -> None:
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
                 .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
             ),
         ),
     }
 
     # TODO: Change the rl policy to another reward function
     # Add reinforcement learning policies to the dictionary
-    for sub_idx in list_of_agents:
-        policies[
-            f"reinforcement_learning_policy_{sub_idx}"
-        ] = PolicySpec(  # rule based substation selection
-            policy_class=None,
-            observation_space=None,  # infer automatically from env
-            action_space=None,  # infer automatically from env
-            config=(
-                AlgorithmConfig()
-                .training(
-                    _enable_learner_api=False,
-                    model={
-                        "custom_model_config": {
-                            "env_config": custom_config["environment"]["env_config"]
-                        }
-                    },
-                )
-                .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
-                .rollouts(preprocessor_pref=None)
-            ),
-        )
+    # for sub_idx in list_of_agents:
+    #     policies[f"reinforcement_learning_policy_{sub_idx}"] = (
+    #         PolicySpec(  # rule based substation selection
+    #             policy_class=None,
+    #             observation_space=None,  # infer automatically from env
+    #             action_space=None,  # infer automatically from env
+    #             config=(
+    #                 AlgorithmConfig()
+    #                 .training(
+    #                     _enable_learner_api=False,
+    #                     model={
+    #                         "custom_model_config": {
+    #                             "env_config": custom_config["environment"]["env_config"]
+    #                         }
+    #                     },
+    #                 )
+    #                 .rl_module(_enable_rl_module_api=False)
+    # TODO: Get exploration from config
+    #                 # .exploration(
+    #                 #     exploration_config={
+    #                 #         "type": "EpsilonGreedy",
+    #                 #     }
+    #                 # )
+    #                 .rollouts(preprocessor_pref=None)
+    #             ),
+    #         )
+    #     )
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})

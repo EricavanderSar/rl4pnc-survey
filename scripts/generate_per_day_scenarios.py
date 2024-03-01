@@ -11,6 +11,7 @@ from typing import Iterator
 
 import grid2op
 from grid2op.Environment import BaseEnv
+from lightsim2grid import LightSimBackend
 
 from mahrl.experiments.yaml import load_config
 
@@ -199,7 +200,7 @@ def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
         reduction_in_days,
     ) = generate_split_points(env, delta)
 
-    print(reduction_in_days)
+    # print(reduction_in_days)
     for scenario_id, list_with_points in splitting_points.items():
         env.set_id(scenario_id)
         _ = env.reset()
@@ -290,6 +291,7 @@ if __name__ == "__main__":
         setup_env = grid2op.make(
             custom_config["environment"]["env_config"]["env_name"],
             **custom_config["environment"]["env_config"]["grid2op_kwargs"],
+            backend=LightSimBackend(),
         )
         setup_env.seed(custom_config["environment"]["env_config"]["seed"])
         # generate_split_points(setup_env, input_days)

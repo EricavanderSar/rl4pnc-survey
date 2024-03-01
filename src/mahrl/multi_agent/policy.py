@@ -93,11 +93,11 @@ class CapaPolicy(Policy):
             raise ValueError("No action valid space is defined.")
 
         self.idx = 0
-        self.substation_to_act_on = []
+        self.substation_to_act_on: list[int] = []
 
     def compute_actions(
         self,
-        obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
+        obs_batch: Dict[str, Any],  # WAS UNION with list before,
         state_batches: Optional[List[TensorType]] = None,
         prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
         prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,
@@ -113,8 +113,11 @@ class CapaPolicy(Policy):
 
         line_info = self.config["model"]["custom_model_config"]["line_info"]
 
+        # TODO: Use state dictionary instead of self. memory, get and return state
+
         # if no list is created yet, do so
-        if obs_batch["reset_capa_idx"][0] == True:
+        # TODO check if same obs_batch["reset_capa_idx"][0] == True:
+        if obs_batch["reset_capa_idx"][0]:
             self.idx = 0
             self.substation_to_act_on = get_capa_substation_id(
                 line_info, obs_batch, self.controllable_substations
@@ -204,6 +207,10 @@ class CapaPolicy(Policy):
         raise NotImplementedError
 
 
+# add policies
+# ModelCatalog.register_custom_model("capa_policy", CapaPolicy)
+
+
 class DoNothingPolicy(Policy):
     """
     Policy that always returns a do-nothing action.
@@ -281,6 +288,11 @@ class DoNothingPolicy(Policy):
     def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
         """Not implemented."""
         raise NotImplementedError
+
+
+# # add policies
+# ModelCatalog.register_custom_model("do_nothing_policy", DoNothingPolicy)
+# from ray.rllib.algorithms.registry
 
 
 class SelectAgentPolicy(Policy):
@@ -382,3 +394,7 @@ class SelectAgentPolicy(Policy):
     def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
         """Not implemented."""
         raise NotImplementedError
+
+
+# add policies
+# ModelCatalog.register_custom_model("high_level_policy", SelectAgentPolicy)

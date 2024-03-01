@@ -136,11 +136,9 @@ class TopologyGreedyAgent(GreedyAgent):
 
         # if the threshold is exceeded, act
         if np.max(observation.to_dict()["rho"]) > self.threshold:
+            # print("ACT!")
             # simulate all possible actions and choose the best
             if len(self.tested_action) > 1:
-                self.resulting_rewards = np.full(
-                    shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
-                )
                 resulting_rho_observations = np.full(
                     shape=len(self.tested_action), fill_value=np.NaN, dtype=dt_float
                 )
@@ -155,14 +153,34 @@ class TopologyGreedyAgent(GreedyAgent):
                     resulting_rho_observations[i] = np.max(
                         simul_observation.to_dict()["rho"]
                     )
-                    resulting_infos.append(simul_info)
-
                     # Include extra safeguard to prevent exception actions with converging powerflow
                     if simul_info["exception"]:
                         resulting_rho_observations[i] = 999999
 
+                    # TODO early stopping trial
+                    if (
+                        np.max(observation.to_dict()["rho"])
+                        - resulting_rho_observations[i]
+                        > 0.1
+                    ):  # 30% less load predicted
+                        # print(f"max={np.max(observation.to_dict()['rho'])}")
+                        # print(f"chosen={resulting_rho_observations[i]}")
+                        # print("Early stopping")
+                        return self.tested_action[i]
+                    resulting_infos.append(simul_info)
+
                 rho_idx = int(np.argmin(resulting_rho_observations))
                 best_action = self.tested_action[rho_idx]
+
+                # print(f"Initial rho: {np.max(observation.to_dict()['rho'])}")
+                # for rho in resulting_rho_observations:
+                #     if rho == np.min(resulting_rho_observations):
+                #         print("Chosen!")
+                #     if rho != 999999:
+                #         print(
+                #             f"Difference: {rho-np.max(observation.to_dict()['rho']):.2f}"
+                #         )
+                # print()
             else:
                 best_action = self.tested_action[0]
         # if the threshold is not exceeded, do nothing
@@ -232,7 +250,7 @@ class CapaAndGreedyAgent(GreedyAgent):
         )
 
         self.idx = 0
-        self.substation_to_act_on = []
+        self.substation_to_act_on: list[int] = []
 
     def act(
         self,
@@ -264,7 +282,6 @@ class CapaAndGreedyAgent(GreedyAgent):
             The action chosen by the bot / controller / agent.
 
         """
-        # TODO: redo implementation of policy
         obs_batch = observation.to_dict()
         if np.max(obs_batch["rho"]) > self.threshold:
             # if no list is created yet, do so

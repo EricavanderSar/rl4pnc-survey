@@ -17,6 +17,7 @@ from grid2op.Agent import BaseAgent, DoNothingAgent
 from grid2op.Environment import BaseEnv
 from grid2op.Reward import BaseReward
 from grid2op.Runner import Runner
+from lightsim2grid import LightSimBackend  # pylint: disable=wrong-import-order
 from ray.rllib.algorithms import ppo
 
 from mahrl.evaluation.evaluation_agents import (
@@ -127,7 +128,11 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         # if not, create the folder
         os.makedirs(results_folder)
 
-    env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+    env = grid2op.make(
+        env_config["env_name"],
+        **env_config["grid2op_kwargs"],
+        backend=LightSimBackend(),
+    )
 
     params = env.get_params_for_runner()
     params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
@@ -149,7 +154,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         # if not, create the folder
         os.makedirs(store_trajectories_folder)
 
-    start_time = time.time()
+    # start_time = time.time()
 
     # run the environment 10 times if an opponent is active, with different seeds
     for i in range(10 if "opponent_kwargs" in env_config["grid2op_kwargs"] else 1):
@@ -341,6 +346,7 @@ def setup_capa_greedy_evaluation(
 
 
 if __name__ == "__main__":
+    start_time = time.time()
     init_parser = argparse.ArgumentParser(description="Process possible variables.")
     args = setup_parser(init_parser)
 
@@ -386,3 +392,5 @@ if __name__ == "__main__":
                     file_path=args.file_path,
                     checkpoint_name=args.checkpoint_name,
                 )
+
+    # print(f"Total time={time.time() - start_time}")

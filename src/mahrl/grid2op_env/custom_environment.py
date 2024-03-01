@@ -12,6 +12,7 @@ import grid2op
 import gymnasium
 from grid2op.Action import BaseAction
 from grid2op.gym_compat import GymEnv
+from lightsim2grid import LightSimBackend  # pylint: disable=wrong-import-order
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
@@ -59,7 +60,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         lib_dir = env_config["lib_dir"]
 
         self.env_glop = grid2op.make(
-            env_config["env_name"], **env_config["grid2op_kwargs"]
+            env_config["env_name"],
+            **env_config["grid2op_kwargs"],
+            backend=LightSimBackend(),
         )
         self.env_glop.seed(env_config["seed"])
 
@@ -425,7 +428,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
         )
 
         self.reset_capa_idx = True
-        self.proposed_actions = None
+        self.proposed_actions: dict[int, BaseAction] = {}
 
     def reset(
         self,
@@ -481,7 +484,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
 
                 observation_for_middle_agent = OrderedDict(
                     {
-                        **self.previous_obs,
+                        "rho": self.previous_obs["rho"],
                         "proposed_actions": self.proposed_actions,
                         "do_nothing_action": self.env_glop.action_space({}),
                         "reset_capa_idx": self.reset_capa_idx,
