@@ -257,6 +257,7 @@ if __name__ == "__main__":
         "-c",
         "--config",
         type=str,
+        default= "../configs/rte_case5_example/ppo_baseline.yaml", #"../configs/rte_case14_realistic/ppo_baseline.yaml",  #
         help="Path to the config file.",
     )
 
@@ -264,7 +265,7 @@ if __name__ == "__main__":
         "-s",
         "--save_path",
         type=str,
-        default="/Users/barberademol/data_grid2op/",
+        default="/Users/ericavandersar/data_grid2op/",
         help="Path for scenarios to be saved",
     )
 

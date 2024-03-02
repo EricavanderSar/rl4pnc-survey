@@ -1,4 +1,5 @@
 setup:
+  max_ep_len: 2016
   nb_timesteps: 1_000
   checkpoint_freq: 100
   checkpoint_trainable_policies_only: True

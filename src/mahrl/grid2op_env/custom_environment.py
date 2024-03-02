@@ -89,7 +89,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 "No valid space is defined, using asymmetrical action space."
             )
         print('action_space is ', env_config.get("action_space"))
-        print('number possible sub actions: ', len(possible_substation_actions))
+        print('number possible sub actions: ', len(self.possible_substation_actions))
 
         logging.info(f"LEN ACTIONS={len(self.possible_substation_actions)}")
         # Add the do-nothing action at index 0

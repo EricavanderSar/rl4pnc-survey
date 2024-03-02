@@ -13,6 +13,7 @@ if __name__ == "__main__":
         "-e",
         "--env_name",
         type=str,
+        default="rte_case5_example",
         help="Environment name. Default in /home/data_grid2op.",
     )
 
@@ -20,7 +21,7 @@ if __name__ == "__main__":
         "-p",
         "--path",
         type=str,
-        default="/Users/barberademol/data_grid2op/",
+        default="/Users/ericavandersar/data_grid2op/",
         help="Path where the environment is stored.",
     )
 

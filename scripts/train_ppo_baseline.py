@@ -21,6 +21,7 @@ from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
 from mahrl.algorithms.custom_ppo import CustomPPO
 
+
 def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     """
     Function that runs the training script.
@@ -44,7 +45,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
         trainable=CustomPPO,
         param_space=config,
         run_config=air.RunConfig(
-            stop={"timesteps_total": setup["nb_timesteps"]}, #"training_iteration": 5}, #
+            stop={"timesteps_total": setup["nb_timesteps"], "custom_metrics/corrected_ep_len_mean": setup["max_ep_len"]}, #"training_iteration": 5}, #
             # storage_path=os.path.abspath(setup["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=setup["checkpoint_freq"],
@@ -92,7 +93,6 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     ppo_config.update(custom_config["rollouts"])
     # ppo_config.update(custom_config["scaling_config"])
     # ppo_config.update(custom_config["evaluation"])
-    ppo_config.update(custom_config["evaluation"])
 
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
     policies = {
@@ -161,7 +161,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default= "../configs/rte_case5_example/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
+        default= "../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
         help="Path to the config file.",
     )
     parser.add_argument(
