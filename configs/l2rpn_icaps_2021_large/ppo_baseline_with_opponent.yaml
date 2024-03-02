@@ -9,26 +9,26 @@ debugging:
 
 training:
   # tunable parameters
-  lr: 0.0005 # !grid_search [0.0005, 0.005, 0.05]
   gamma: 0.95 # !grid_search [0.95, 0.99]
+  lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
   lambda_: 0.95
-  sgd_minibatch_size: 128 # !grid_search [32, 64, 128]
-  train_batch_size: 4000 # !grid_search [800, 8000, 80000]
+  sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
+  train_batch_size: 128
   model:
     fcnet_hiddens: 
     - 256
     - 256
   _enable_learner_api: False
-
+  
 rl_module:
   _enable_rl_module_api: False
 
 explore:
   exploration_config:
-    type: StochasticSampling
+    type: EpsilonGreedy
 
 callbacks:
   callbacks: !CustomMetricsCallback
@@ -41,8 +41,8 @@ multi_agent:
   policies_to_train: ["reinforcement_learning_policy"]
 
 environment:
-  env_config: &env_config_train
-    env_name: rte_case5_example
+  env_config:
+    env_name: l2rpn_icaps_2021_large
     num_agents: 3
     action_space: asymmetry
     lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 
@@ -51,29 +51,25 @@ environment:
       # general kwargs
       reward_class: !LossReward
       # kwargs specific to opponents
-      opponent_attack_cooldown: 144 # max 2 attacks per day
-      opponent_attack_duration: 48 # 4 hours in a day
-      opponent_budget_per_ts: 0.333343333333 # taken from blazej, (opponent_attack_duration / opponent_attack_cooldown) + 1e-5
+      opponent_attack_cooldown: 12 # 1 hour
+      opponent_attack_duration: 96 # 8 hours in a day
+      opponent_budget_per_ts: 0.17 # (opponent_attack_duration / opponent_attack_cooldown) + epsilon
       opponent_init_budget: 144
       opponent_action_class: !PowerlineSetAction 
       opponent_class: !RandomLineOpponent
       opponent_budget_class: !BaseActionBudget
-      opponent_space_type: !ReconnectingOpponentSpace #reconnecting_opponent
+      opponent_space_type: !ReconnectingOpponentSpace
       kwargs_opponent:
-        lines_attacked:
-          - '0_2_1'
-          - '0_3_2'
-          - '2_3_6'
+        lines_attacked: 
+          - "62_58_180"
+          - "62_63_160"
+          - "48_50_136"
+          - "48_53_141"
+          - "41_48_131"
+          - "39_41_121"
+          - "43_44_125"
+          - "44_45_126"
+          - "34_35_110"
+          - "54_58_154"
     seed: *seed
     rho_threshold: 0.95
-
-env_config_val: &env_config_val
-  <<: *env_config_train
-  env_name: rte_case5_example_per_day_val
-
-evaluation:
-  evaluation_interval: 10
-  evaluation_duration: 14 # as many as there are validation episodes
-  evaluation_duration_unit: episodes
-  evaluation_config: 
-    env_config: *env_config_val # use the validation environment

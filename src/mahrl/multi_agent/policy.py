@@ -1,9 +1,12 @@
 """
 Defines agent policies.
 """
+
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+import grid2op
 import gymnasium
 import numpy as np
 from ray.actor import ActorHandle
@@ -22,6 +25,13 @@ from ray.rllib.utils.typing import (
     TensorType,
 )
 
+from mahrl.experiments.utils import (
+    calculate_action_space_asymmetry,
+    calculate_action_space_medha,
+    calculate_action_space_tennet,
+    get_capa_substation_id,
+)
+
 
 def policy_mapping_fn(
     agent_id: str,
@@ -30,20 +40,173 @@ def policy_mapping_fn(
 ) -> str:
     """Maps each agent to a policy."""
     if agent_id.startswith("reinforcement_learning_agent"):
+        # from agent_id, use re to extract the integer at the end
+        id_number = re.search(r"\d+$", agent_id)
+        if id_number:
+            agent_number = int(id_number.group(0))
+            return f"reinforcement_learning_policy_{agent_number}"
         return "reinforcement_learning_policy"
     if agent_id.startswith("high_level_agent"):
         return "high_level_policy"
     if agent_id.startswith("do_nothing_agent"):
         return "do_nothing_policy"
+    if agent_id.startswith("choose_substation_agent"):
+        return "choose_substation_policy"
     raise NotImplementedError
 
 
-class DoNothingPolicy(Policy):
-    """Example of a custom policy written from scratch.
+class CapaPolicy(Policy):
+    """
+    Policy that that returns a substation to act on based on the CAPA heuristic.
+    """
 
-    You might find it more convenient to use the `build_tf_policy` and
-    `build_torch_policy` helpers instead for a real policy, which are
-    described in the next sections.
+    def __init__(
+        self,
+        observation_space: gymnasium.Space,
+        action_space: gymnasium.Space,
+        config: AlgorithmConfigDict,
+    ):
+        Policy.__init__(
+            self,
+            observation_space=observation_space,
+            action_space=action_space,
+            config=config,
+        )
+
+        env_config = config["model"]["custom_model_config"]["environment"]["env_config"]
+        setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+
+        # get changeable substations
+        if env_config["action_space"] == "asymmetry":
+            _, _, self.controllable_substations = calculate_action_space_asymmetry(
+                setup_env
+            )
+        elif env_config["action_space"] == "medha":
+            _, _, self.controllable_substations = calculate_action_space_medha(
+                setup_env
+            )
+        elif env_config["action_space"] == "tennet":
+            _, _, self.controllable_substations = calculate_action_space_tennet(
+                setup_env
+            )
+        else:
+            raise ValueError("No action valid space is defined.")
+
+        self.idx = 0
+        self.substation_to_act_on = []
+
+    def compute_actions(
+        self,
+        obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
+        state_batches: Optional[List[TensorType]] = None,
+        prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
+        prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,
+        info_batch: Optional[Dict[str, List[Any]]] = None,
+        episodes: Optional[List[str]] = None,
+        explore: Optional[bool] = None,
+        timestep: Optional[int] = None,
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+        """Computes actions for the current policy."""
+        state_outs_result: List[Any] = []
+        info_result: Dict[str, Any] = {}
+
+        line_info = self.config["model"]["custom_model_config"]["line_info"]
+
+        # if no list is created yet, do so
+        if obs_batch["reset_capa_idx"][0] == True:
+            self.idx = 0
+            self.substation_to_act_on = get_capa_substation_id(
+                line_info, obs_batch, self.controllable_substations
+            )
+
+        # find an action that is not the do nothing action by looping over the substations
+        chosen_action = obs_batch["do_nothing_action"][0]
+        # print(f"initial chosen action: {chosen_action}")
+        while not chosen_action.as_dict() and self.idx < len(
+            self.controllable_substations
+        ):
+            single_substation = self.substation_to_act_on[
+                self.idx % len(self.controllable_substations)
+            ]
+
+            self.idx += 1
+            chosen_action = obs_batch["proposed_actions"][0][single_substation]
+            # print(f"loop chosen action: {chosen_action}")
+
+            # if it's not the do nothing action, return action
+            # if it's the do nothing action, continue the loop
+            if chosen_action.as_dict():
+                return ([chosen_action], state_outs_result, info_result)
+
+        # grid is safe or no action is found, reset list count and return DoNothing
+        self.idx = 0
+        return ([chosen_action], state_outs_result, info_result)
+
+        # print(f"obs_batch: {obs_batch}")
+        # substation_to_act_on = get_capa_substation_id(
+        #     line_info, obs_batch, self.controllable_substations
+        # )[self.idx % 3]
+
+        # self.idx += 1
+
+        # find substation with max average rho
+        # NOTE: When there are two equal max values, the first one is returned first
+        # return (
+        #     [substation_to_act_on],
+        #     state_outs_result,
+        #     info_result,
+        # )
+
+    def get_weights(self) -> ModelWeights:
+        """No weights to save."""
+        return {}
+
+    def set_weights(self, weights: ModelWeights) -> None:
+        """No weights to set."""
+
+    def apply_gradients(self, gradients: ModelGradients) -> None:
+        """No gradients to apply."""
+        raise NotImplementedError
+
+    def compute_gradients(
+        self, postprocessed_batch: SampleBatch
+    ) -> Tuple[ModelGradients, Dict[str, TensorType]]:
+        """No gradient to compute."""
+        return [], {}
+
+    def loss(
+        self, model: ModelV2, dist_class: ActionDistribution, train_batch: SampleBatch
+    ) -> Union[TensorType, List[TensorType]]:
+        """No loss function"""
+        raise NotImplementedError
+
+    def learn_on_batch(self, samples: SampleBatch) -> Dict[str, TensorType]:
+        """Not implemented."""
+        raise NotImplementedError
+
+    def learn_on_batch_from_replay_buffer(
+        self, replay_actor: ActorHandle, policy_id: PolicyID
+    ) -> Dict[str, TensorType]:
+        """Not implemented."""
+        raise NotImplementedError
+
+    def load_batch_into_buffer(self, batch: SampleBatch, buffer_index: int = 0) -> int:
+        """Not implemented."""
+        raise NotImplementedError
+
+    def get_num_samples_loaded_into_buffer(self, buffer_index: int = 0) -> int:
+        """Not implemented."""
+        raise NotImplementedError
+
+    def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
+        """Not implemented."""
+        raise NotImplementedError
+
+
+class DoNothingPolicy(Policy):
+    """
+    Policy that always returns a do-nothing action.
     """
 
     def __init__(
@@ -61,7 +224,7 @@ class DoNothingPolicy(Policy):
 
     def compute_actions(
         self,
-        obs_batch: Union[List[TensorStructType], TensorStructType],
+        obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
         state_batches: Optional[List[TensorType]] = None,
         prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
         prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,
@@ -71,23 +234,7 @@ class DoNothingPolicy(Policy):
         timestep: Optional[int] = None,
         **kwargs: Dict[str, Any],
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-        """Computes actions for the current policy.
-
-        Args:
-            obs_batch: Batch of observations.
-            state_batches: List of RNN state input batches, if any.
-            prev_action_batch: Batch of previous action values.
-            prev_reward_batch: Batch of previous rewards.
-
-        Returns:
-            actions: Do nothing action. Batch of output actions, with shape like
-                [BATCH_SIZE, ACTION_SHAPE].
-            state_outs (List[TensorType]): List of RNN state output
-                batches, if any, each with shape [BATCH_SIZE, STATE_SIZE].
-            info (List[dict]): Dictionary of extra feature batches, if any,
-                with shape like
-                {"f1": [BATCH_SIZE, ...], "f2": [BATCH_SIZE, ...]}.
-        """
+        """Computes actions for the current policy."""
         return [0], [], {}
 
     def get_weights(self) -> ModelWeights:
@@ -98,141 +245,47 @@ class DoNothingPolicy(Policy):
         """No weights to set."""
 
     def apply_gradients(self, gradients: ModelGradients) -> None:
-        """No gradients to apply.
-
-        Args:
-            gradients: The already calculated gradients to apply to this
-                Policy.
-        """
+        """No gradients to apply."""
         raise NotImplementedError
 
     def compute_gradients(
         self, postprocessed_batch: SampleBatch
     ) -> Tuple[ModelGradients, Dict[str, TensorType]]:
-        """No gradient to compute.
-
-        Args:
-            postprocessed_batch: The SampleBatch object to use
-                for calculating gradients.
-
-        Returns:
-            grads: List of gradient output values.
-            grad_info: Extra policy-specific info values.
-        """
+        """No gradient to compute."""
         return [], {}
 
     def loss(
         self, model: ModelV2, dist_class: ActionDistribution, train_batch: SampleBatch
     ) -> Union[TensorType, List[TensorType]]:
-        """Loss function for this Policy.
-
-        Override this method in order to implement custom loss computations.
-
-        Args:
-            model: The model to calculate the loss(es).
-            dist_class: The action distribution class to sample actions
-                from the model's outputs.
-            train_batch: The input batch on which to calculate the loss.
-
-        Returns:
-            Either a single loss tensor or a list of loss tensors.
-        """
+        """No loss function"""
         raise NotImplementedError
 
     def learn_on_batch(self, samples: SampleBatch) -> Dict[str, TensorType]:
-        """Perform one learning update, given `samples`.
-
-        Either this method or the combination of `compute_gradients` and
-        `apply_gradients` must be implemented by subclasses.
-
-        Args:
-            samples: The SampleBatch object to learn from.
-
-        Returns:
-            Dictionary of extra metadata from `compute_gradients()`.
-
-        Examples:
-            >>> policy, sample_batch = ... # doctest: +SKIP
-            >>> policy.learn_on_batch(sample_batch) # doctest: +SKIP
-        """
+        """Not implemented."""
         raise NotImplementedError
 
     def learn_on_batch_from_replay_buffer(
         self, replay_actor: ActorHandle, policy_id: PolicyID
     ) -> Dict[str, TensorType]:
-        """Samples a batch from given replay actor and performs an update.
-
-        Args:
-            replay_actor: The replay buffer actor to sample from.
-            policy_id: The ID of this policy.
-
-        Returns:
-            Dictionary of extra metadata from `compute_gradients()`.
-        """
+        """Not implemented."""
         raise NotImplementedError
 
     def load_batch_into_buffer(self, batch: SampleBatch, buffer_index: int = 0) -> int:
-        """Bulk-loads the given SampleBatch into the devices' memories.
-
-        The data is split equally across all the Policy's devices.
-        If the data is not evenly divisible by the batch size, excess data
-        should be discarded.
-
-        Args:
-            batch: The SampleBatch to load.
-            buffer_index: The index of the buffer (a MultiGPUTowerStack) to use
-                on the devices. The number of buffers on each device depends
-                on the value of the `num_multi_gpu_tower_stacks` config key.
-
-        Returns:
-            The number of tuples loaded per device.
-        """
+        """Not implemented."""
         raise NotImplementedError
 
     def get_num_samples_loaded_into_buffer(self, buffer_index: int = 0) -> int:
-        """Returns the number of currently loaded samples in the given buffer.
-
-        Args:
-            buffer_index: The index of the buffer (a MultiGPUTowerStack)
-                to use on the devices. The number of buffers on each device
-                depends on the value of the `num_multi_gpu_tower_stacks` config
-                key.
-
-        Returns:
-            The number of tuples loaded per device.
-        """
+        """Not implemented."""
         raise NotImplementedError
 
     def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
-        """Runs a single step of SGD on an already loaded data in a buffer.
-
-        Runs an SGD step over a slice of the pre-loaded batch, offset by
-        the `offset` argument (useful for performing n minibatch SGD
-        updates repeatedly on the same, already pre-loaded data).
-
-        Updates the model weights based on the averaged per-device gradients.
-
-        Args:
-            offset: Offset into the preloaded data. Used for pre-loading
-                a train-batch once to a device, then iterating over
-                (subsampling through) this batch n times doing minibatch SGD.
-            buffer_index: The index of the buffer (a MultiGPUTowerStack)
-                to take the already pre-loaded data from. The number of buffers
-                on each device depends on the value of the
-                `num_multi_gpu_tower_stacks` config key.
-
-        Returns:
-            The outputs of extra_ops evaluated over the batch.
-        """
+        """Not implemented."""
         raise NotImplementedError
 
 
 class SelectAgentPolicy(Policy):
-    """Example of a custom policy written from scratch.
-
-    You might find it more convenient to use the `build_tf_policy` and
-    `build_torch_policy` helpers instead for a real policy, which are
-    described in the next sections.
+    """
+    High level agent that determines whether an action is required.
     """
 
     def __init__(
@@ -293,130 +346,39 @@ class SelectAgentPolicy(Policy):
         """No weights to set."""
 
     def apply_gradients(self, gradients: ModelGradients) -> None:
-        """No gradients to apply.
-
-        Args:
-            gradients: The already calculated gradients to apply to this
-                Policy.
-        """
+        """No gradients to apply."""
         raise NotImplementedError
 
     def compute_gradients(
         self, postprocessed_batch: SampleBatch
     ) -> Tuple[ModelGradients, Dict[str, TensorType]]:
-        """No gradient to compute.
-
-        Args:
-            postprocessed_batch: The SampleBatch object to use
-                for calculating gradients.
-
-        Returns:
-            grads: List of gradient output values.
-            grad_info: Extra policy-specific info values.
-        """
+        """No gradient to compute."""
         return [], {}
 
     def loss(
         self, model: ModelV2, dist_class: ActionDistribution, train_batch: SampleBatch
     ) -> Union[TensorType, List[TensorType]]:
-        """Loss function for this Policy.
-
-        Override this method in order to implement custom loss computations.
-
-        Args:
-            model: The model to calculate the loss(es).
-            dist_class: The action distribution class to sample actions
-                from the model's outputs.
-            train_batch: The input batch on which to calculate the loss.
-
-        Returns:
-            Either a single loss tensor or a list of loss tensors.
-        """
+        """No loss function"""
         raise NotImplementedError
 
     def learn_on_batch(self, samples: SampleBatch) -> Dict[str, TensorType]:
-        """Perform one learning update, given `samples`.
-
-        Either this method or the combination of `compute_gradients` and
-        `apply_gradients` must be implemented by subclasses.
-
-        Args:
-            samples: The SampleBatch object to learn from.
-
-        Returns:
-            Dictionary of extra metadata from `compute_gradients()`.
-
-        Examples:
-            >>> policy, sample_batch = ... # doctest: +SKIP
-            >>> policy.learn_on_batch(sample_batch) # doctest: +SKIP
-        """
+        """Not implemented."""
         raise NotImplementedError
 
     def learn_on_batch_from_replay_buffer(
         self, replay_actor: ActorHandle, policy_id: PolicyID
     ) -> Dict[str, TensorType]:
-        """Samples a batch from given replay actor and performs an update.
-
-        Args:
-            replay_actor: The replay buffer actor to sample from.
-            policy_id: The ID of this policy.
-
-        Returns:
-            Dictionary of extra metadata from `compute_gradients()`.
-        """
+        """Not implemented."""
         raise NotImplementedError
 
     def load_batch_into_buffer(self, batch: SampleBatch, buffer_index: int = 0) -> int:
-        """Bulk-loads the given SampleBatch into the devices' memories.
-
-        The data is split equally across all the Policy's devices.
-        If the data is not evenly divisible by the batch size, excess data
-        should be discarded.
-
-        Args:
-            batch: The SampleBatch to load.
-            buffer_index: The index of the buffer (a MultiGPUTowerStack) to use
-                on the devices. The number of buffers on each device depends
-                on the value of the `num_multi_gpu_tower_stacks` config key.
-
-        Returns:
-            The number of tuples loaded per device.
-        """
+        """Not implemented."""
         raise NotImplementedError
 
     def get_num_samples_loaded_into_buffer(self, buffer_index: int = 0) -> int:
-        """Returns the number of currently loaded samples in the given buffer.
-
-        Args:
-            buffer_index: The index of the buffer (a MultiGPUTowerStack)
-                to use on the devices. The number of buffers on each device
-                depends on the value of the `num_multi_gpu_tower_stacks` config
-                key.
-
-        Returns:
-            The number of tuples loaded per device.
-        """
+        """Not implemented."""
         raise NotImplementedError
 
     def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
-        """Runs a single step of SGD on an already loaded data in a buffer.
-
-        Runs an SGD step over a slice of the pre-loaded batch, offset by
-        the `offset` argument (useful for performing n minibatch SGD
-        updates repeatedly on the same, already pre-loaded data).
-
-        Updates the model weights based on the averaged per-device gradients.
-
-        Args:
-            offset: Offset into the preloaded data. Used for pre-loading
-                a train-batch once to a device, then iterating over
-                (subsampling through) this batch n times doing minibatch SGD.
-            buffer_index: The index of the buffer (a MultiGPUTowerStack)
-                to take the already pre-loaded data from. The number of buffers
-                on each device depends on the value of the
-                `num_multi_gpu_tower_stacks` config key.
-
-        Returns:
-            The outputs of extra_ops evaluated over the batch.
-        """
+        """Not implemented."""
         raise NotImplementedError

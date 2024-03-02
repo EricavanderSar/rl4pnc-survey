@@ -2,22 +2,29 @@
 Describes classes of agents that can be evaluated.
 """
 
-
 import os
 from collections import OrderedDict
-from typing import Any
+from typing import Any, Optional
 
+import grid2op
 import numpy as np
 from grid2op.Action import ActionSpace, BaseAction
 from grid2op.Agent import BaseAgent, GreedyAgent
 from grid2op.dtypes import dt_float
+from grid2op.Environment import BaseEnv
+from grid2op.gym_compat import GymEnv
 from grid2op.Observation import BaseObservation
 from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
 
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-
-# from mahrl.grid2op_env.utils import reconnect_action, remember_disconnect
+from mahrl.experiments.utils import (
+    calculate_action_space_asymmetry,
+    calculate_action_space_medha,
+    calculate_action_space_tennet,
+    find_list_of_agents,
+    find_substation_per_lines,
+    get_capa_substation_id,
+)
 
 
 class RllibAgent(BaseAgent):
@@ -33,6 +40,7 @@ class RllibAgent(BaseAgent):
         policy_name: str,
         algorithm: Algorithm,
         checkpoint_name: str,
+        gym_wrapper: GymEnv,
     ):
         BaseAgent.__init__(self, action_space)
 
@@ -43,7 +51,7 @@ class RllibAgent(BaseAgent):
         )
 
         # setup env
-        self.gym_wrapper = CustomizedGrid2OpEnvironment(env_config)
+        self.gym_wrapper = gym_wrapper
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]
@@ -66,9 +74,11 @@ class RllibAgent(BaseAgent):
             action = self._rllib_agent.compute_single_action(
                 gym_obs, policy_id="reinforcement_learning_policy"
             )
-
-        # convert Rllib action to grid2op
-        return self.gym_wrapper.env_gym.action_space.from_gym(action)
+            # convert Rllib action to grid2op
+            return self.gym_wrapper.env_gym.action_space.from_gym(action)
+        # else
+        action = self.gym_wrapper.env_glop.action_space({})
+        return action
 
 
 class TopologyGreedyAgent(GreedyAgent):
@@ -87,13 +97,15 @@ class TopologyGreedyAgent(GreedyAgent):
         self.tested_action: list[BaseAction] = []
         self.action_space = action_space
         self.possible_actions = possible_actions
-        self.reconnect_line = None
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]
 
     def act(
-        self, observation: BaseObservation, reward: BaseReward, done: bool = False
+        self,
+        observation: BaseObservation,
+        reward: Optional[BaseReward],
+        done: Optional[bool] = False,
     ) -> BaseAction:
         """
         By definition, all "greedy" agents are acting the same way. The only thing that can differentiate multiple
@@ -169,3 +181,257 @@ class TopologyGreedyAgent(GreedyAgent):
             res += self.possible_actions
             self.tested_action = res
         return self.tested_action
+
+
+class CapaAndGreedyAgent(GreedyAgent):
+    """
+    Defines the behaviour of a Greedy Agent that can perform topology changes based
+    on a provided set of possible actions.
+    """
+
+    def __init__(
+        self,
+        action_space: ActionSpace,
+        env_config: dict[str, Any],
+        possible_actions: list[BaseAction],
+    ):
+        GreedyAgent.__init__(self, action_space)
+        self.tested_action: list[BaseAction] = []
+        self.action_space = action_space
+        self.possible_actions = possible_actions
+
+        # setup threshold
+        self.threshold = env_config["rho_threshold"]
+
+        setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+
+        # get changeable substations
+        if env_config["action_space"] == "asymmetry":
+            _, _, self.controllable_substations = calculate_action_space_asymmetry(
+                setup_env
+            )
+        elif env_config["action_space"] == "medha":
+            _, _, self.controllable_substations = calculate_action_space_medha(
+                setup_env
+            )
+        elif env_config["action_space"] == "tennet":
+            _, _, self.controllable_substations = calculate_action_space_tennet(
+                setup_env
+            )
+        else:
+            raise ValueError("No action valid space is defined.")
+
+        # set up greedy agents
+        self.agents = create_greedy_agent_per_substation(
+            setup_env, env_config, self.controllable_substations, possible_actions
+        )
+
+        # extract line and substation information
+        self.line_info = find_substation_per_lines(
+            setup_env, find_list_of_agents(setup_env, env_config["action_space"])
+        )
+
+        self.idx = 0
+        self.substation_to_act_on = []
+
+    def act(
+        self,
+        observation: BaseObservation,
+        reward: Optional[BaseReward],
+        done: Optional[bool] = False,
+    ) -> BaseAction:
+        """
+        By definition, all "greedy" agents are acting the same way. The only thing that can differentiate multiple
+        agents is the actions that are tested.
+
+        These actions are defined in the method :func:`._get_tested_action`. This :func:`.act` method implements the
+        greedy logic: take the actions that maximizes the instantaneous reward on the simulated action.
+
+        Parameters
+        ----------
+        observation: :class:`grid2op.Observation.Observation`
+            The current observation of the :class:`grid2op.Environment.Environment`
+
+        reward: ``float``
+            The current reward. This is the reward obtained by the previous action
+
+        done: ``bool``
+            Whether the episode has ended or not. Used to maintain gym compatibility
+
+        Returns
+        -------
+        res: :class:`grid2op.Action.Action`
+            The action chosen by the bot / controller / agent.
+
+        """
+        # TODO: redo implementation of policy
+        obs_batch = observation.to_dict()
+        if np.max(obs_batch["rho"]) > self.threshold:
+            # if no list is created yet, do so
+            if self.idx == 0:
+                self.substation_to_act_on = get_capa_substation_id(
+                    self.line_info, obs_batch, self.controllable_substations
+                )
+
+            # find an action that is not the do nothing action by looping over the substations
+            chosen_action = self.action_space({})
+            while not chosen_action.as_dict() and self.idx < len(
+                self.controllable_substations
+            ):
+                single_substation = self.substation_to_act_on[
+                    self.idx % len(self.controllable_substations)
+                ]
+
+                self.idx += 1
+                chosen_action = self.agents[single_substation].act(
+                    observation, reward=None
+                )
+
+                # if it's not the do nothing action, return action
+                # if it's the do nothing action, continue the loop
+                if chosen_action.as_dict():
+                    return chosen_action
+
+        # grid is safe or no action is found, reset list count and return DoNothing
+        self.idx = 0
+        return self.action_space({})
+
+    def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
+        """
+        Adds all possible actions to be tested.
+        """
+        if not self.tested_action:
+            # add the do nothing
+            res = [self.action_space({})]
+            # add all possible actions
+            res += self.possible_actions
+            self.tested_action = res
+        return self.tested_action
+
+
+class RandomAndGreedyAgent(GreedyAgent):
+    """
+    Defines the behaviour of a Greedy Agent that can perform topology changes based
+    on a provided set of possible actions.
+    """
+
+    def __init__(
+        self,
+        action_space: ActionSpace,
+        env_config: dict[str, Any],
+        possible_actions: list[BaseAction],
+    ):
+        GreedyAgent.__init__(self, action_space)
+        self.tested_action: list[BaseAction] = []
+        self.action_space = action_space
+        self.possible_actions = possible_actions
+
+        # setup threshold
+        self.threshold = env_config["rho_threshold"]
+
+        setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+
+        # get changeable substations
+        if env_config["action_space"] == "asymmetry":
+            _, _, controllable_substations = calculate_action_space_asymmetry(setup_env)
+        elif env_config["action_space"] == "medha":
+            _, _, controllable_substations = calculate_action_space_medha(setup_env)
+        elif env_config["action_space"] == "tennet":
+            _, _, controllable_substations = calculate_action_space_tennet(setup_env)
+        else:
+            raise ValueError("No action valid space is defined.")
+
+        # set up greedy agents
+        self.agents = create_greedy_agent_per_substation(
+            setup_env, env_config, controllable_substations, possible_actions
+        )
+
+        # get changeable substations
+        if env_config["action_space"] == "asymmetry":
+            _, _, self.controllable_substations = calculate_action_space_asymmetry(
+                setup_env
+            )
+        elif env_config["action_space"] == "medha":
+            _, _, self.controllable_substations = calculate_action_space_medha(
+                setup_env
+            )
+        elif env_config["action_space"] == "tennet":
+            _, _, self.controllable_substations = calculate_action_space_tennet(
+                setup_env
+            )
+        else:
+            raise ValueError("No action valid space is defined.")
+
+    def act(
+        self,
+        observation: BaseObservation,
+        reward: Optional[BaseReward],
+        done: Optional[bool] = False,
+    ) -> BaseAction:
+        """
+        By definition, all "greedy" agents are acting the same way. The only thing that can differentiate multiple
+        agents is the actions that are tested.
+
+        These actions are defined in the method :func:`._get_tested_action`. This :func:`.act` method implements the
+        greedy logic: take the actions that maximizes the instantaneous reward on the simulated action.
+
+        Parameters
+        ----------
+        observation: :class:`grid2op.Observation.Observation`
+            The current observation of the :class:`grid2op.Environment.Environment`
+
+        reward: ``float``
+            The current reward. This is the reward obtained by the previous action
+
+        done: ``bool``
+            Whether the episode has ended or not. Used to maintain gym compatibility
+
+        Returns
+        -------
+        res: :class:`grid2op.Action.Action`
+            The action chosen by the bot / controller / agent.
+
+        """
+        substation_to_act_on = np.random.choice(self.controllable_substations)
+
+        return self.agents[substation_to_act_on].act(observation, reward=None)
+
+    def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
+        """
+        Adds all possible actions to be tested.
+        """
+        if not self.tested_action:
+            # add the do nothing
+            res = [self.action_space({})]
+            # add all possible actions
+            res += self.possible_actions
+            self.tested_action = res
+        return self.tested_action
+
+
+def create_greedy_agent_per_substation(
+    env: BaseEnv,
+    env_config: dict[str, Any],
+    controllable_substations: list[int],
+    possible_substation_actions: list[BaseAction],
+) -> dict[int, TopologyGreedyAgent]:
+    """
+    Create a greedy agent for each substation.
+    """
+    actions_per_substation: dict[int, list[BaseAction]] = {
+        substation: [] for substation in controllable_substations
+    }
+
+    # get possible actions related to that substation actions_per_substation
+    for action in possible_substation_actions[1:]:  # exclude the DoNothing action
+        sub_id = int(action.as_dict()["set_bus_vect"]["modif_subs_id"][0])
+        actions_per_substation[sub_id].append(action)
+
+    # initialize greedy agents for all controllable substations
+    agents = {}
+    for sub_id in controllable_substations:
+        agents[sub_id] = TopologyGreedyAgent(
+            env.action_space, env_config, actions_per_substation[sub_id]
+        )
+
+    return agents

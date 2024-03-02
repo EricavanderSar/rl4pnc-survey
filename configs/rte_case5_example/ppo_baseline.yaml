@@ -47,7 +47,7 @@ multi_agent:
   count_steps_by: agent_steps
 
 environment:
-  env_config:
+  env_config: &env_config_train
     env_name: rte_case5_example
     action_space: asymmetry
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
@@ -59,10 +59,16 @@ environment:
     seed: *seed
     rho_threshold: 0.90
 
+env_config_val: &env_config_val
+  <<: *env_config_train
+  env_name: rte_case5_example_per_day_val
+
 evaluation:
-  evaluation_interval: 2
-  evaluation_duration: 3
-  evaluation_duration_unit: "episodes"
+  evaluation_interval: 10
+  evaluation_duration: 14 # as many as there are validation episodes
+  evaluation_duration_unit: episodes
+  evaluation_config:
+    env_config: *env_config_val # use the validation environment
 
 #scaling_config:
 #  num_workers: 4
