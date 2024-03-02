@@ -64,8 +64,11 @@ evaluation:
   evaluation_duration: 3
   evaluation_duration_unit: "episodes"
 
+#scaling_config:
+#  num_workers: 4
+
 resources:
-  num_learner_workers: 4
+  num_learner_workers: 1
 
 rollouts:
   num_rollout_workers: 6

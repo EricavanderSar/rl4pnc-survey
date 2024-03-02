@@ -89,6 +89,7 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     ppo_config.update(custom_config["multi_agent"])
     ppo_config.update(custom_config["resources"])
     ppo_config.update(custom_config["rollouts"])
+    # ppo_config.update(custom_config["scaling_config"])
     # ppo_config.update(custom_config["evaluation"])
 
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
