@@ -1,6 +1,6 @@
 setup:
   nb_timesteps: 5_000
-  checkpoint_freq: 100
+  checkpoint_freq: 1000
   checkpoint_trainable_policies_only: True
   verbose: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
@@ -24,7 +24,6 @@ training:
     fcnet_hiddens:
     - 128
     - 128
-    - -128
   _enable_learner_api: False
 
 rl_module:
@@ -64,8 +63,8 @@ evaluation:
   evaluation_duration_unit: "episodes"
 
 resources:
-  num_gpus: 1
   num_learner_workers: 4
 
 rollouts:
-  num_rollout_workers: 4
+  num_rollout_workers: 6
+  
