@@ -3,11 +3,10 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=18
-#SBATCH --gpus=1
-#SBATCH --partition=gpu
+#SBATCH --cpus-per-task=16
+#SBATCH --partition=rome
 #SBATCH --time=1:00:00
-#SBATCH --output=TrainFull_gpu_case5_ppo_baseline_%j.out
+#SBATCH --output=TrainFull_case5_ppo_baseline_%j.out
 
 
 ENVNAME=rte_case5_example
