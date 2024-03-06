@@ -44,7 +44,7 @@ class RllibAgent(BaseAgent):
     ):
         BaseAgent.__init__(self, action_space)
 
-        # load PPO
+        # load neural network of (eg) PPO agent.
         checkpoint_path = os.path.join(file_path, checkpoint_name)
         self._rllib_agent = algorithm.from_checkpoint(
             checkpoint_path, policy_ids=[policy_name]

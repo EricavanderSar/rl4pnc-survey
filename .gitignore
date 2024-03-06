@@ -158,6 +158,8 @@ cython_debug/
 .idea
 */runs/*
 data_grid2op/*
+runs/*
+results/*
 
 # Submodule
 lightsim2grid

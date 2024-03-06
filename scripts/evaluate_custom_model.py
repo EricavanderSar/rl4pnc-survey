@@ -18,6 +18,7 @@ from grid2op.Environment import BaseEnv
 from grid2op.Reward import BaseReward
 from grid2op.Runner import Runner
 from ray.rllib.algorithms import ppo
+from ray.rllib.algorithms import Algorithm
 
 from mahrl.evaluation.evaluation_agents import (
     CapaAndGreedyAgent,
@@ -29,6 +30,12 @@ from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.grid2op_env.utils import load_actions
 
 
+def get_algorithm(alg_name) -> Algorithm:
+    AGENT = {
+        "ppo": ppo.PPO,
+    }
+    return AGENT[alg_name]
+
 def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
     """
     Set up the command-line argument parser.
@@ -39,6 +46,7 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
     Returns:
         argparse.Namespace: The parsed command-line arguments.
     """
+    parser.add_argument("-a", "--agent_type", default="rl", choices=["nothing", "greedy", "rl"])
     parser.add_argument(
         "-n",
         "--nothing",
@@ -68,6 +76,9 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
     parser.add_argument(
         "-f",
         "--file_path",
+        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/scripts/runs/"
+                "CustomPPO_2024-03-04_10-44-37/"
+                "CustomPPO_CustomizedGrid2OpEnvironment_d0927_00000_0_2024-03-04_10-44-37",
         type=str,
         help="Path to the input file, only for the Rllib agent.",
     )
@@ -117,7 +128,7 @@ def instantiate_opponent_classes(class_name: str) -> Any:
     raise ValueError("Problem instantiating opponent class for evaluation.")
 
 
-def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
+def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent, alg_name: str) -> None:
     """
     Perform runner on the implemented networks.
     """
@@ -138,7 +149,8 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             "kwargs_opponent"
         ]
         del env_config["grid2op_kwargs"]["kwargs_opponent"]
-    params.update(env_config["grid2op_kwargs"])
+        # only needed with opponent
+        params.update(env_config["grid2op_kwargs"])
 
     store_trajectories_folder = os.path.join(
         env_config["lib_dir"], "runs/action_evaluation"
@@ -157,9 +169,9 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
 
         # define the results folder path
         file_name = (
-            f"{type(agent_instance)}"
+            f"{alg_name}"
             + f"_{'opponent' if 'opponent_kwargs' in env_config['grid2op_kwargs'] else 'no_opponent'}"
-            + f"_{env_config['action_space']}_{env_config['rho_threshold']}_{i}.txt"
+            + f"_{env_config['action_space']}_{env_config['rho_threshold']}_{i}_{time.strftime('%d%m%Y_%H%M%S')}.txt"
         )
 
         with open(
@@ -169,6 +181,9 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         ) as file:
             file.write(f"Threshold={env_config['rho_threshold']}\n")
 
+        print("params: ", params)
+        print(f"storing results in: {store_trajectories_folder}/{env_config['env_name']}")
+        print("nb_episodes: ", env.chronics_handler.subpaths)
         res = Runner(
             **params,
             agentClass=None,
@@ -239,6 +254,7 @@ def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> N
             env_config=env_config,
             possible_actions=possible_actions,
         ),
+        alg_name="greedy"
     )
 
 
@@ -256,6 +272,7 @@ def setup_do_nothing_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) 
     run_runner(
         env_config=env_config,
         agent_instance=DoNothingAgent(setup_env.action_space),
+        alg_name="do_nothing"
     )
 
 
@@ -296,6 +313,9 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
         env_config["grid2op_kwargs"]["opponent_class"] = instantiate_opponent_classes(
             env_config["grid2op_kwargs"]["opponent_class"]
         )
+    # TODO EVDS: make alg_type input param in future?
+    alg_type='ppo'
+
 
     run_runner(
         env_config=env_config,
@@ -304,10 +324,11 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
             env_config=env_config,
             file_path=file_path,
             policy_name="reinforcement_learning_policy",
-            algorithm=ppo.PPO,
+            algorithm=get_algorithm(alg_type),
             checkpoint_name=checkpoint_name,
             gym_wrapper=CustomizedGrid2OpEnvironment(env_config),
         ),
+        alg_name=alg_type,
     )
 
 
@@ -337,10 +358,12 @@ def setup_capa_greedy_evaluation(
             env_config=env_config,
             possible_actions=possible_actions,
         ),
+        alg_name="MidCapa_LowGreedy"
     )
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     init_parser = argparse.ArgumentParser(description="Process possible variables.")
     args = setup_parser(init_parser)
 
@@ -350,7 +373,7 @@ if __name__ == "__main__":
     ):  # run donothing or greedy evaluation
         if not args.config:
             init_parser.print_help()
-            logging.error("\nError: --cibfug is required for the agent.")
+            logging.error("\nError: --config is required for the agent.")
         else:
             # load config file
             environment_config = load_config(args.config)["environment"]["env_config"]
