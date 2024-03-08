@@ -111,7 +111,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         # customize observation space
         ob_space = self.env_gym.observation_space
         ob_space = ob_space.keep_only_attr(
-            ["rho", "gen_p", "load_p", "topo_vect", "p_or", "p_ex", "timestep_overflow"]
+            ["rho", "gen_p", "load_p", "p_or", "p_ex", "timestep_overflow", "topo_vect"]
         )
 
         self.env_gym.observation_space = ob_space
@@ -137,7 +137,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         This function resets the environment.
         """
         self.previous_obs, infos = self.env_gym.reset()
+        print('infos in reset: ', infos)
         observations = {"high_level_agent": self.previous_obs}
+        print(observations)
         return observations, infos
 
     def step(

@@ -10,7 +10,7 @@ from typing import Any
 import grid2op
 
 import ray
-from gymnasium.spaces import Discrete
+import gymnasium as gym
 from ray import air, tune
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
@@ -18,7 +18,13 @@ from ray.rllib.policy.policy import PolicySpec
 
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
+from mahrl.grid2op_env.custom_env2 import RlGrid2OpEnv
+from mahrl.multi_agent.policy import (
+    DoNothingPolicy,
+    SelectAgentPolicy,
+    DoNothingPolicy2,
+    SelectAgentPolicy2
+)
 from mahrl.algorithms.custom_ppo import CustomPPO
 
 
@@ -51,6 +57,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
                 checkpoint_frequency=setup["checkpoint_freq"],
                 checkpoint_at_end=True,
                 checkpoint_score_attribute="custom_metrics/corrected_ep_len_mean",
+                num_to_keep=3,
             ),
             verbose=setup["verbose"],
         ),
@@ -97,9 +104,9 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
-            policy_class=SelectAgentPolicy,
-            observation_space=None,  # infer automatically from env
-            action_space=Discrete(2),  # choose one of agents
+            policy_class=SelectAgentPolicy2,
+            observation_space=gym.spaces.Box(-1, 2), # Only give max rho as obs
+            action_space=gym.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -123,9 +130,9 @@ def setup_config(workdir_path: str, input_path: str) -> None:
             config=None,
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
-            policy_class=DoNothingPolicy,
-            observation_space=None,  # infer automatically from env
-            action_space=Discrete(1),  # only perform do-nothing
+            policy_class=DoNothingPolicy2,
+            observation_space=gym.spaces.Discrete(1),  # Do Nothing observation is irrelevant
+            action_space=gym.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
@@ -136,7 +143,7 @@ def setup_config(workdir_path: str, input_path: str) -> None:
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})
-    ppo_config.update({"env": CustomizedGrid2OpEnvironment})
+    ppo_config.update({"env": RlGrid2OpEnv}) # CustomizedGrid2OpEnvironment})
 
     run_training(ppo_config, custom_config["setup"])
 
@@ -151,17 +158,18 @@ def change_workdir(workdir: str, env_name: str) -> None:
         grid2op.change_local_dir(os.path.expanduser("~/data_grid2op"))
     print(f"Environment data location used is: {grid2op.get_current_local_dir()}")
     # Change dir for RLlib ray_results output tensorboard
-    os.environ["RAY_AIR_LOCAL_CACHE_DIR"] = os.path.join(workdir, "runs")
+    os.environ["RAY_AIR_LOCAL_CACHE_DIR"] = os.path.join(workdir, f"runs/{env_name}")
 
 
 if __name__ == "__main__":
+    # ray.rllib.utils.check_env ([RlGrid2OpEnv])
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
     parser.add_argument(
         "-f",
         "--file_path",
         type=str,
-        default= "../configs/rte_case5_example/ppo_baseline.yaml", #"../configs/rte_case14_realistic/ppo_baseline.yaml",  #
+        default= "../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
         help="Path to the config file.",
     )
     parser.add_argument(

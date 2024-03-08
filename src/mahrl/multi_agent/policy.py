@@ -318,6 +318,7 @@ class SelectAgentPolicy(Policy):
         info_result: Dict[str, Any] = {}
 
         if isinstance(obs_batch, list):
+            print("WE HAVE A LIST OF OBSERVATIONS!!!: ", obs_batch)
             max_rho = np.max([item["rho"] for item in obs_batch])
         elif isinstance(obs_batch, dict):
             max_rho = np.max(obs_batch["rho"])
@@ -382,3 +383,63 @@ class SelectAgentPolicy(Policy):
     def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
         """Not implemented."""
         raise NotImplementedError
+
+
+class SelectAgentPolicy2(SelectAgentPolicy):
+    """
+    High level agent that determines whether an action is required.
+    EVDS version
+    """
+
+    def __init__(
+        self,
+        observation_space: gymnasium.Space,
+        action_space: gymnasium.Space,
+        config: AlgorithmConfigDict,
+    ):
+        super().__init__(
+            observation_space=observation_space,
+            action_space=action_space,
+            config=config,
+        )
+        self.rho_threshold = config["model"]["custom_model_config"]["rho_threshold"]
+
+    def compute_actions(
+        self,
+        obs_batch:  Union[List[TensorStructType], TensorStructType],
+        state_batches: Optional[List[TensorType]] = None,
+        prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
+        prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,
+        info_batch: Optional[Dict[str, List[Any]]] = None,
+        episodes: Optional[List[str]] = None,
+        explore: Optional[bool] = None,
+        timestep: Optional[int] = None,
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+        actions_result = [0 if obs > self.rho_threshold else 1 for obs in obs_batch]
+        return actions_result, [], {}
+
+
+class DoNothingPolicy2(DoNothingPolicy):
+    """
+    Policy that always returns a do-nothing action.
+    EVDS version
+    """
+
+    def compute_actions(
+        self,
+        obs_batch: Union[List[TensorStructType], TensorStructType],
+        state_batches: Optional[List[TensorType]] = None,
+        prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
+        prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,
+        info_batch: Optional[Dict[str, List[Any]]] = None,
+        episodes: Optional[List[str]] = None,
+        explore: Optional[bool] = None,
+        timestep: Optional[int] = None,
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+        """Computes actions for the current policy."""
+        obs_batch_size = len(obs_batch)
+        return [0 for _ in range(obs_batch_size)], [], {}
+
+

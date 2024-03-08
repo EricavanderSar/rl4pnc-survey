@@ -289,3 +289,14 @@ class CustomPPO(PPO):
         self.workers.local_worker().set_global_vars(global_vars)
 
         return train_results
+
+    # def postprocess_trajectory(self, sample_batch, other_agent_batches, agent_id, **kwargs):
+    #     # Filter out samples that are not from the trainable policy
+    #     print('PRE Post Process SAMPLE BATCH: ', sample_batch)
+    #     policies_to_train = self.workers.local_worker().get_policies_to_train()
+    #     sample_batch = sample_batch[sample_batch["policy_id"] in policies_to_train]
+    #
+    #     print('POST Post Process SAMPLE BATCH: ', sample_batch)
+    #
+    #     # Continue with the rest of the postprocessing logic
+    #     return super().postprocess_trajectory(sample_batch, other_agent_batches, agent_id, **kwargs)

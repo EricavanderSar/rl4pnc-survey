@@ -50,7 +50,7 @@ multi_agent:
 environment:
   env_config: &env_config_train
     env_name: rte_case5_example
-    action_space: asymmetry
+    action_space: tennet
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
     max_tsteps: *train_batch_size
     grid2op_kwargs:
@@ -59,6 +59,8 @@ environment:
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.90
+    n_history: 6
+    input: ["p_i", "r", "o", "d"]
 
 env_config_val: &env_config_val
   <<: *env_config_train
@@ -78,4 +80,4 @@ resources:
   num_learner_workers: 1
 
 rollouts:
-  num_rollout_workers: 1
+  num_rollout_workers: 6
