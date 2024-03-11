@@ -31,16 +31,16 @@ ENV_TYPE = {
     "old_env": {
         'env': CustomizedGrid2OpEnvironment,
         'hl_policy': SelectAgentPolicy,
-        'hl_obs_space': None,
+        'hl_obs_space': None, # infer automatically from env
         'dn_policy': DoNothingPolicy,
-        'dn_obs_space': None,
+        'dn_obs_space': None, # infer automatically from env
     },
     "new_env": {
-        'env': CustomizedGrid2OpEnvironment,
+        'env': RlGrid2OpEnv,
         'hl_policy': SelectAgentPolicy2,
-        'hl_obs_space': gym.spaces.Box(-1, 2),
+        'hl_obs_space': gym.spaces.Box(-1, 2), # Only give max rho as obs
         'dn_policy': DoNothingPolicy2,
-        'dn_obs_space': gym.spaces.Discrete(1),
+        'dn_obs_space': gym.spaces.Discrete(1), # Do Nothing observation is irrelevant
     }
 }
 
@@ -123,7 +123,7 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=env_type_config["hl_policy"],
-            observation_space=env_type_config["hl_obs_space"], # Only give max rho as obs
+            observation_space=env_type_config["hl_obs_space"],
             action_space=gym.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
@@ -149,7 +149,7 @@ def setup_config(workdir_path: str, input_path: str) -> None:
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=env_type_config["dn_policy"],
-            observation_space=env_type_config["dn_obs_space"],  # Do Nothing observation is irrelevant
+            observation_space=env_type_config["dn_obs_space"],
             action_space=gym.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
@@ -161,7 +161,7 @@ def setup_config(workdir_path: str, input_path: str) -> None:
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})
-    ppo_config.update({"env": env_type_config["env"]}) # CustomizedGrid2OpEnvironment})
+    ppo_config.update({"env": env_type_config["env"]})
 
     run_training(ppo_config, custom_config["setup"])
 
@@ -180,14 +180,13 @@ def change_workdir(workdir: str, env_name: str) -> None:
 
 
 if __name__ == "__main__":
-    # ray.rllib.utils.check_env ([RlGrid2OpEnv])
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
     parser.add_argument(
         "-f",
         "--file_path",
         type=str,
-        default= "../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
+        default= "../configs/rte_case5_example/ppo_baseline.yaml", #"../configs/rte_case14_realistic/ppo_baseline.yaml",  #
         help="Path to the config file.",
     )
     parser.add_argument(
