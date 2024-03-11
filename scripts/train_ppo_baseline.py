@@ -27,6 +27,23 @@ from mahrl.multi_agent.policy import (
 )
 from mahrl.algorithms.custom_ppo import CustomPPO
 
+ENV_TYPE = {
+    "old_env": {
+        'env': CustomizedGrid2OpEnvironment,
+        'hl_policy': SelectAgentPolicy,
+        'hl_obs_space': None,
+        'dn_policy': DoNothingPolicy,
+        'dn_obs_space': None,
+    },
+    "new_env": {
+        'env': CustomizedGrid2OpEnvironment,
+        'hl_policy': SelectAgentPolicy2,
+        'hl_obs_space': gym.spaces.Box(-1, 2),
+        'dn_policy': DoNothingPolicy2,
+        'dn_obs_space': gym.spaces.Discrete(1),
+    }
+}
+
 
 def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     """
@@ -100,12 +117,13 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     ppo_config.update(custom_config["rollouts"])
     # ppo_config.update(custom_config["scaling_config"])
     # ppo_config.update(custom_config["evaluation"])
+    env_type_config = ENV_TYPE[custom_config["environment"]["env_type"]]
 
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
-            policy_class=SelectAgentPolicy2,
-            observation_space=gym.spaces.Box(-1, 2), # Only give max rho as obs
+            policy_class=env_type_config["hl_policy"],
+            observation_space=env_type_config["hl_obs_space"], # Only give max rho as obs
             action_space=gym.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
@@ -130,8 +148,8 @@ def setup_config(workdir_path: str, input_path: str) -> None:
             config=None,
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
-            policy_class=DoNothingPolicy2,
-            observation_space=gym.spaces.Discrete(1),  # Do Nothing observation is irrelevant
+            policy_class=env_type_config["dn_policy"],
+            observation_space=env_type_config["dn_obs_space"],  # Do Nothing observation is irrelevant
             action_space=gym.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
@@ -143,7 +161,7 @@ def setup_config(workdir_path: str, input_path: str) -> None:
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})
-    ppo_config.update({"env": RlGrid2OpEnv}) # CustomizedGrid2OpEnvironment})
+    ppo_config.update({"env": env_type_config["env"]}) # CustomizedGrid2OpEnvironment})
 
     run_training(ppo_config, custom_config["setup"])
 

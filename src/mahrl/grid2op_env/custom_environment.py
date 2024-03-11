@@ -137,9 +137,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         This function resets the environment.
         """
         self.previous_obs, infos = self.env_gym.reset()
-        print('infos in reset: ', infos)
         observations = {"high_level_agent": self.previous_obs}
-        print(observations)
         return observations, infos
 
     def step(

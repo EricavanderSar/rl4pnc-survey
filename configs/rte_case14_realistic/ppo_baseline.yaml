@@ -47,6 +47,7 @@ multi_agent:
   count_steps_by: agent_steps
 
 environment:
+  env_type: old_env # new_env #
   env_config: &env_config_train
     env_name: rte_case14_realistic
     num_agents: 3
@@ -58,7 +59,7 @@ environment:
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.95
-    n_history: 6
+    n_history: 1
     input: [ "p_i", "r", "o", "d" ]
 
 env_config_val: &env_config_val
@@ -73,7 +74,7 @@ evaluation:
     env_config: *env_config_val # use the validation environment
 
 resources:
-  num_learner_workers: 2
+  num_learner_workers: 1
 
 rollouts:
-  num_rollout_workers: 2
+  num_rollout_workers: 6
