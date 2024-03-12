@@ -4,7 +4,7 @@ from grid2op import Observation
 
 
 class ObsConverter:
-    def __init__(self, env, danger, attr=["p_i", "p_l", "r", "o", "d", "m"], n_history=1):
+    def __init__(self, env, danger, attr=["p_i", "p_l", "r", "o", "d", "m"], n_history=1, adj_mat=True):
         self.obs_space = env.observation_space
         self.act_space = env.action_space
         self.danger = danger
@@ -13,6 +13,7 @@ class ObsConverter:
         self.init_obs_converter()
         self.stacked_obs = []
         self.n_history = n_history
+        self.adj_mat = adj_mat
 
     def reset(self):
         self.stacked_obs = []
@@ -101,9 +102,8 @@ class ObsConverter:
 
         # current bus assignment
         topo_ = np.clip(o[..., self.topo] - 1, -1, None)
-
         state = np.stack(attr_list, axis=1)  # B, N, F
-        return state, np.expand_dims(topo_, axis=-1)
+        return state, topo_
 
     def get_cur_obs(self, obs: Observation):
         # Get the observation: Feature matrix
@@ -120,7 +120,8 @@ class ObsConverter:
 
         # Get the observation: Adjacency matrix
         # self.adj = (torch.FloatTensor(obs.connectivity_matrix())).to(self.device)
-        adj = obs.connectivity_matrix() + np.eye(int(obs.dim_topo))
+        if self.adj_mat:
+            topo = obs.connectivity_matrix() + np.eye(int(obs.dim_topo))
         # TODO: Decide if to pass on topo vector or adjacency matrix
-        cur_obs = {"feature_matrix": np.concatenate(self.stacked_obs, axis=1), "adjacency_matrix": adj}
+        cur_obs = {"feature_matrix": np.concatenate(self.stacked_obs, axis=1), "topology": topo}
         return cur_obs
