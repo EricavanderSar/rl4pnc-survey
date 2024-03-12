@@ -18,6 +18,7 @@ training:
   clip_param: 0.2
   lambda_: 0.95
   vf_clip_param: 20
+#  use_kl_loss: False # setting this similar to orig EVDS implementation
   num_sgd_iter: 4
   sgd_minibatch_size: 32
   train_batch_size: &train_batch_size 128 # !grid_search [32, 64, 128]
