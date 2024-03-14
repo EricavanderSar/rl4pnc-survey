@@ -3,13 +3,18 @@ Utilities in the grid2op experiments.
 """
 
 import logging
+import os
 from typing import Any, Dict, List, OrderedDict, Union
 
 import numpy as np
+import ray
 from grid2op.Environment import BaseEnv
+from ray import air, tune
+from ray.air.integrations.mlflow import MLflowLoggerCallback
+from ray.rllib.algorithms import ppo  # import the type of agents
 
 
-def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, list[int]]:
+def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies without symmetries.
     """
@@ -18,7 +23,7 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, list[int]]
 
     logging.info("no symmetries")
     action_space = 0
-    controllable_substations = []
+    controllable_substations = {}
     possible_topologies = 1
     for sub in range(nr_substations):
         nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
@@ -31,7 +36,7 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, list[int]]
         alpha = 2 ** (nr_elements - 1) - (2**nr_non_lines - 1)
         action_space += alpha if alpha > 1 else 0
         if alpha > 1:
-            controllable_substations.append(sub)
+            controllable_substations[sub] = alpha
         possible_topologies *= max(alpha, 1)
 
     logging.info(f"actions {action_space}")
@@ -40,7 +45,7 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, list[int]]
     return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, list[int]]:
+def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies following Subrahamian (2021).
     """
@@ -48,7 +53,7 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, list[int]]:
 
     logging.info("medha")
     action_space = 0
-    controllable_substations = []
+    controllable_substations = {}
     possible_topologies = 1
     for sub in range(nr_substations):
         nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
@@ -63,7 +68,7 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, list[int]]:
         combined = alpha - beta - gamma
         action_space += combined if combined > 1 else 0
         if combined > 1:
-            controllable_substations.append(sub)
+            controllable_substations[sub] = combined
         possible_topologies *= max(combined, 1)
 
     logging.info(f"actions {action_space}")
@@ -72,7 +77,7 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, list[int]]:
     return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
+def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies following the proposed action space.
     """
@@ -80,7 +85,7 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
 
     logging.info("TenneT")
     action_space = 0
-    controllable_substations = []
+    controllable_substations = {}
     possible_topologies = 1
     for sub in range(nr_substations):
         nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
@@ -114,7 +119,7 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
 
         action_space += int(combined) if combined > 1 else 0
         if combined > 1:
-            controllable_substations.append(sub)
+            controllable_substations[sub] = combined
         possible_topologies *= max(combined, 1)
 
     logging.info(f"actions {action_space}")
@@ -126,7 +131,7 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
 def get_capa_substation_id(
     line_info: dict[int, list[int]],
     obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
-    controllable_substations: list[int],
+    controllable_substations: dict[int, int],
 ) -> list[int]:
     """
     Returns the substation id of the substation to act on according to CAPA.
@@ -146,7 +151,7 @@ def get_capa_substation_id(
 
     # set non-controllable substations to 0
     for sub_idx in connected_rhos:
-        if sub_idx not in controllable_substations:
+        if sub_idx not in list(controllable_substations.keys()):
             connected_rhos[sub_idx] = [0.0]
 
     # order the substations by the mean rho, maximum first
@@ -163,7 +168,7 @@ def get_capa_substation_id(
     return list(connected_rhos.keys())
 
 
-def find_list_of_agents(env: BaseEnv, action_space: str) -> list[int]:
+def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[int, int]:
     """
     Function that returns the number of controllable substations.
     """
@@ -197,3 +202,43 @@ def find_substation_per_lines(
             line_info[sub_idx].append(ex_id)
 
     return line_info
+
+
+def run_training(config: dict[str, Any], setup: dict[str, Any], algorithm) -> None:
+    """
+    Function that runs the training script.
+    """
+    # init ray
+    ray.init()
+
+    # Create tuner
+    tuner = tune.Tuner(
+        algorithm,
+        param_space=config,
+        # tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
+        run_config=air.RunConfig(
+            name="mlflow",
+            callbacks=[
+                MLflowLoggerCallback(
+                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+                    experiment_name=setup["experiment_name"],
+                    save_artifact=setup["save_artifact"],
+                )
+            ],
+            stop={"timesteps_total": setup["nb_timesteps"]},
+            storage_path=os.path.abspath(setup["storage_path"]),
+            checkpoint_config=air.CheckpointConfig(
+                # checkpoint_frequency=setup["checkpoint_freq"],
+                checkpoint_at_end=True,
+                # checkpoint_score_attribute="evaluation/episode_reward_mean",
+            ),
+            verbose=setup["verbose"],
+        ),
+    )
+
+    # Launch tuning
+    try:
+        tuner.fit()
+    finally:
+        # Close ray instance
+        ray.shutdown()

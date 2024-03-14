@@ -108,15 +108,18 @@ class CapaPolicy(Policy):
         **kwargs: Dict[str, Any],
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
         """Computes actions for the current policy."""
+        # print(f"State batch={state_batches}")
         state_outs_result: List[Any] = []
         info_result: Dict[str, Any] = {}
 
         line_info = self.config["model"]["custom_model_config"]["line_info"]
 
         # TODO: Use state dictionary instead of self. memory, get and return state
+        # in modelv2.html
+
+        # print(f"Policy state= {self.get_state()}")
 
         # if no list is created yet, do so
-        # TODO check if same obs_batch["reset_capa_idx"][0] == True:
         if obs_batch["reset_capa_idx"][0]:
             self.idx = 0
             self.substation_to_act_on = get_capa_substation_id(
@@ -125,41 +128,22 @@ class CapaPolicy(Policy):
 
         # find an action that is not the do nothing action by looping over the substations
         chosen_action = obs_batch["do_nothing_action"][0]
-        # print(f"initial chosen action: {chosen_action}")
-        while not chosen_action.as_dict() and self.idx < len(
-            self.controllable_substations
-        ):
+        while not chosen_action and self.idx < len(self.controllable_substations):
             single_substation = self.substation_to_act_on[
                 self.idx % len(self.controllable_substations)
             ]
 
             self.idx += 1
-            chosen_action = obs_batch["proposed_actions"][0][single_substation]
-            # print(f"loop chosen action: {chosen_action}")
+            chosen_action = obs_batch["proposed_actions"][single_substation][0]
 
             # if it's not the do nothing action, return action
             # if it's the do nothing action, continue the loop
-            if chosen_action.as_dict():
+            if chosen_action:
                 return ([chosen_action], state_outs_result, info_result)
 
         # grid is safe or no action is found, reset list count and return DoNothing
         self.idx = 0
         return ([chosen_action], state_outs_result, info_result)
-
-        # print(f"obs_batch: {obs_batch}")
-        # substation_to_act_on = get_capa_substation_id(
-        #     line_info, obs_batch, self.controllable_substations
-        # )[self.idx % 3]
-
-        # self.idx += 1
-
-        # find substation with max average rho
-        # NOTE: When there are two equal max values, the first one is returned first
-        # return (
-        #     [substation_to_act_on],
-        #     state_outs_result,
-        #     info_result,
-        # )
 
     def get_weights(self) -> ModelWeights:
         """No weights to save."""

@@ -4,18 +4,21 @@ Trains PPO hrl agent.
 
 import argparse
 import logging
-import os
 from typing import Any
 
 import grid2op
-import ray
+import gymnasium
+import numpy as np
 from gymnasium.spaces import Discrete
-from ray import air, tune
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 
-from mahrl.experiments.utils import find_list_of_agents, find_substation_per_lines
+from mahrl.experiments.utils import (
+    find_list_of_agents,
+    find_substation_per_lines,
+    run_training,
+)
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import (
     GreedyHierarchicalCustomizedGrid2OpEnvironment,
@@ -23,46 +26,126 @@ from mahrl.grid2op_env.custom_environment import (
 from mahrl.multi_agent.policy import CapaPolicy, DoNothingPolicy, SelectAgentPolicy
 
 
-def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
-    """
-    Function that runs the training script.
-    """
-    # init ray
-    ray.init()
-
-    # Create tuner
-    tuner = tune.Tuner(
-        ppo.PPO,
-        param_space=config,
-        run_config=air.RunConfig(
-            stop={"timesteps_total": setup["nb_timesteps"]},
-            storage_path=os.path.abspath(setup["storage_path"]),
-            checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=setup["checkpoint_freq"],
-                checkpoint_at_end=True,
-                checkpoint_score_attribute="evaluation/episode_reward_mean",
-            ),
-            verbose=setup["verbose"],
-        ),
+def select_mid_level_policy(
+    middle_agent_type: str,
+    list_of_agents: list[int],
+    line_info: dict[int, list[int]],
+    custom_config: dict[str, Any],
+) -> PolicySpec:
+    base_action = gymnasium.spaces.Dict(
+        {
+            "change_bus_vect": gymnasium.spaces.Dict(
+                {
+                    "nb_modif_objects": gymnasium.spaces.Discrete(3),
+                    "1": gymnasium.spaces.Dict(
+                        {
+                            str(i): gymnasium.spaces.Dict(
+                                {"type": gymnasium.spaces.Discrete(3)}
+                            )
+                            for i in list_of_agents
+                        }
+                    ),
+                    "nb_modif_subs": gymnasium.spaces.Discrete(2),
+                    "modif_subs_id": gymnasium.spaces.MultiDiscrete(
+                        [
+                            len(list_of_agents)
+                        ]  # TODO likely doesn't work if not consecutive list
+                    ),
+                }
+            )
+        }
     )
 
-    # Launch tuning
-    try:
-        tuner.fit()
-    finally:
-        # Close ray instance
-        ray.shutdown()
+    # action_space = gymnasium.spaces.Dict(
+    #     {
+    #         "change_bus_vect": gymnasium.spaces.Dict(
+    #             {
+    #                 "nb_modif_objects": gymnasium.spaces.Discrete(3),
+    #                 "1": gymnasium.spaces.Dict(
+    #                     {
+    #                         str(i): gymnasium.spaces.Dict(
+    #                             {
+    #                                 "type": gymnasium.spaces.Text(10),
+    #                                 "new_bus": gymnasium.spaces.Discrete(3),
+    #                             }
+    #                         )
+    #                         for i in list_of_agents
+    #                     }
+    #                 ),
+    #                 "nb_modif_subs": gymnasium.spaces.Discrete(1),
+    #                 "modif_subs_id": gymnasium.spaces.MultiDiscrete(
+    #                     [1]
+    #                 ),  # Assuming '1' is the only possible value
+    #             }
+    #         )
+    #     }
+    # )
+
+    capa_observation = gymnasium.spaces.Dict(
+        {
+            "rho": gymnasium.spaces.Box(
+                low=0, high=np.inf, shape=(8,), dtype=np.float32
+            ),
+            "proposed_actions": gymnasium.spaces.Dict(
+                {str(i): base_action for i in list_of_agents}
+            ),
+            "do_nothing_action": gymnasium.spaces.Dict(),
+            "reset_capa_idx": gymnasium.spaces.Discrete(2),
+        }  # TODO: Try as dict
+    )
+
+    if middle_agent_type == "capa":
+        custom_config["environment"]["env_config"]["capa"] = True
+
+        mid_level_policy = PolicySpec(  # rule based substation selection
+            policy_class=CapaPolicy,
+            observation_space=capa_observation,  # information specifically for CAPA
+            action_space=Discrete(len(list_of_agents)),  # choose one of agents
+            config=(
+                AlgorithmConfig()
+                .training(
+                    _enable_learner_api=False,
+                    model={
+                        "custom_model_config": {
+                            "line_info": line_info,
+                            "environment": custom_config["environment"],
+                        },
+                    },
+                )
+                .rl_module(_enable_rl_module_api=False)
+                .rollouts(preprocessor_pref=None)
+            ),
+        )
+    elif middle_agent_type == "rl":
+        mid_level_policy = PolicySpec(  # rule based substation selection
+            policy_class=None,  # use default policy of PPO
+            observation_space=capa_observation,
+            action_space=Discrete(len(list_of_agents)),  # choose one of agents
+            config=(
+                AlgorithmConfig()
+                # .rollouts(preprocessor_pref=None)
+                .exploration(exploration_config={"type": "StochasticSampling"})
+            ),  # TODO: Is it correct to remove preproc?. Do I need to load configs here? Yes.
+        )
+    else:
+        raise ValueError(
+            f"Middle agent type {middle_agent_type} not recognized. Please use 'capa' or 'rl'."
+        )
+    return mid_level_policy
 
 
-def setup_config(config_path: str) -> None:
+def setup_config(
+    config_path: str, middle_agent_type: str, lower_agent_type: str
+) -> None:
     """
     Loads the json as config and sets it up for training.
     """
     # load base PPO config and load in hyperparameters
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
+
     ppo_config.update(custom_config["training"])
-    ppo_config.update(custom_config["debugging"])
+    # ppo_config.update(custom_config["debugging"])
     ppo_config.update(custom_config["framework"])
     ppo_config.update(custom_config["rl_module"])
     ppo_config.update(custom_config["explore"])
@@ -73,15 +156,21 @@ def setup_config(config_path: str) -> None:
 
     setup_env = grid2op.make(custom_config["environment"]["env_config"]["env_name"])
     # Make as number additional policies as controllable substations
-    list_of_agents = find_list_of_agents(
+    agent_per_substation = find_list_of_agents(
         setup_env,
         custom_config["environment"]["env_config"]["action_space"],
     )
 
-    line_info = find_substation_per_lines(setup_env, list_of_agents)
+    list_of_substations = list(agent_per_substation.keys())
+
+    line_info = find_substation_per_lines(setup_env, list_of_substations)
     # TODO: Give these policies own parameters
     # TODO: First use the rule-based policies
     # TODO adjust policies to train config
+
+    mid_level_policy = select_mid_level_policy(
+        middle_agent_type, list_of_substations, line_info, custom_config
+    )
 
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
@@ -104,25 +193,7 @@ def setup_config(config_path: str) -> None:
                 .rollouts(preprocessor_pref=None)
             ),
         ),
-        "choose_substation_policy": PolicySpec(  # rule based substation selection
-            policy_class=CapaPolicy,
-            observation_space=None,  # infer automatically from env
-            action_space=Discrete(len(list_of_agents)),  # infer automatically from env
-            config=(
-                AlgorithmConfig()
-                .training(
-                    _enable_learner_api=False,
-                    model={
-                        "custom_model_config": {
-                            "line_info": line_info,
-                            "environment": custom_config["environment"],
-                        },
-                    },
-                )
-                .rl_module(_enable_rl_module_api=False)
-                .rollouts(preprocessor_pref=None)
-            ),
-        ),
+        "choose_substation_policy": mid_level_policy,
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,
             observation_space=None,  # infer automatically from env
@@ -135,41 +206,39 @@ def setup_config(config_path: str) -> None:
         ),
     }
 
-    # TODO: Change the rl policy to another reward function
-    # Add reinforcement learning policies to the dictionary
-    # for sub_idx in list_of_agents:
-    #     policies[f"reinforcement_learning_policy_{sub_idx}"] = (
-    #         PolicySpec(  # rule based substation selection
-    #             policy_class=None,
-    #             observation_space=None,  # infer automatically from env
-    #             action_space=None,  # infer automatically from env
-    #             config=(
-    #                 AlgorithmConfig()
-    #                 .training(
-    #                     _enable_learner_api=False,
-    #                     model={
-    #                         "custom_model_config": {
-    #                             "env_config": custom_config["environment"]["env_config"]
-    #                         }
-    #                     },
-    #                 )
-    #                 .rl_module(_enable_rl_module_api=False)
-    # TODO: Get exploration from config
-    #                 # .exploration(
-    #                 #     exploration_config={
-    #                 #         "type": "EpsilonGreedy",
-    #                 #     }
-    #                 # )
-    #                 .rollouts(preprocessor_pref=None)
-    #             ),
-    #         )
-    #     )
+    if lower_agent_type == "rl":  # add a rl agent for each substation
+        # Add reinforcement learning policies to the dictionary
+        for sub_idx, num_actions in agent_per_substation.items():
+            policies[
+                f"reinforcement_learning_policy_{sub_idx}"
+            ] = PolicySpec(  # rule based substation selection
+                policy_class=None,  # infer automatically from env (PPO)
+                observation_space=None,  # infer automatically from env
+                action_space=Discrete(num_actions),
+                config=None,
+            )
+
+    # if policy is rl, set an agent to train
+    if middle_agent_type == "rl":
+        ppo_config["policies_to_train"] = ["choose_substation_policy"]
+    elif middle_agent_type == "capa":
+        ppo_config["policies_to_train"] = []
+
+    if lower_agent_type == "rl":
+        ppo_config["policies_to_train"] += [
+            f"reinforcement_learning_policy_{sub_idx}"
+            for sub_idx in list_of_substations
+        ]
+
+    # TODO: MAke a converter per agent? Where/How?
+
+    # TODO: Get exploration from config explicitly?
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})
     ppo_config.update({"env": GreedyHierarchicalCustomizedGrid2OpEnvironment})
 
-    run_training(ppo_config, custom_config["setup"])
+    run_training(ppo_config, custom_config["setup"], ppo.PPO)
 
 
 if __name__ == "__main__":
@@ -182,6 +251,22 @@ if __name__ == "__main__":
         help="Path to the config file.",
     )
 
+    parser.add_argument(
+        "-m",
+        "--middle",
+        type=str,
+        default="capa",
+        help="The type of middle level agent (capa or rl).",
+    )
+
+    parser.add_argument(
+        "-l",
+        "--lower",
+        type=str,
+        default="greedy",
+        help="The type of middle level agent (greedy or rl).",
+    )
+
     # Parse the command-line arguments
     args = parser.parse_args()
 
@@ -189,7 +274,7 @@ if __name__ == "__main__":
     input_config_path = args.config
 
     if input_config_path:
-        setup_config(input_config_path)
+        setup_config(input_config_path, args.middle, args.lower)
     else:
         parser.print_help()
         logging.error("\nError: --file_path is required to specify config location.")

@@ -1,0 +1,10 @@
+environment:
+  env_config: 
+    env_name: rte_case14_realistic
+    action_space: asymmetry
+    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ #  /home3/s3374610/mahrl_grid2op/ 
+    grid2op_kwargs:
+      # general kwargs
+      reward_class: !LossReward
+    seed: 14
+    rho_threshold: 0.95

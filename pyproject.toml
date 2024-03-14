@@ -41,8 +41,8 @@ requires-python = ">=3.11"
 dependencies = [
   "Grid2Op==1.9.3",
   "pandapower==2.13.1",
-  "vzm2Grid==0.7.5",
-  "numba==0.57.0",
+  "Lightsim2Grid==0.7.5",
+  "numba==0.59.0",
   "numpy==1.26.4",
   "ray==2.7.0",
   "lz4==4.3.2",

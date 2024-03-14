@@ -22,7 +22,11 @@ from ray.rllib.policy.policy import PolicySpec
 from yaml.loader import FullLoader, Loader, UnsafeLoader
 from yaml.nodes import MappingNode, ScalarNode
 
-from mahrl.experiments.callback import CustomMetricsCallback
+from mahrl.experiments.callback import (
+    CustomMetricsCallback,
+    CustomPPOMetricsCallback,
+    SingleAgentCallback,
+)
 from mahrl.experiments.opponent import ReconnectingOpponentSpace
 from mahrl.experiments.rewards import LossReward
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
@@ -85,6 +89,20 @@ def custom_metrics_callback_constructor(
 ) -> DefaultCallbacks:
     """Custom constructor for CustomMetricsCallback"""
     return CustomMetricsCallback
+
+
+def custom_PPO_metrics_callback_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> DefaultCallbacks:
+    """Custom constructor for CustomPPOMetricsCallback"""
+    return CustomPPOMetricsCallback
+
+
+def custom_single_metrics_callback_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> DefaultCallbacks:
+    """Custom constructor for CustomPPOMetricsCallback"""
+    return SingleAgentCallback
 
 
 def select_agent_policy_constructor(
@@ -196,6 +214,12 @@ def add_constructors() -> None:
     yaml.FullLoader.add_constructor("!policy_mapping_fn", policy_mapping_fn_constructor)
     yaml.FullLoader.add_constructor(
         "!CustomMetricsCallback", custom_metrics_callback_constructor
+    )
+    yaml.FullLoader.add_constructor(
+        "!CustomPPOMetricsCallback", custom_PPO_metrics_callback_constructor
+    )
+    yaml.FullLoader.add_constructor(
+        "!SingleAgentCallback", custom_single_metrics_callback_constructor
     )
     yaml.FullLoader.add_constructor(
         "!SelectAgentPolicy", select_agent_policy_constructor

@@ -22,8 +22,8 @@ from ray.rllib.algorithms import ppo
 
 from mahrl.evaluation.evaluation_agents import (
     CapaAndGreedyAgent,
+    LargeTopologyGreedyAgent,
     RllibAgent,
-    TopologyGreedyAgent,
 )
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
@@ -182,6 +182,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             path_save=os.path.abspath(
                 f"{store_trajectories_folder}/{env_config['env_name']}"
             ),
+            # nb_episode=1,
             nb_episode=len(env.chronics_handler.subpaths),
             max_iter=-1,
             nb_process=1,
@@ -218,6 +219,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             )
         logging.info(f"Total time = {time.time() - start_time}")
         logging.info(f"Average timesteps survived: {mean(individual_timesteps)}")
+        # logging.info(f"Timesteps saved = {agent_instance.timesteps_saved}")
 
 
 def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> None:
@@ -239,7 +241,7 @@ def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> N
 
     run_runner(
         env_config=env_config,
-        agent_instance=TopologyGreedyAgent(
+        agent_instance=LargeTopologyGreedyAgent(
             action_space=setup_env.action_space,
             env_config=env_config,
             possible_actions=possible_actions,
@@ -393,4 +395,4 @@ if __name__ == "__main__":
                     checkpoint_name=args.checkpoint_name,
                 )
 
-    # print(f"Total time={time.time() - start_time}")
+    print(f"Total time={time.time() - start_time}")

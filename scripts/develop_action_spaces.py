@@ -57,7 +57,7 @@ def create_action_spaces(
                 "The number of possible actions does not match the mathematically calculated number of actions."
             )
 
-        file_path = os.path.join(save_path, f"{env_name}/medha.json")
+        file_path = os.path.join(save_path, f"{env_name}/tennet.json")
         save_to_json(possible_actions, file_path)
 
 

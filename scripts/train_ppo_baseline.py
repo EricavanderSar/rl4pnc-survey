@@ -4,60 +4,16 @@ Trains PPO baseline agent.
 
 import argparse
 import logging
-import os
-from typing import Any
 
-import ray
 from gymnasium.spaces import Discrete
-from ray import air, tune
-from ray.air.integrations.mlflow import MLflowLoggerCallback
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 
+from mahrl.experiments.utils import run_training
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
-
-
-def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
-    """
-    Function that runs the training script.
-    """
-    # init ray
-    ray.init()
-
-    # Create tuner
-    tuner = tune.Tuner(
-        ppo.PPO,
-        param_space=config,
-        tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
-        run_config=air.RunConfig(
-            name="mlflow",
-            callbacks=[
-                MLflowLoggerCallback(
-                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
-                    experiment_name=setup["experiment_name"],
-                    save_artifact=setup["save_artifact"],
-                )
-            ],
-            stop={"timesteps_total": setup["nb_timesteps"]},
-            storage_path=os.path.abspath(setup["storage_path"]),
-            checkpoint_config=air.CheckpointConfig(
-                # checkpoint_frequency=setup["checkpoint_freq"],
-                checkpoint_at_end=True,
-                # checkpoint_score_attribute="evaluation/episode_reward_mean",
-            ),
-            verbose=setup["verbose"],
-        ),
-    )
-
-    # Launch tuning
-    try:
-        tuner.fit()
-    finally:
-        # Close ray instance
-        ray.shutdown()
 
 
 def setup_config(config_path: str, checkpoint_path: str | None) -> None:
@@ -71,7 +27,7 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
         custom_config["setup"]["checkpoint_path"] = checkpoint_path
 
     ppo_config.update(custom_config["training"])
-    ppo_config.update(custom_config["debugging"])
+    # ppo_config.update(custom_config["debugging"])
     ppo_config.update(custom_config["framework"])
     ppo_config.update(custom_config["rl_module"])
     ppo_config.update(custom_config["explore"])
@@ -133,7 +89,7 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     ppo_config.update({"policies": policies})
     ppo_config.update({"env": CustomizedGrid2OpEnvironment})
 
-    run_training(ppo_config, custom_config["setup"])
+    run_training(ppo_config, custom_config["setup"], ppo.PPO)
 
 
 if __name__ == "__main__":

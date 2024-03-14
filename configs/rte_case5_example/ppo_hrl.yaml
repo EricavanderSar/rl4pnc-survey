@@ -1,8 +1,11 @@
 setup:
   nb_timesteps: &nb_timesteps 1000000
-  checkpoint_freq: 10000
+  # checkpoint_freq: 10000
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
+  experiment_name: bugfixing
+  save_artifact: True
+  num_samples: 1
 
 debugging:
   seed: &seed 14
