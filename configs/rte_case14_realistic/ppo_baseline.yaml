@@ -16,7 +16,7 @@ training:
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
-  lambda_: 0.95
+  lambda: 0.95
   num_sgd_iter: 4
   sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
   train_batch_size: &train_batch_size 128 # !grid_search [32, 64, 128]

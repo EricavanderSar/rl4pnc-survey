@@ -6,15 +6,17 @@ import argparse
 import logging
 import os
 from typing import Any
+from tabulate import tabulate
 
 import grid2op
 
 import ray
 import gymnasium as gym
-from ray import air, tune
+from ray import air, tune, train
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
+from ray.tune.experimental.output import ProgressReporter, get_air_verbosity
 
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
@@ -54,21 +56,27 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     # init ray
     # Set the environment variable
     os.environ["RAY_DEDUP_LOGS"] = "0"
+    # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
     ray.init()
 
     # Get the hostname and port
     address = ray.worker._real_worker._global_node.address
     host_name, port = address.split(":")
-
     print("Hostname:", host_name)
     print("Port:", port)
+
+    # reporter = ProgressReporter(get_air_verbosity(setup["verbose"]))
+    # # Add a custom metric column, in addition to the default metrics.
+    # # Note that this must be a metric that is returned in your training results.
+    # reporter.add_metric_column("custom_metrics/corrected_ep_len_mean")
+    # reporter.add_metric_column("custom_metrics/grid2op_end")
 
     # Create tuner
     tuner = tune.Tuner(
         trainable=CustomPPO,
         param_space=config,
         run_config=air.RunConfig(
-            stop={"timesteps_total": setup["nb_timesteps"], "custom_metrics/corrected_ep_len_mean": setup["max_ep_len"]}, #"training_iteration": 5}, #
+            stop={"timesteps_total": setup["nb_timesteps"], "custom_metrics/grid2op_end_mean": setup["max_ep_len"]}, #"training_iteration": 5}, #
             # storage_path=os.path.abspath(setup["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=setup["checkpoint_freq"],
@@ -77,8 +85,10 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
                 num_to_keep=3,
             ),
             verbose=setup["verbose"],
+            # progress_reporter=reporter,
         ),
     )
+
 
     # Launch tuning
     try:
@@ -90,8 +100,22 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     for i in range(len(result_grid)):
         result = result_grid[i]
         if not result.error:
-            print(f"Trial finishes successfully with custom_metrics "
-                  f"{result.metrics['custom_metrics']}.")
+            print(f" ---- Trial {i} finishes successfully with custom_metrics ---\n"
+                  f"{tabulate([result.metrics['custom_metrics']], headers='keys', tablefmt='rounded_grid')}")
+
+            # Print table with environment config.
+            print(f"--- Environment Configuration  ---- \n"
+                  f"{tabulate(result.metrics['env_config'], headers='keys', tablefmt='rounded_grid')}")
+            # print other params:
+            params_ppo = ['gamma', 'lr', 'exploration_config',  'vf_loss_coeff', 'entropy_coeff', 'clip_param',
+                          'lambda', 'vf_clip_param', 'num_sgd_iter', 'sgd_minibatch_size', 'train_batch_size']
+            values = [result.metrics[par] for par in params_ppo]
+            params_ppo.append('exploration type')
+            values.append(result.metrics['exploration_config']['type'])
+            print(f"--- PPO Configuration  ---- \n"
+                  f"{tabulate(values, headers=params_ppo, tablefmt='rounded_grid')}")
+            print(f"--- Model Configuration  ---- \n"
+                  f"{tabulate(result.metrics['env_config'], headers='model', tablefmt='rounded_grid')}")
         else:
             print(f"Trial failed with error {result.error}.")
 
@@ -162,6 +186,7 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     # load environment and agents manually
     ppo_config.update({"policies": policies})
     ppo_config.update({"env": env_type_config["env"]})
+    ppo_config.update({"trial_info": "trial_id"})
 
     run_training(ppo_config, custom_config["setup"])
 
