@@ -100,7 +100,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     for i in range(len(result_grid)):
         result = result_grid[i]
         if not result.error:
-            print(f" ---- Trial {i} finishes successfully with custom_metrics ---\n"
+            print(f" *---- Trial {i} finishes successfully with custom_metrics ---*\n"
                   f"{tabulate([result.metrics['custom_metrics']], headers='keys', tablefmt='rounded_grid')}")
 
             # Print table with environment config.
@@ -140,7 +140,7 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     ppo_config.update(custom_config["resources"])
     ppo_config.update(custom_config["rollouts"])
     # ppo_config.update(custom_config["scaling_config"])
-    # ppo_config.update(custom_config["evaluation"])
+    ppo_config.update(custom_config["evaluation"])
     env_type_config = ENV_TYPE[custom_config["environment"]["env_type"]]
 
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])

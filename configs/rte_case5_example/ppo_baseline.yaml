@@ -52,13 +52,13 @@ multi_agent:
 environment:
   env_type: new_env #old_env #
   env_config: &env_config_train
-    env_name: rte_case5_example
+    env_name: rte_case5_example_train
     action_space: tennet
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
     max_tsteps: *train_batch_size
     grid2op_kwargs:
       # general kwargs
-      test: True
+#      test: True
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.90
@@ -68,13 +68,14 @@ environment:
 
 env_config_val: &env_config_val
   <<: *env_config_train
-  env_name: rte_case5_example_per_day_val
+  env_name: rte_case5_example_val
 
 evaluation:
-  evaluation_interval: 10
-  evaluation_duration: 14 # as many as there are validation episodes
+  evaluation_interval: 1
+  evaluation_duration: 2 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   evaluation_config:
+    explore: False,
     env_config: *env_config_val # use the validation environment
 
 #scaling_config:
