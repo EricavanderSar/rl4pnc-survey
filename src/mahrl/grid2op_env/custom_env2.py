@@ -19,7 +19,7 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
     def __init__(self, env_config: dict[str, Any]):
         super().__init__(env_config)
 
-        self.evaluate = (env_config['env_name'].split("_")[-1] == "val")
+        self.prio = env_config.get("prio", True)
 
 
         obs_features = env_config.get("input", ["p_i", "p_l", "r", "o", "d"])
@@ -52,13 +52,13 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
     ) -> Tuple[MultiAgentDict, MultiAgentDict]:
         self.obs_converter.reset()
 
-        if not self.evaluate:
+        if self.prio:
             # use chronic priority
             self.env_glop.set_id(
                 self.chron_prios.sample_chron()
             )  # NOTE: this will take the previous chronic since with env_glop.reset() you will get the next
         g2op_obs = self.env_glop.reset()
-        if not self.evaluate:
+        if self.prio:
             if self.chron_prios.cur_ffw > 0:
                 self.env_glop.fast_forward_chronics(self.chron_prios.cur_ffw * self.chron_prios.ffw_size)
                 g2op_obs, *_ = self.env_glop.step(self.env_glop.action_space())
@@ -142,7 +142,7 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
         ) = self.env_glop.step(g2op_act)
         # Save current observation
         self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
-        if not self.evaluate:
+        if self.prio:
             self.step_surv += 1
             if terminated:
                 self.chron_prios.update_prios(self.step_surv)
@@ -151,6 +151,7 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
         # Let high-level agent decide to act or not
         observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
         terminateds = {"__all__": terminated}
+        # For info on terminated vs truncated see: https://github.com/openai/gym/pull/2752
         truncateds = {"__all__": g2op_obs.current_step == g2op_obs.max_step}
         infos = {}
         return observations, rewards, terminateds, truncateds, infos

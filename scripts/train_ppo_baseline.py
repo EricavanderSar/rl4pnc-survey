@@ -16,7 +16,7 @@ from ray import air, tune, train
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
-from ray.tune.experimental.output import ProgressReporter, get_air_verbosity
+from ray.tune.result_grid import ResultGrid
 
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
@@ -28,6 +28,7 @@ from mahrl.multi_agent.policy import (
     SelectAgentPolicy2
 )
 from mahrl.algorithms.custom_ppo import CustomPPO
+from mahrl.experiments.callback import Style
 
 ENV_TYPE = {
     "old_env": {
@@ -47,7 +48,7 @@ ENV_TYPE = {
 }
 
 
-def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
+def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
     """
     Function that runs the training script.
     """
@@ -100,27 +101,29 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
     for i in range(len(result_grid)):
         result = result_grid[i]
         if not result.error:
-            print(f" *---- Trial {i} finishes successfully with custom_metrics ---*\n"
-                  f"{tabulate([result.metrics['custom_metrics']], headers='keys', tablefmt='rounded_grid')}")
+            print(Style.BOLD + f" *---- Trial {i} finished successfully with evaluation results ---*\n" + Style.END +
+                  f"{tabulate([result.metrics['evaluation']['sampler_results']['custom_metrics']], headers='keys', tablefmt='rounded_grid')}")
 
+            # print("ALL RESULT METRICS: ", result.metrics)
+            # print("ENV CONFIG: ", result.config['env_config'])
+            # print("RESULT CONFIG: ", result.config['env_config'])
             # Print table with environment config.
             print(f"--- Environment Configuration  ---- \n"
-                  f"{tabulate(result.metrics['env_config'], headers='keys', tablefmt='rounded_grid')}")
+                  f"{tabulate([result.config['env_config']], headers='keys', tablefmt='rounded_grid')}")
             # print other params:
             params_ppo = ['gamma', 'lr', 'exploration_config',  'vf_loss_coeff', 'entropy_coeff', 'clip_param',
                           'lambda', 'vf_clip_param', 'num_sgd_iter', 'sgd_minibatch_size', 'train_batch_size']
-            values = [result.metrics[par] for par in params_ppo]
-            params_ppo.append('exploration type')
-            values.append(result.metrics['exploration_config']['type'])
+            values = [result.config[par] for par in params_ppo]
             print(f"--- PPO Configuration  ---- \n"
-                  f"{tabulate(values, headers=params_ppo, tablefmt='rounded_grid')}")
+                  f"{tabulate([values], headers=params_ppo, tablefmt='rounded_grid')}")
             print(f"--- Model Configuration  ---- \n"
-                  f"{tabulate(result.metrics['env_config'], headers='model', tablefmt='rounded_grid')}")
+                  f"{tabulate([result.config['model']], headers='keys', tablefmt='rounded_grid')}")
         else:
             print(f"Trial failed with error {result.error}.")
+    return result_grid
 
 
-def setup_config(workdir_path: str, input_path: str) -> None:
+def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[str, Any]):
     """
     Loads the json as config and sets it up for training.
     """
@@ -141,6 +144,7 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     ppo_config.update(custom_config["rollouts"])
     # ppo_config.update(custom_config["scaling_config"])
     ppo_config.update(custom_config["evaluation"])
+    ppo_config.update(custom_config["reporting"])
     env_type_config = ENV_TYPE[custom_config["environment"]["env_type"]]
 
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
@@ -188,7 +192,8 @@ def setup_config(workdir_path: str, input_path: str) -> None:
     ppo_config.update({"env": env_type_config["env"]})
     ppo_config.update({"trial_info": "trial_id"})
 
-    run_training(ppo_config, custom_config["setup"])
+    return ppo_config, custom_config
+
 
 
 def change_workdir(workdir: str, env_name: str) -> None:
@@ -211,7 +216,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default= "../configs/rte_case5_example/ppo_baseline.yaml", #"../configs/rte_case14_realistic/ppo_baseline.yaml",  #
+        default= "../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
         help="Path to the config file.",
     )
     parser.add_argument(
@@ -226,7 +231,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.file_path:
-        setup_config(args.workdir, args.file_path)
+        ppo_config, custom_config = setup_config(args.workdir, args.file_path)
+        result_grid = run_training(ppo_config, custom_config["setup"])
     else:
         parser.print_help()
         logging.error("\nError: --file_path is required to specify config location.")

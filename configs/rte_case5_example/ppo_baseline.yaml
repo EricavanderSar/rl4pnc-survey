@@ -1,6 +1,6 @@
 setup:
   max_ep_len: 2016
-  nb_timesteps: 10_000
+  nb_timesteps: 3_000
   checkpoint_freq: 2 # number of iterations between checkpoints (1 iteration = 1 agent update?)
   checkpoint_trainable_policies_only: True
   verbose: 0
@@ -63,12 +63,15 @@ environment:
     seed: *seed
     rho_threshold: 0.90
     n_history: 6
-    input: ["p_i", "p_l", "r", "o", "d"]
-    adj_matrix: True #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
+    input: ["p_i", "r", "o", "d"]
+    danger: 0.9
+    adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
+    prio: True
 
 env_config_val: &env_config_val
   <<: *env_config_train
   env_name: rte_case5_example_val
+  prio: False
 
 evaluation:
   evaluation_interval: 1

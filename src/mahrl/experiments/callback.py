@@ -15,6 +15,7 @@ from ray.rllib.evaluation.rollout_worker import RolloutWorker
 from ray.rllib.policy.policy import Policy
 from ray.rllib.policy.sample_batch import SampleBatch
 
+from mahrl.grid2op_env.custom_env2 import RlGrid2OpEnv
 
 class Style:
    PURPLE = '\033[95m'
@@ -63,18 +64,17 @@ class CustomMetricsCallback(DefaultCallbacks):
 
         episode.custom_metrics["corrected_ep_len"] = agents_steps["high_level_agent"]
         envs = base_env.get_sub_environments()
-        episode.custom_metrics["grid2op_end"] = np.array([env.env_glop.current_obs.current_step for env in envs]).mean()
-        # print('chron ID:', envs[0].env_glop.chronics_handler.get_id())
-        if envs[0].evaluate:
+        if type(envs[0]) == RlGrid2OpEnv:
+            grid2op_end = np.array([env.env_glop.current_obs.current_step for env in envs]).mean()
+            # print('chron ID:', envs[0].env_glop.chronics_handler.get_id())
             chron_id = envs[0].env_glop.chronics_handler.get_name()
-            episode.media["chronic_id"] = chron_id
-        # if "reinforcement_learning_agent" in agents_steps:
-        #     episode.custom_metrics["RL_ep_len_pct"] = (
-        #         agents_steps["reinforcement_learning_agent"]
-        #         / agents_steps["high_level_agent"]
-        #     )
-        # else:
-        #     episode.custom_metrics["RL_ep_len_pct"] = 0.0
+        else:
+            grid2op_end = np.array([env.env_gym.init_env.current_obs.current_step for env in envs]).mean()
+            # print('chron ID:', envs[0].env_glop.chronics_handler.get_id())
+            chron_id = envs[0].env_gym.init_env.chronics_handler.get_name()
+
+        episode.custom_metrics["grid2op_end"] = grid2op_end
+        episode.media["chronic_id"] = chron_id
 
     def on_evaluate_end(
             self,
@@ -87,14 +87,28 @@ class CustomMetricsCallback(DefaultCallbacks):
         # print(evaluation_metrics)
         data = evaluation_metrics["evaluation"]["sampler_results"]
         trial_id = "_".join(os.path.basename(algorithm._logdir).split('_')[:-3])
-        chronic_id = data["episode_media"]["chronic_id"]
-        grid2op_end = data["custom_metrics"]["grid2op_end_mean"]
-        ep_len_mean = data["custom_metrics"]["corrected_ep_len_mean"]
+        head_len = 5 # only show the first #head_len chronics
+        print(f" Showing results for the first {head_len} evaluated chronics:")
+        overview = {
+            "chronic_id": data["episode_media"]["chronic_id"][:head_len],
+            "grid2op_end": data["custom_metrics"]["grid2op_end"][:head_len],
+            "reward": data["hist_stats"]["episode_reward"][:head_len]}
+        print(tabulate(overview, headers="keys",  tablefmt="rounded_grid"))
+
+        data["custom_metrics"]["grid2op_end_min"] = np.int(np.min(overview["grid2op_end"]))
+        data["custom_metrics"]["grid2op_end_mean"] = np.int(np.mean(overview["grid2op_end"]))
+        data["custom_metrics"]["grid2op_end_max"] = np.int(np.max(overview["grid2op_end"]))
+        data["custom_metrics"]["grid2op_end_std"] = np.std(overview["grid2op_end"])
+        del data["custom_metrics"]["grid2op_end"]
+        del data["episode_media"]["chronic_id"]
+        del data["custom_metrics"]["corrected_ep_len"]
+
         rw_mean = data["episode_reward_mean"]
         # print table
-        headers = ["trial_id", "chronic_id_list", "grid2op_end_mean", "corrected_ep_len_mean", "reward"]
-        table = [[trial_id, chronic_id, grid2op_end, ep_len_mean, rw_mean]]
-        print(tabulate(table, headers, tablefmt="rounded_grid"))
+        headers = ["trial_id", "grid2op_end_mean", "grid2op_end_max", "grid2op_end_min", "reward"]
+        table = [[trial_id, data["custom_metrics"]["grid2op_end_mean"], data["custom_metrics"]["grid2op_end_max"],
+                  data["custom_metrics"]["grid2op_end_min"], rw_mean]]
+        print(tabulate(table, headers, tablefmt="rounded_grid", floatfmt=".3f"))
 
 
     # def on_learn_on_batch(
@@ -111,16 +125,26 @@ class CustomMetricsCallback(DefaultCallbacks):
     ) -> None:
         # print(f' TRIAL RESOURCES {algorithm.trial_resources}')
         # print(f'ALL METRICS {result}')
+        # you can mutate the result dict to add new fields to return
+        result["callback_ok"] = True
 
         print(Style.BOLD + " ------ TRAIN METRICS -------" + Style.END)
-        mean_grid2op_end = result["custom_metrics"]["grid2op_end_mean"]
-        mean_episode_duration = result["custom_metrics"]["corrected_ep_len_mean"]
+        mean_grid2op_end = np.mean(result["custom_metrics"]["grid2op_end"])
+        std_grid2op_end = np.var(result["custom_metrics"]["grid2op_end"])
+        mean_episode_duration = np.mean(result["custom_metrics"]["corrected_ep_len"])
+        result["custom_metrics"]["grid2op_end_mean"] = mean_grid2op_end
+        result["custom_metrics"]["grid2op_end_std"] = std_grid2op_end
+        result["custom_metrics"]["corrected_ep_len_mean"] = mean_episode_duration
+        # Delete irrelevant data
+        del result["custom_metrics"]["grid2op_end"]
+        del result["custom_metrics"]["corrected_ep_len"]
+        del result["episode_media"]["chronic_id"]
         trial_id = "_".join(os.path.basename(algorithm._logdir).split('_')[:-3])
         seconds = result["time_total_s"]
 
         # Print the table
         table = [[trial_id, algorithm.iteration, '%dmin %02ds' % (seconds / 60, seconds % 60),
-                  result["timesteps_total"], mean_grid2op_end, mean_episode_duration,
+                  result["timesteps_total"], np.int(mean_grid2op_end), np.int(mean_episode_duration),
                   result["episodes_this_iter"], result["sampler_results"]["episode_reward_mean"]]]
         headers = ["Trial name", "iter", "total time", "ts", "Mean Grid2Op End", "Mean Duration", "episodes_this_iter", "reward_mean"]
-        print(tabulate(table, headers, tablefmt="rounded_grid"))
+        print(tabulate(table, headers, tablefmt="rounded_grid", floatfmt=".3f"))

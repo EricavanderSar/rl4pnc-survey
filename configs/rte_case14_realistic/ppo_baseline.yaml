@@ -1,9 +1,9 @@
 setup:
   max_ep_len: 8064
-  nb_timesteps: &nb_timesteps 10_000
+  nb_timesteps: &nb_timesteps 1_000
   checkpoint_freq: 5
   checkpoint_trainable_policies_only: True
-  verbose: 1
+  verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
 
 debugging:
@@ -26,6 +26,7 @@ training:
     - 128
     - 128
     - 128
+    fcnet_activation: relu
   _enable_learner_api: False
   
 rl_module:
@@ -49,8 +50,7 @@ multi_agent:
 environment:
   env_type: new_env #old_env #
   env_config: &env_config_train
-    env_name: rte_case14_realistic
-    num_agents: 3
+    env_name: rte_case14_realistic_train
     action_space: tennet
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
     max_tsteps: *train_batch_size
@@ -59,23 +59,30 @@ environment:
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.95
-    n_history: 1
+    n_history: 6
     input: [ "p_i", "r", "o", "d" ]
-    adj_matrix: False #use adjacency matrix instead of topology vector (is this even useful for lin NN??)
+    danger: 0.9
+    adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
+    prio: True
 
 env_config_val: &env_config_val
   <<: *env_config_train
-  env_name: rte_case14_realistic_per_day_val
+  env_name: rte_case14_realistic_val
+  prio: False # should always be False
 
 evaluation:
-  evaluation_interval: 10
-  evaluation_duration: 2800 # as many as there are validation episodes
+  evaluation_interval: 1
+  evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   evaluation_config:
+    explore: False,
     env_config: *env_config_val # use the validation environment
+
+reporting:
+  keep_per_episode_custom_metrics: True
 
 resources:
   num_learner_workers: 1
 
 rollouts:
-  num_rollout_workers: 6
+  num_rollout_workers: 7
