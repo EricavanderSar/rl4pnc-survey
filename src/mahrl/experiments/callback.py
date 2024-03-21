@@ -2,12 +2,17 @@
 Implements callbacks.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 from tabulate import tabulate
 import os
 import numpy as np
+import time
 
 # from grid2op.Environment import BaseEnv
+import ray
+from ray.tune.experimental.output import TuneReporterBase, get_air_verbosity
+from ray.tune.experiment import Trial
+
 from ray.rllib.env import BaseEnv
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.evaluation.episode_v2 import EpisodeV2
@@ -16,6 +21,7 @@ from ray.rllib.policy.policy import Policy
 from ray.rllib.policy.sample_batch import SampleBatch
 
 from mahrl.grid2op_env.custom_env2 import RlGrid2OpEnv
+
 
 class Style:
    PURPLE = '\033[95m'
@@ -28,6 +34,7 @@ class Style:
    BOLD = '\033[1m'
    UNDERLINE = '\033[4m'
    END = '\033[0m'
+
 
 class CustomMetricsCallback(DefaultCallbacks):
     """Implements custom callbacks metric"""
@@ -127,7 +134,6 @@ class CustomMetricsCallback(DefaultCallbacks):
         # print(f'ALL METRICS {result}')
         # you can mutate the result dict to add new fields to return
         result["callback_ok"] = True
-
         print(Style.BOLD + " ------ TRAIN METRICS -------" + Style.END)
         mean_grid2op_end = np.mean(result["custom_metrics"]["grid2op_end"])
         std_grid2op_end = np.var(result["custom_metrics"]["grid2op_end"])
@@ -148,3 +154,27 @@ class CustomMetricsCallback(DefaultCallbacks):
                   result["episodes_this_iter"], result["sampler_results"]["episode_reward_mean"]]]
         headers = ["Trial name", "iter", "total time", "ts", "Mean Grid2Op End", "Mean Duration", "episodes_this_iter", "reward_mean"]
         print(tabulate(table, headers, tablefmt="rounded_grid", floatfmt=".3f"))
+
+
+class TuneCallback(TuneReporterBase):
+    def __init__(
+        self,
+    ):
+        super().__init__(get_air_verbosity(0))
+        self._start_end_verbosity = 0
+
+    def print_heartbeat(self, trials, *args, force: bool = False):
+        if force or time.time() - self._last_heartbeat_time >= self._heartbeat_freq:
+            self._print_heartbeat(trials, *args, force=force)
+            self._last_heartbeat_time = time.time()
+
+    def _print_heartbeat(self, trials, *sys_args, force: bool = False):
+        result = list()
+        # Trial status: 1 RUNNING | 7 PENDING
+        result.append(self._get_overall_trial_progress_str(trials))
+        # Current time: 2023-02-24 12:35:39 (running for 00:00:37.40)
+        result.append(self._time_heartbeat_str)
+        # Logical resource usage: 8.0/64 CPUs, 0/0 GPUs
+        result.extend(sys_args)
+        for line in result:
+            print(line)

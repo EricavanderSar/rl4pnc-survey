@@ -13,6 +13,7 @@ import grid2op
 import ray
 import gymnasium as gym
 from ray import air, tune, train
+from ray.air.integrations.mlflow import MLflowLoggerCallback
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
@@ -28,7 +29,7 @@ from mahrl.multi_agent.policy import (
     SelectAgentPolicy2
 )
 from mahrl.algorithms.custom_ppo import CustomPPO
-from mahrl.experiments.callback import Style
+from mahrl.experiments.callback import Style, TuneCallback
 
 ENV_TYPE = {
     "old_env": {
@@ -77,7 +78,17 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
         trainable=CustomPPO,
         param_space=config,
         run_config=air.RunConfig(
+            name=setup["folder_name"],
             stop={"timesteps_total": setup["nb_timesteps"], "custom_metrics/grid2op_end_mean": setup["max_ep_len"]}, #"training_iteration": 5}, #
+            callbacks=[
+                MLflowLoggerCallback(
+                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+                    experiment_name=setup["experiment_name"],
+                    tags={"user_name": "Erica"},
+                    save_artifact=setup["save_artifact"],
+                ),
+                TuneCallback(),
+            ],
             # storage_path=os.path.abspath(setup["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=setup["checkpoint_freq"],
@@ -94,6 +105,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
     # Launch tuning
     try:
         result_grid = tuner.fit()
+        print("used nodes: ", ray.nodes())
     finally:
         # Close ray instance
         ray.shutdown()
@@ -140,12 +152,12 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     ppo_config.update(custom_config["callbacks"])
     ppo_config.update(custom_config["environment"])
     ppo_config.update(custom_config["multi_agent"])
-    ppo_config.update(custom_config["resources"])
+    # ppo_config.update(custom_config["resources"])
     ppo_config.update(custom_config["rollouts"])
     # ppo_config.update(custom_config["scaling_config"])
     ppo_config.update(custom_config["evaluation"])
     ppo_config.update(custom_config["reporting"])
-    env_type_config = ENV_TYPE[custom_config["environment"]["env_type"]]
+    env_type_config = ENV_TYPE[custom_config["environment"]["env_config"]["env_type"]]
 
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
     policies = {
@@ -216,7 +228,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default= "../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
+        default= "../configs/rte_case5_example/ppo_baseline.yaml", #"../configs/rte_case14_realistic/ppo_baseline.yaml",  #
         help="Path to the config file.",
     )
     parser.add_argument(
