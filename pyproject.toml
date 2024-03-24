@@ -39,6 +39,7 @@ classifiers = [
 requires-python = ">=3.11"
 
 dependencies = [
+  "l2rpn_baselines==0.8.0",
   "Grid2Op==1.9.3",
   "pandapower==2.13.1",
   "Lightsim2Grid==0.7.5",

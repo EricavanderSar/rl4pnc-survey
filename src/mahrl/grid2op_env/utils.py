@@ -4,14 +4,30 @@ Utilities in the grid2op and gym convertion.
 
 import json
 import os
-from typing import Any
+from typing import Any, List
 
 import grid2op
 import gymnasium
 from grid2op.Action import BaseAction
 from grid2op.Converter import IdToAct
-from grid2op.Converter.Converters import Converter
 from grid2op.Environment import BaseEnv
+import numpy as np
+from grid2op.gym_compat import ScalerAttrConverter
+from grid2op.gym_compat.gym_obs_space import GymnasiumObservationSpace
+from grid2op.Parameters import Parameters
+from lightsim2grid import LightSimBackend
+
+
+class CustomIdToAct(IdToAct):
+    """
+    Defines also to_gym from actions.
+    """
+
+    def revert_act(self, action: BaseAction) -> int:
+        """
+        Do the opposite of convert_act. Given an action, return the id of this action in the list of all actions.
+        """
+        return np.where(self.all_actions == action)[0][0]
 
 
 class CustomDiscreteActions(gymnasium.spaces.Discrete):
@@ -35,7 +51,7 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
 
     """
 
-    def __init__(self, converter: Converter, do_nothing: BaseAction):
+    def __init__(self, converter: CustomIdToAct, do_nothing: BaseAction):
         self.converter = converter
         self.do_nothing = do_nothing
         super().__init__(n=converter.n)
@@ -48,6 +64,7 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
 
     def close(self) -> None:
         """Not implemented."""
+        pass
 
 
 def make_train_test_val_split(
@@ -82,12 +99,13 @@ def get_possible_topologies(
 
 def setup_converter(
     env: BaseEnv, possible_substation_actions: list[BaseAction]
-) -> Converter:
+) -> CustomIdToAct:
     """
     Function that initializes and returns converter for gym to grid2op actions.
     """
-    converter = IdToAct(env.action_space)
+    converter = CustomIdToAct(env.action_space)
     converter.init_converter(all_actions=possible_substation_actions)
+    print(type(converter))
     return converter
 
 
@@ -102,3 +120,113 @@ def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
                 for action_dict in json.load(action_set_file)
             )
         )
+
+
+def load_action_space(path: str, env: BaseEnv) -> List[BaseAction]:
+    """
+    Loads the action space from a specified folder.
+    """
+    # if the path contains _per_day or _train or _test or _val, then ignore this part of the string
+    if "_per_day" in path:
+        path = path.replace("_per_day", "")
+    if "_train" in path:
+        path = path.replace("_train", "")
+    if "_test" in path:
+        path = path.replace("_test", "")
+    if "_val" in path:
+        path = path.replace("_val", "")
+
+    return load_actions(path, env)
+
+
+def rescale_observation_space(
+    gym_observation_space: GymnasiumObservationSpace, g2op_env: BaseEnv
+):
+    """
+    Function that rescales the observation space.
+    """
+    # scale observations
+    gym_observation_space = gym_observation_space.reencode_space(
+        "gen_p",
+        ScalerAttrConverter(substract=0.0, divide=g2op_env.gen_pmax),
+    )
+    gym_observation_space = gym_observation_space.reencode_space(
+        "timestep_overflow",
+        ScalerAttrConverter(
+            substract=0.0,
+            divide=Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED,  # assuming no custom params
+        ),
+    )
+
+    # TODO: Adjust for 36-bus or 5-bus
+    grid_name = g2op_env.name
+    if "_per_day" in grid_name:
+        grid_name = grid_name.replace("_per_day", "")
+    if "_train" in grid_name:
+        grid_name = grid_name.replace("_train", "")
+    if "_test" in grid_name:
+        grid_name = grid_name.replace("_test", "")
+    if "_val" in grid_name:
+        grid_name = grid_name.replace("_val", "")
+
+    if grid_name == "rte_case14_realistic":
+        for attr in ["p_ex", "p_or", "load_p"]:
+            c = 1.2  # constant to account that our max/min are underestimated
+            max_arr, min_arr = np.load(
+                os.path.join(
+                    "/Users/barberademol/Documents/GitHub/mahrl_grid2op/",
+                    "scripts/scaling_arrays",
+                    grid_name,
+                    f"{attr}.npy",
+                )
+            )
+
+            gym_observation_space = gym_observation_space.reencode_space(
+                attr,
+                ScalerAttrConverter(
+                    substract=c * min_arr, divide=c * (max_arr - min_arr)
+                ),
+            )
+    else:
+        print("Warning: Other environments not implemented for scaling yet.")
+
+    return gym_observation_space
+
+
+def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
+    """
+    Function that makes a grid2op environment.
+    """
+    env = grid2op.make(
+        env_config["env_name"],
+        **env_config["grid2op_kwargs"],
+        backend=LightSimBackend(),
+    )
+    env.seed(env_config["seed"])
+
+    if env_config["env_name"] is "rte_case14_realistic":
+        env.set_thermal_limit(
+            [
+                1000,
+                1000,
+                1000,
+                1000,
+                1000,
+                1000,
+                1000,
+                760,
+                450,
+                760,
+                380,
+                380,
+                760,
+                380,
+                760,
+                380,
+                380,
+                380,
+                2000,
+                2000,
+            ]
+        )
+    return env

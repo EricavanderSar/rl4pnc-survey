@@ -22,7 +22,8 @@ from ray.rllib.algorithms import ppo
 
 from mahrl.evaluation.evaluation_agents import (
     CapaAndGreedyAgent,
-    LargeTopologyGreedyAgent,
+    TopologyGreedyAgent,
+    LargeTopologyGreedyAgent,  # TODO ADD IN REST CODE
     RllibAgent,
 )
 from mahrl.experiments.yaml import load_config
@@ -134,6 +135,30 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         backend=LightSimBackend(),
     )
 
+    thermal_limits = [  # TODO: Remove?
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        760,
+        450,
+        760,
+        380,
+        380,
+        760,
+        380,
+        760,
+        380,
+        380,
+        380,
+        2000,
+        2000,
+    ]
+    env.set_thermal_limit(thermal_limits)
+
     params = env.get_params_for_runner()
     params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
     del env_config["grid2op_kwargs"]["reward_class"]
@@ -241,7 +266,7 @@ def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> N
 
     run_runner(
         env_config=env_config,
-        agent_instance=LargeTopologyGreedyAgent(
+        agent_instance=TopologyGreedyAgent(
             action_space=setup_env.action_space,
             env_config=env_config,
             possible_actions=possible_actions,
@@ -290,15 +315,15 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
 
     # check if "opponent_action_class" is part of env_config["grid2op_kwargs"]
     if "opponent_action_class" in env_config["grid2op_kwargs"]:
-        env_config["grid2op_kwargs"][
-            "opponent_action_class"
-        ] = instantiate_opponent_classes(
-            env_config["grid2op_kwargs"]["opponent_action_class"]
+        env_config["grid2op_kwargs"]["opponent_action_class"] = (
+            instantiate_opponent_classes(
+                env_config["grid2op_kwargs"]["opponent_action_class"]
+            )
         )
-        env_config["grid2op_kwargs"][
-            "opponent_budget_class"
-        ] = instantiate_opponent_classes(
-            env_config["grid2op_kwargs"]["opponent_budget_class"]
+        env_config["grid2op_kwargs"]["opponent_budget_class"] = (
+            instantiate_opponent_classes(
+                env_config["grid2op_kwargs"]["opponent_budget_class"]
+            )
         )
         env_config["grid2op_kwargs"]["opponent_class"] = instantiate_opponent_classes(
             env_config["grid2op_kwargs"]["opponent_class"]

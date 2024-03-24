@@ -1,7 +1,7 @@
 environment:
   env_config: 
     env_name: rte_case14_realistic
-    action_space: asymmetry
+    action_space: medha
     lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ #  /home3/s3374610/mahrl_grid2op/ 
     grid2op_kwargs:
       # general kwargs

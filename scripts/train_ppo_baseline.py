@@ -27,7 +27,7 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
         custom_config["setup"]["checkpoint_path"] = checkpoint_path
 
     ppo_config.update(custom_config["training"])
-    # ppo_config.update(custom_config["debugging"])
+    ppo_config.update(custom_config["debugging"])
     ppo_config.update(custom_config["framework"])
     ppo_config.update(custom_config["rl_module"])
     ppo_config.update(custom_config["explore"])

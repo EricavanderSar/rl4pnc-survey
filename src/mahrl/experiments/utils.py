@@ -138,15 +138,28 @@ def get_capa_substation_id(
     """
     # calculate the mean rho per substation
     connected_rhos: dict[int, list[float]] = {agent: [] for agent in line_info}
+    print(type(line_info))
+    print(line_info)
     for sub_idx in line_info:
         for line_idx in line_info[sub_idx]:
             if isinstance(obs_batch, OrderedDict):
-                connected_rhos[sub_idx].append(obs_batch["rho"][0][line_idx])
+                print(f"ordered:{connected_rhos}")
+                print(f"ordered obs:{obs_batch}")
+                connected_rhos[sub_idx].append(
+                    obs_batch["previous_obs"]["rho"][0][line_idx]
+                    # obs_batch["original_obs"]["rho"][0][line_idx]
+                )
             elif isinstance(obs_batch, dict):
-                connected_rhos[sub_idx].append(obs_batch["rho"][line_idx])
+                print(f"dict:{connected_rhos}")
+                print(f"dict obs:{obs_batch}")
+                connected_rhos[sub_idx].append(
+                    obs_batch["previous_obs"]["rho"][line_idx]
+                    # obs_batch["original_obs"]["rho"][line_idx]
+                )
             else:
                 raise ValueError("The observation batch is not supported.")
     for sub_idx in connected_rhos:
+        print(f"Connected={connected_rhos}")
         connected_rhos[sub_idx] = np.mean(connected_rhos[sub_idx])
 
     # set non-controllable substations to 0

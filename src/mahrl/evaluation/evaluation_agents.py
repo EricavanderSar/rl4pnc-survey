@@ -233,7 +233,7 @@ class LargeTopologyGreedyAgent(GreedyAgent):
                 else:
                     # print("Best action was found in hub actions")
                     best_action = self.hub_actions[best_hub_action_idx]
-            else:  # no actions found, do nothing
+            else:  # no actions found, do nothing #TODO: Merge Greedy agents so they are compatible for both, this else statement is placed wrong
                 raise ValueError("No actions found")
 
         # if the threshold is not exceeded, do nothing

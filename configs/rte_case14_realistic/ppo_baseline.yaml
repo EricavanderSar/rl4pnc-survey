@@ -1,5 +1,5 @@
 setup:
-  nb_timesteps: &nb_timesteps 100000000
+  nb_timesteps: &nb_timesteps 10000000
   # checkpoint_freq: 100000
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
@@ -7,8 +7,8 @@ setup:
   save_artifact: True
   num_samples: 2
 
-# debugging:
-#   seed: &seed 14
+debugging:
+  seed: &seed 20
 
 training:
   # tunable parameters
@@ -55,7 +55,7 @@ environment:
     grid2op_kwargs:
       # general kwargs
       reward_class: !LossReward
-    # seed: *seed
+    seed: *seed
     rho_threshold: 0.95
 
 env_config_val: &env_config_val

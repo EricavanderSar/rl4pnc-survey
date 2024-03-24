@@ -22,6 +22,7 @@ from mahrl.experiments.utils import (
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import (
     GreedyHierarchicalCustomizedGrid2OpEnvironment,
+    HierarchicalCustomizedGrid2OpEnvironment,
 )
 from mahrl.multi_agent.policy import CapaPolicy, DoNothingPolicy, SelectAgentPolicy
 
@@ -32,31 +33,7 @@ def select_mid_level_policy(
     line_info: dict[int, list[int]],
     custom_config: dict[str, Any],
 ) -> PolicySpec:
-    base_action = gymnasium.spaces.Dict(
-        {
-            "change_bus_vect": gymnasium.spaces.Dict(
-                {
-                    "nb_modif_objects": gymnasium.spaces.Discrete(3),
-                    "1": gymnasium.spaces.Dict(
-                        {
-                            str(i): gymnasium.spaces.Dict(
-                                {"type": gymnasium.spaces.Discrete(3)}
-                            )
-                            for i in list_of_agents
-                        }
-                    ),
-                    "nb_modif_subs": gymnasium.spaces.Discrete(2),
-                    "modif_subs_id": gymnasium.spaces.MultiDiscrete(
-                        [
-                            len(list_of_agents)
-                        ]  # TODO likely doesn't work if not consecutive list
-                    ),
-                }
-            )
-        }
-    )
-
-    # action_space = gymnasium.spaces.Dict(
+    # base_action = gymnasium.spaces.Dict(
     #     {
     #         "change_bus_vect": gymnasium.spaces.Dict(
     #             {
@@ -64,32 +41,55 @@ def select_mid_level_policy(
     #                 "1": gymnasium.spaces.Dict(
     #                     {
     #                         str(i): gymnasium.spaces.Dict(
-    #                             {
-    #                                 "type": gymnasium.spaces.Text(10),
-    #                                 "new_bus": gymnasium.spaces.Discrete(3),
-    #                             }
+    #                             {"type": gymnasium.spaces.Discrete(3)}
     #                         )
     #                         for i in list_of_agents
     #                     }
     #                 ),
-    #                 "nb_modif_subs": gymnasium.spaces.Discrete(1),
+    #                 "nb_modif_subs": gymnasium.spaces.Discrete(2),
     #                 "modif_subs_id": gymnasium.spaces.MultiDiscrete(
-    #                     [1]
-    #                 ),  # Assuming '1' is the only possible value
+    #                     [
+    #                         len(list_of_agents)
+    #                     ]  # TODO likely doesn't work if not consecutive list
+    #                 ),
     #             }
     #         )
     #     }
     # )
 
+    base_action = gymnasium.spaces.Dict(
+        {
+            "set_bus_vect": gymnasium.spaces.Dict(
+                {"nb_modif_objects": gymnasium.spaces.Discrete(3)}
+            ),
+        }
+    )
+    num_lines = max(max(values) for values in line_info.values()) + 1
+    base_action = gymnasium.spaces.Discrete(100)
+
     capa_observation = gymnasium.spaces.Dict(
         {
-            "rho": gymnasium.spaces.Box(
-                low=0, high=np.inf, shape=(8,), dtype=np.float32
+            "previous_obs": gymnasium.spaces.Dict(
+                {
+                    "gen_p": gymnasium.spaces.Box(
+                        -12.01,
+                        np.array([22.01, 42.010002]),
+                        (2,),
+                        np.float32,
+                    ),
+                    "load_p": gymnasium.spaces.Box(-np.inf, np.inf, (3,), np.float32),
+                    "p_ex": gymnasium.spaces.Box(-np.inf, np.inf, (8,), np.float32),
+                    "p_or": gymnasium.spaces.Box(-np.inf, np.inf, (8,), np.float32),
+                    "rho": gymnasium.spaces.Box(0.0, np.inf, (8,), np.float32),
+                    "timestep_overflow": gymnasium.spaces.Box(
+                        -2147483648, 2147483647, (8,), np.int32
+                    ),
+                    "topo_vect": gymnasium.spaces.Box(-1, 2, (21,), np.int32),
+                }
             ),
             "proposed_actions": gymnasium.spaces.Dict(
                 {str(i): base_action for i in list_of_agents}
             ),
-            "do_nothing_action": gymnasium.spaces.Dict(),
             "reset_capa_idx": gymnasium.spaces.Discrete(2),
         }  # TODO: Try as dict
     )
@@ -209,13 +209,13 @@ def setup_config(
     if lower_agent_type == "rl":  # add a rl agent for each substation
         # Add reinforcement learning policies to the dictionary
         for sub_idx, num_actions in agent_per_substation.items():
-            policies[
-                f"reinforcement_learning_policy_{sub_idx}"
-            ] = PolicySpec(  # rule based substation selection
-                policy_class=None,  # infer automatically from env (PPO)
-                observation_space=None,  # infer automatically from env
-                action_space=Discrete(num_actions),
-                config=None,
+            policies[f"reinforcement_learning_policy_{sub_idx}"] = (
+                PolicySpec(  # rule based substation selection
+                    policy_class=None,  # infer automatically from env (PPO)
+                    observation_space=None,  # infer automatically from env
+                    action_space=Discrete(num_actions),
+                    config=None,
+                )
             )
 
     # if policy is rl, set an agent to train
@@ -229,6 +229,9 @@ def setup_config(
             f"reinforcement_learning_policy_{sub_idx}"
             for sub_idx in list_of_substations
         ]
+        ppo_config.update({"env": HierarchicalCustomizedGrid2OpEnvironment})
+    elif lower_agent_type == "greedy":
+        ppo_config.update({"env": GreedyHierarchicalCustomizedGrid2OpEnvironment})
 
     # TODO: MAke a converter per agent? Where/How?
 
@@ -236,7 +239,6 @@ def setup_config(
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})
-    ppo_config.update({"env": GreedyHierarchicalCustomizedGrid2OpEnvironment})
 
     run_training(ppo_config, custom_config["setup"], ppo.PPO)
 

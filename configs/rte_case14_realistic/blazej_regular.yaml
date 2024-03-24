@@ -5,7 +5,7 @@ setup:
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
   experiment_name: rte_case14_realistic/single_agent/replicate_blazej
   save_artifact: True
-  # num_samples: 2
+  num_samples: 2
 
 debugging:
   seed: &seed 20
@@ -19,7 +19,7 @@ training:
   # entropy_coeff: 0
   # clip_param: 0.3
   # # lambda_: 0.95
-  # num_sgd_iter: 5
+  # num_sgd_iter: 15
   # sgd_minibatch_size: 256 # !grid_search [32, 64, 128]
   # train_batch_size: 1024
   model:
@@ -27,8 +27,9 @@ training:
     - 256
     - 256
     - 256
+    fcnet_activation: relu
   _enable_learner_api: False
-  # batch_mode: complete_episodes
+  batch_mode: complete_episodes
   lr: 0.0001 #!choice [0.001, 0.0001] #tune.grid_search([1e-3 1e-41e-5])
   kl_coeff: 0.2 # !choice [0.15, 0.3, 0.2, 0.25]
   lambda:  0.95 # !quniform [0.94, 0.96, 0.01] 
@@ -48,7 +49,7 @@ explore:
     type: StochasticSampling
 
 callbacks:
-  callbacks: !SingleAgentCallback
+  callbacks: !CustomMetricsCallback
 
 framework:
   framework: torch
@@ -67,8 +68,8 @@ environment:
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
       # general kwargs
-      # reward_class: !LossReward
-    # seed: *seed
+      reward_class: !ScaledL2RPNReward
+    seed: *seed
     rho_threshold: 0.95
 
 env_config_val: &env_config_val
@@ -82,9 +83,9 @@ evaluation:
   evaluation_config: 
     env_config: *env_config_val # use the validation environment
 
-# resources:
-#   num_gpus: 1
-#   num_learner_workers: 4
+resources:
+  num_gpus: 0
+  num_learner_workers: 4
 
-# rollouts:
-#   num_rollout_workers: 4
+rollouts:
+  num_rollout_workers: 4

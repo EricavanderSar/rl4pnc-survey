@@ -31,6 +31,8 @@ from mahrl.experiments.utils import (
     calculate_action_space_tennet,
     get_capa_substation_id,
 )
+from mahrl.grid2op_env.utils import setup_converter, load_action_space
+import os
 
 
 def policy_mapping_fn(
@@ -76,6 +78,15 @@ class CapaPolicy(Policy):
         env_config = config["model"]["custom_model_config"]["environment"]["env_config"]
         setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
 
+        path = os.path.join(
+            env_config["lib_dir"],
+            f"data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
+        )
+        self.possible_substation_actions = load_action_space(path, setup_env)
+
+        self.converter = setup_converter(setup_env, self.possible_substation_actions)
+
+        print(f"Converter output-{self.converter.convert_act(1)}")
         # get changeable substations
         if env_config["action_space"] == "asymmetry":
             _, _, self.controllable_substations = calculate_action_space_asymmetry(
@@ -117,7 +128,14 @@ class CapaPolicy(Policy):
         # TODO: Use state dictionary instead of self. memory, get and return state
         # in modelv2.html
 
-        # print(f"Policy state= {self.get_state()}")
+        # convert all gym to grid2op actions
+        print(f"Obs:{obs_batch['proposed_actions']}")
+        for gym_action in obs_batch["proposed_actions"]:
+            print(f"gymaction={gym_action}")
+            obs_batch["proposed_actions"][gym_action] = self.converter.convert_act(
+                int(gym_action)
+            )
+            print(f"gridop action={obs_batch['proposed_actions'][gym_action]}")
 
         # if no list is created yet, do so
         if obs_batch["reset_capa_idx"][0]:
@@ -127,23 +145,24 @@ class CapaPolicy(Policy):
             )
 
         # find an action that is not the do nothing action by looping over the substations
-        chosen_action = obs_batch["do_nothing_action"][0]
-        while not chosen_action and self.idx < len(self.controllable_substations):
+        print(f"Obs:{obs_batch['proposed_actions']}")
+        chosen_action = {}
+        while (not chosen_action) and (self.idx < len(self.controllable_substations)):
             single_substation = self.substation_to_act_on[
                 self.idx % len(self.controllable_substations)
             ]
 
             self.idx += 1
-            chosen_action = obs_batch["proposed_actions"][single_substation][0]
+            chosen_action = obs_batch["proposed_actions"][str(single_substation)]
 
             # if it's not the do nothing action, return action
             # if it's the do nothing action, continue the loop
             if chosen_action:
-                return ([chosen_action], state_outs_result, info_result)
+                return ([single_substation], state_outs_result, info_result)
 
         # grid is safe or no action is found, reset list count and return DoNothing
         self.idx = 0
-        return ([chosen_action], state_outs_result, info_result)
+        return ([-1], state_outs_result, info_result)
 
     def get_weights(self) -> ModelWeights:
         """No weights to save."""
