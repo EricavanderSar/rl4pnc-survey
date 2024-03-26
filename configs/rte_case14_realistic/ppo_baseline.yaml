@@ -52,7 +52,8 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_type: new_env #old_env #
+    env_type: old_env #new_env #
+    shuffle_scenarios: True
     env_name: rte_case14_realistic_train
     action_space: tennet
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
@@ -71,6 +72,7 @@ environment:
 env_config_val: &env_config_val
   <<: *env_config_train
   env_name: rte_case14_realistic_val
+  shuffle_scenarios: False
   prio: False # should always be False
 
 evaluation:
@@ -88,6 +90,6 @@ resources:
   num_learner_workers: 1
 
 rollouts:
-  num_rollout_workers: 3
+  num_rollout_workers: 7
 
-my_log_level: 1
+my_log_level: 5

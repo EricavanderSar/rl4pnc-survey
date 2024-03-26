@@ -29,7 +29,7 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
         n_history = env_config.get("n_history", 6)
 
         # re-define RLlib observationspace:
-        dim_topo = self.env_glop.observation_space.dim_topo
+        dim_topo = self.env_g2op.observation_space.dim_topo
 
         self.observation_space = gym.spaces.Dict({
             "feature_matrix": gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_feature * n_history)),
@@ -37,11 +37,11 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
             gym.spaces.Box(-1, 1, shape=(dim_topo,))
         })
 
-        self.obs_converter = ObsConverter(self.env_glop, env_config.get("danger", 0.9), attr=obs_features, n_history=n_history, adj_mat=env_config.get("adj_matrix"))
+        self.obs_converter = ObsConverter(self.env_g2op, env_config.get("danger", 0.9), attr=obs_features, n_history=n_history, adj_mat=env_config.get("adj_matrix"))
         self.cur_obs = None
 
         # initialize training chronic sampling weights
-        self.chron_prios = ChronPrioMatrix(self.env_glop)
+        self.chron_prios = ChronPrioMatrix(self.env_g2op)
         self.step_surv = 0
 
     def reset(
@@ -54,20 +54,20 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
 
         if self.prio:
             # use chronic priority
-            self.env_glop.set_id(
+            self.env_g2op.set_id(
                 self.chron_prios.sample_chron()
             )  # NOTE: this will take the previous chronic since with env_glop.reset() you will get the next
-        g2op_obs = self.env_glop.reset()
+        g2op_obs = self.env_g2op.reset()
         if self.prio:
             if self.chron_prios.cur_ffw > 0:
-                self.env_glop.fast_forward_chronics(self.chron_prios.cur_ffw * self.chron_prios.ffw_size)
-                g2op_obs, *_ = self.env_glop.step(self.env_glop.action_space())
+                self.env_g2op.fast_forward_chronics(self.chron_prios.cur_ffw * self.chron_prios.ffw_size)
+                g2op_obs, *_ = self.env_g2op.step(self.env_g2op.action_space())
             self.step_surv = 0
 
         self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
         observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
 
-        chron_id = self.env_glop.chronics_handler.get_name()
+        chron_id = self.env_g2op.chronics_handler.get_name()
         info = {"time serie id": chron_id}
         # print("chron_id: ", chron_id)
         # print('ts: ', g2op_obs.current_step)
@@ -136,7 +136,7 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
             reward,
             terminated,
             infos,
-        ) = self.env_glop.step(g2op_act)
+        ) = self.env_g2op.step(g2op_act)
         # Save current observation
         self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
         if self.prio:
@@ -193,7 +193,7 @@ class RlGrid2OpEnv2(RlGrid2OpEnv):
         super().__init__(env_config)
 
         # re-define RLlib observationspace:
-        dim_topo = self.env_glop.observation_space.dim_topo
+        dim_topo = self.env_g2op.observation_space.dim_topo
         obs_features = env_config.get("input", ["p_i", "p_l", "r", "o", "d"])
         n_history = env_config.get("n_history", 6)
         obs_dict = {}
@@ -213,7 +213,7 @@ class RlGrid2OpEnv2(RlGrid2OpEnv):
         self.observation_space = gym.spaces.Dict(obs_dict)
 
         # TODO: create new obs converter
-        self.obs_converter = ObsConverter(self.env_glop, env_config.get("danger", 0.9), attr=obs_features, n_history=n_history, adj_mat=env_config.get("adj_matrix"))
+        self.obs_converter = ObsConverter(self.env_g2op, env_config.get("danger", 0.9), attr=obs_features, n_history=n_history, adj_mat=env_config.get("adj_matrix"))
         self.cur_obs = None
 
     def reset(
@@ -224,11 +224,11 @@ class RlGrid2OpEnv2(RlGrid2OpEnv):
     ) -> Tuple[MultiAgentDict, MultiAgentDict]:
         self.obs_converter.reset()
         #TODO use chronic priority
-        g2op_obs = self.env_glop.reset()
+        g2op_obs = self.env_g2op.reset()
         self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
         observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
 
-        chron_id = self.env_glop.chronics_handler.get_id()
+        chron_id = self.env_g2op.chronics_handler.get_id()
         info = {"time serie id": chron_id}
         return observations, info
 
@@ -298,7 +298,7 @@ class RlGrid2OpEnv2(RlGrid2OpEnv):
             reward,
             terminated,
             infos,
-        ) = self.env_glop.step(g2op_act)
+        ) = self.env_g2op.step(g2op_act)
         # Save current observation
         self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
         # Give reward to RL agent

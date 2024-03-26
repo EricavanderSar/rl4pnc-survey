@@ -59,10 +59,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.max_tsteps = env_config["max_tsteps"]
         lib_dir = env_config["lib_dir"]
 
-        self.env_glop = grid2op.make(
+        self.env_g2op = grid2op.make(
             env_config["env_name"], **env_config["grid2op_kwargs"], backend=LightSimBackend()
         )
-        self.env_glop.seed(env_config["seed"])
+        self.env_g2op.seed(env_config["seed"])
 
         # 1.a. Setting up custom action space
         if (
@@ -77,7 +77,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             self.possible_substation_actions = self.load_action_space(path)
         elif env_config["action_space"] == "erica":
             self.possible_substation_actions = get_possible_topologies(
-                self.env_glop, CHANGEABLE_SUBSTATIONS
+                self.env_g2op, CHANGEABLE_SUBSTATIONS
             )
         else:
             path = os.path.join(
@@ -93,20 +93,20 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         logging.info(f"LEN ACTIONS={len(self.possible_substation_actions)}")
         # Add the do-nothing action at index 0
-        do_nothing_action = self.env_glop.action_space({})
+        do_nothing_action = self.env_g2op.action_space({})
         self.possible_substation_actions.insert(0, do_nothing_action)
 
         # 2. create the gym environment
-        self.env_gym = GymEnv(self.env_glop)
+        self.env_gym = GymEnv(self.env_g2op, shuffle_chronics=env_config["shuffle_scenarios"])
         self.env_gym.reset()
 
         # 3. customize action and observation space space to only change bus
         # create converter
-        converter = setup_converter(self.env_glop, self.possible_substation_actions)
+        converter = setup_converter(self.env_g2op, self.possible_substation_actions)
 
         # set gym action space to discrete
         self.env_gym.action_space = CustomDiscreteActions(
-            converter, self.env_glop.action_space()
+            converter, self.env_g2op.action_space()
         )
         # customize observation space
         ob_space = self.env_gym.observation_space
@@ -254,7 +254,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         with open(path, "rt", encoding="utf-8") as action_set_file:
             return list(
                 (
-                    self.env_glop.action_space(action_dict)
+                    self.env_g2op.action_space(action_dict)
                     for action_dict in json.load(action_set_file)
                 )
             )
@@ -419,19 +419,19 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
         # get changeable substations
         if env_config["action_space"] == "asymmetry":
             _, _, controllable_substations = calculate_action_space_asymmetry(
-                self.env_glop
+                self.env_g2op
             )
         elif env_config["action_space"] == "medha":
-            _, _, controllable_substations = calculate_action_space_medha(self.env_glop)
+            _, _, controllable_substations = calculate_action_space_medha(self.env_g2op)
         elif env_config["action_space"] == "tennet":
             _, _, controllable_substations = calculate_action_space_tennet(
-                self.env_glop
+                self.env_g2op
             )
         else:
             raise ValueError("No action valid space is defined.")
 
         self.agents = create_greedy_agent_per_substation(
-            self.env_glop,
+            self.env_g2op,
             env_config,
             controllable_substations,
             self.possible_substation_actions,
@@ -451,7 +451,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
         """
         # Adjusted reset to also get g2op_obs
         self.reset_capa_idx = True
-        self.g2op_obs = self.env_glop.reset()
+        self.g2op_obs = self.env_g2op.reset()
         self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
         observations = {"high_level_agent": self.previous_obs}
         return observations, {}
@@ -496,7 +496,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
                     {
                         **self.previous_obs,
                         "proposed_actions": self.proposed_actions,
-                        "do_nothing_action": self.env_glop.action_space({}),
+                        "do_nothing_action": self.env_g2op.action_space({}),
                         "reset_capa_idx": self.reset_capa_idx,
                     }
                 )
@@ -515,9 +515,9 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
             logging.info("do_nothing_agent IS CALLED: DO NOTHING")
 
             # overwrite action in action_dict to nothing
-            g2op_action = self.env_glop.action_space({})
+            g2op_action = self.env_g2op.action_space({})
 
-            self.g2op_obs, reward, terminated, _ = self.env_glop.step(g2op_action)
+            self.g2op_obs, reward, terminated, _ = self.env_g2op.step(g2op_action)
 
             self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
 
@@ -536,7 +536,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
             # Implement correct action on environment side, e.g. don't step
             # on gym side, but step on grid2op side and return gym observation
             # determine action with greedy agent
-            self.g2op_obs, reward, terminated, _ = self.env_glop.step(g2op_action)
+            self.g2op_obs, reward, terminated, _ = self.env_g2op.step(g2op_action)
             self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
 
             # TODO: Manually setup terminated (episode complete) or truncated (episode fail prematurely)
