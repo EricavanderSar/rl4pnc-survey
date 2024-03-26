@@ -1,12 +1,12 @@
 setup:
   max_ep_len: 2016
   nb_timesteps: 1_000
-  checkpoint_freq: 2 # number of iterations between checkpoints (1 iteration = 1 agent update?)
+  checkpoint_freq: 1 # number of iterations between checkpoints (1 iteration = 1 agent update?)
   checkpoint_trainable_policies_only: True
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "test_resources"
-  experiment_name: "TestResourceUsage"
+  folder_name: "test_checkpoint"
+  experiment_name: "Checkpoint_Test"
   save_artifact: True
 
 debugging:
@@ -15,7 +15,7 @@ debugging:
 training:
   # tunable parameters
   lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
-  gamma: 0.95 # !grid_search [0.95, 0.99]
+  gamma: !grid_search [0.95, 0.99] #0.95 #
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
@@ -81,11 +81,11 @@ evaluation:
   evaluation_duration: 2 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   evaluation_config:
-    explore: False,
+    explore: False
     env_config: *env_config_val # use the validation environment
 
-scaling_config:
-  num_workers: 4
+#scaling_config:
+#  num_workers: 1
 
 reporting:
   keep_per_episode_custom_metrics: True
@@ -94,4 +94,6 @@ reporting:
 #  num_learner_workers: 8
 
 rollouts:
-  num_rollout_workers: 7
+  num_rollout_workers: 3
+
+my_log_level: 3

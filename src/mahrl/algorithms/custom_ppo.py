@@ -137,6 +137,18 @@ def custom_synchronous_parallel_sample(
 
 
 class CustomPPO(PPO):
+    def __init__(
+            self,
+            config: Optional["AlgorithmConfig"] = None,
+            env=None,  # deprecated arg
+            logger_creator: Optional["Callable[[], Logger]"] = None,
+            **kwargs,
+    ):
+        print("my_log_level: ", config["my_log_level"])
+        self.my_log_level = config["my_log_level"]
+        super().__init__(config, env, logger_creator, **kwargs)
+
+
     def training_step(self) -> ResultDict:
         # Collect SampleBatches from sample workers until we have a full batch.
         with self._timers[SAMPLE_TIMER]:

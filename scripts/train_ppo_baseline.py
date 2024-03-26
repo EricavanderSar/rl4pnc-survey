@@ -87,25 +87,22 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
                     tags={"user_name": "Erica"},
                     save_artifact=setup["save_artifact"],
                 ),
-                TuneCallback(),
+                TuneCallback(config["my_log_level"]),
             ],
             # storage_path=os.path.abspath(setup["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=setup["checkpoint_freq"],
                 checkpoint_at_end=True,
                 checkpoint_score_attribute="custom_metrics/corrected_ep_len_mean",
-                num_to_keep=3,
             ),
             verbose=setup["verbose"],
             # progress_reporter=reporter,
         ),
     )
 
-
     # Launch tuning
     try:
         result_grid = tuner.fit()
-        print("used nodes: ", ray.nodes())
     finally:
         # Close ray instance
         ray.shutdown()
@@ -203,6 +200,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     ppo_config.update({"policies": policies})
     ppo_config.update({"env": env_type_config["env"]})
     ppo_config.update({"trial_info": "trial_id"})
+    ppo_config.update({"my_log_level": custom_config["my_log_level"]})
 
     return ppo_config, custom_config
 
@@ -228,7 +226,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default= "../configs/rte_case5_example/ppo_baseline.yaml", #"../configs/rte_case14_realistic/ppo_baseline.yaml",  #
+        default= "../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
         help="Path to the config file.",
     )
     parser.add_argument(

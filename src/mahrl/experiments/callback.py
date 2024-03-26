@@ -2,7 +2,7 @@
 Implements callbacks.
 """
 
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Union
 from tabulate import tabulate
 import os
 import numpy as np
@@ -10,7 +10,7 @@ import time
 
 # from grid2op.Environment import BaseEnv
 import ray
-from ray.tune.experimental.output import TuneReporterBase, get_air_verbosity
+from ray.tune.experimental.output import TuneReporterBase, get_air_verbosity, _get_time_str, AIR_TABULATE_TABLEFMT, _get_trial_table_data
 from ray.tune.experiment import Trial
 
 from ray.rllib.env import BaseEnv
@@ -37,8 +37,17 @@ class Style:
 
 
 class CustomMetricsCallback(DefaultCallbacks):
-    """Implements custom callbacks metric"""
+    # def __init__(self, log_level: int = 0):
+    #     super().__init__()
+    #     self.log_level = log_level
 
+    def on_algorithm_init(
+        self,
+        *,
+        algorithm: "Algorithm",
+        **kwargs,
+    ) -> None:
+        self.log_level = algorithm.my_log_level
     # def on_episode_start(self,
     #     *,
     #     worker: "RolloutWorker",
@@ -90,38 +99,35 @@ class CustomMetricsCallback(DefaultCallbacks):
             evaluation_metrics: dict,
             **kwargs,
     ) -> None:
-        print(Style.BOLD + " ----- EVALUATION METRICS -------- " + Style.END)
-        # print(evaluation_metrics)
         data = evaluation_metrics["evaluation"]["sampler_results"]
-        trial_id = "_".join(os.path.basename(algorithm._logdir).split('_')[:-3])
-        head_len = 5 # only show the first #head_len chronics
-        print(f" Showing results for the first {head_len} evaluated chronics:")
-        overview = {
-            "chronic_id": data["episode_media"]["chronic_id"][:head_len],
-            "grid2op_end": data["custom_metrics"]["grid2op_end"][:head_len],
-            "reward": data["hist_stats"]["episode_reward"][:head_len]}
-        print(tabulate(overview, headers="keys",  tablefmt="rounded_grid"))
-
-        data["custom_metrics"]["grid2op_end_min"] = np.int(np.min(overview["grid2op_end"]))
-        data["custom_metrics"]["grid2op_end_mean"] = np.int(np.mean(overview["grid2op_end"]))
-        data["custom_metrics"]["grid2op_end_max"] = np.int(np.max(overview["grid2op_end"]))
-        data["custom_metrics"]["grid2op_end_std"] = np.std(overview["grid2op_end"])
+        # Save summarized data
+        data["custom_metrics"]["grid2op_end_min"] = np.int(np.min(data["custom_metrics"]["grid2op_end"]))
+        data["custom_metrics"]["grid2op_end_mean"] = np.int(np.mean(data["custom_metrics"]["grid2op_end"]))
+        data["custom_metrics"]["grid2op_end_max"] = np.int(np.max(data["custom_metrics"]["grid2op_end"]))
+        data["custom_metrics"]["grid2op_end_std"] = np.std(data["custom_metrics"]["grid2op_end"])
+        # # Print specified logging level
+        # if self.log_level:
+        #     print(Style.BOLD + " ----- EVALUATION METRICS -------- " + Style.END)
+        #     # print(evaluation_metrics)
+        #     trial_id = "_".join(os.path.basename(algorithm._logdir).split('_')[:-3])
+        #     rw_mean = data["episode_reward_mean"]
+        #     # print table
+        #     headers = ["trial_id", "grid2op_end_mean", "grid2op_end_max", "grid2op_end_min", "reward"]
+        #     table = [[trial_id, data["custom_metrics"]["grid2op_end_mean"], data["custom_metrics"]["grid2op_end_max"],
+        #               data["custom_metrics"]["grid2op_end_min"], rw_mean]]
+        #     print(tabulate(table, headers, tablefmt="rounded_grid", floatfmt=".3f"))
+        if self.log_level > 1:
+            head_len = self.log_level # only show the first #head_len chronics
+            print(f" Showing results for the first {head_len} evaluated chronics:")
+            overview = {
+                "chronic_id": data["episode_media"]["chronic_id"][:head_len],
+                "grid2op_end": data["custom_metrics"]["grid2op_end"][:head_len],
+                "reward": data["hist_stats"]["episode_reward"][:head_len]}
+            print(tabulate(overview, headers="keys", tablefmt="rounded_grid"))
+        # Delete irrelevant data
         del data["custom_metrics"]["grid2op_end"]
         del data["episode_media"]["chronic_id"]
         del data["custom_metrics"]["corrected_ep_len"]
-
-        rw_mean = data["episode_reward_mean"]
-        # print table
-        headers = ["trial_id", "grid2op_end_mean", "grid2op_end_max", "grid2op_end_min", "reward"]
-        table = [[trial_id, data["custom_metrics"]["grid2op_end_mean"], data["custom_metrics"]["grid2op_end_max"],
-                  data["custom_metrics"]["grid2op_end_min"], rw_mean]]
-        print(tabulate(table, headers, tablefmt="rounded_grid", floatfmt=".3f"))
-
-
-    # def on_learn_on_batch(
-    #         self, *, policy: Policy, train_batch: SampleBatch, result: dict, **kwargs
-    #     ) -> None:
-    #     breakpoint()
 
     def on_train_result(
         self,
@@ -130,14 +136,10 @@ class CustomMetricsCallback(DefaultCallbacks):
         result: dict,
         **kwargs,
     ) -> None:
-        # print(f' TRIAL RESOURCES {algorithm.trial_resources}')
         # print(f'ALL METRICS {result}')
-        # you can mutate the result dict to add new fields to return
-        result["callback_ok"] = True
-        print(Style.BOLD + " ------ TRAIN METRICS -------" + Style.END)
-        mean_grid2op_end = np.mean(result["custom_metrics"]["grid2op_end"])
+        mean_grid2op_end = np.int(np.mean(result["custom_metrics"]["grid2op_end"]))
         std_grid2op_end = np.var(result["custom_metrics"]["grid2op_end"])
-        mean_episode_duration = np.mean(result["custom_metrics"]["corrected_ep_len"])
+        mean_episode_duration = np.int(np.mean(result["custom_metrics"]["corrected_ep_len"]))
         result["custom_metrics"]["grid2op_end_mean"] = mean_grid2op_end
         result["custom_metrics"]["grid2op_end_std"] = std_grid2op_end
         result["custom_metrics"]["corrected_ep_len_mean"] = mean_episode_duration
@@ -145,23 +147,28 @@ class CustomMetricsCallback(DefaultCallbacks):
         del result["custom_metrics"]["grid2op_end"]
         del result["custom_metrics"]["corrected_ep_len"]
         del result["episode_media"]["chronic_id"]
-        trial_id = "_".join(os.path.basename(algorithm._logdir).split('_')[:-3])
-        seconds = result["time_total_s"]
 
-        # Print the table
-        table = [[trial_id, algorithm.iteration, '%dmin %02ds' % (seconds / 60, seconds % 60),
-                  result["timesteps_total"], np.int(mean_grid2op_end), np.int(mean_episode_duration),
-                  result["episodes_this_iter"], result["sampler_results"]["episode_reward_mean"]]]
-        headers = ["Trial name", "iter", "total time", "ts", "Mean Grid2Op End", "Mean Duration", "episodes_this_iter", "reward_mean"]
-        print(tabulate(table, headers, tablefmt="rounded_grid", floatfmt=".3f"))
+        # if self.log_level:
+        #     print(Style.BOLD + " ------ TRAIN METRICS -------" + Style.END)
+        #     trial_id = "_".join(os.path.basename(algorithm._logdir).split('_')[:-3])
+        #     seconds = result["time_total_s"]
+        #
+        #     # Print the table
+        #     table = [[trial_id, algorithm.iteration, '%dmin %02ds' % (seconds / 60, seconds % 60),
+        #               result["timesteps_total"], np.int(mean_grid2op_end), np.int(mean_episode_duration),
+        #               result["episodes_this_iter"], result["sampler_results"]["episode_reward_mean"]]]
+        #     headers = ["Trial name", "iter", "total time", "ts", "Mean Grid2Op End", "Mean Duration", "episodes_this_iter", "reward_mean"]
+        #     print(tabulate(table, headers, tablefmt="rounded_grid", floatfmt=".3f"))
 
 
 class TuneCallback(TuneReporterBase):
     def __init__(
-        self,
+            self,
+            log_level
     ):
         super().__init__(get_air_verbosity(0))
         self._start_end_verbosity = 0
+        self.log_level = log_level
 
     def print_heartbeat(self, trials, *args, force: bool = False):
         if force or time.time() - self._last_heartbeat_time >= self._heartbeat_freq:
@@ -178,3 +185,93 @@ class TuneCallback(TuneReporterBase):
         result.extend(sys_args)
         for line in result:
             print(line)
+
+    def on_trial_result(
+        self,
+        iteration: int,
+        trials: List[Trial],
+        trial: Trial,
+        result: Dict,
+        **info,
+    ):
+        if self.log_level:
+            print(Style.BOLD + " ------ TRAIL RESULTS -------" + Style.END)
+            self._start_block(f"trial_{trial}_result_{result['training_iteration']}")
+            curr_time_str, running_time_str = _get_time_str(self._start_time, time.time())
+            print(
+                f"{self._addressing_tmpl.format(trial)} "
+                f"finished iteration {result['training_iteration']} "
+                f"at {curr_time_str}. Total running time: " + running_time_str
+            )
+            # print intermediate results for trial:
+            self._print_result(trial, result)
+
+    def _print_result(self, trial, result: Optional[Dict] = None, force: bool = False):
+        result = result or trial.last_result
+        # skip for now since this is already printed after tuning... Perhaps move?
+        trial_id = str(trial)
+        seconds = result["time_total_s"]
+        eval_res = result["evaluation"]["sampler_results"]
+        train_res = result["custom_metrics"]
+        # Print the table
+        headers = ["trial name",
+                   "iter",
+                   "total time",
+                   "ts",
+                   "EVAL g2op end",
+                   "EVAL reward",
+                   "TRAIN g2op end",
+                   "TRAIN ep duration",
+                   "TRAIN reward",
+                   "episodes_this_iter"]
+        table = [[trial_id,
+                  result['training_iteration'],
+                  '%dmin %02ds' % (seconds / 60, seconds % 60),
+                  result["timesteps_total"],
+                  eval_res["custom_metrics"]["grid2op_end_mean"],
+                  eval_res["episode_reward_mean"],
+                  train_res["grid2op_end_mean"],
+                  train_res["corrected_ep_len_mean"],
+                  result["sampler_results"]["episode_reward_mean"],
+                  result["episodes_this_iter"]]]
+        print(tabulate(table, headers, tablefmt="rounded_grid", floatfmt=".3f"))
+
+    # def on_checkpoint(
+    #     self,
+    #     iteration: int,
+    #     trials: List[Trial],
+    #     trial: Trial,
+    #     checkpoint: Union["_TrackedCheckpoint", "Checkpoint"],
+    #     **info,
+    # ):
+    #     result = trial.last_result
+    #
+    #     evaluation_metrics =  result["evaluation"]
+    #
+    #     print(Style.BOLD + " ----- EVALUATION METRICS -------- " + Style.END)
+    #     # print(evaluation_metrics)
+    #     data = evaluation_metrics["sampler_results"]
+    #     trial_id = trial.custom_trial_name
+    #     head_len = 5  # only show the first #head_len chronics
+    #     print(f" Showing results for the first {head_len} evaluated chronics:")
+    #     overview = {
+    #         "chronic_id": data["episode_media"]["chronic_id"][:head_len],
+    #         "grid2op_end": data["custom_metrics"]["grid2op_end"][:head_len],
+    #         "reward": data["hist_stats"]["episode_reward"][:head_len]}
+    #     print(tabulate(overview, headers="keys", tablefmt="rounded_grid"))
+    #
+    #     data["custom_metrics"]["grid2op_end_min"] = np.int(np.min(overview["grid2op_end"]))
+    #     data["custom_metrics"]["grid2op_end_mean"] = np.int(np.mean(overview["grid2op_end"]))
+    #     data["custom_metrics"]["grid2op_end_max"] = np.int(np.max(overview["grid2op_end"]))
+    #     data["custom_metrics"]["grid2op_end_std"] = np.std(overview["grid2op_end"])
+    #     del data["custom_metrics"]["grid2op_end"]
+    #     del data["episode_media"]["chronic_id"]
+    #     del data["custom_metrics"]["corrected_ep_len"]
+    #
+    #     rw_mean = data["episode_reward_mean"]
+    #     # print table
+    #     headers = ["trial_id", "grid2op_end_mean", "grid2op_end_max", "grid2op_end_min", "reward"]
+    #     table = [[trial_id, data["custom_metrics"]["grid2op_end_mean"], data["custom_metrics"]["grid2op_end_max"],
+    #               data["custom_metrics"]["grid2op_end_min"], rw_mean]]
+    #     print(tabulate(table, headers, tablefmt="rounded_grid", floatfmt=".3f"))
+    #

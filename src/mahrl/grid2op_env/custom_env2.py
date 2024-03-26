@@ -82,9 +82,6 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
         This function performs a single step in the environment.
         """
 
-        # # Increase step
-        # self.step_nb = self.step_nb + 1
-
         # Build termination dict
         terminateds = {
             "__all__": self.step_nb >= self.max_tsteps,
@@ -123,8 +120,8 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
         elif "reinforcement_learning_agent" in action_dict.keys():
             logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
             action = action_dict["reinforcement_learning_agent"]
-            # Increase step
-            self.step_nb = self.step_nb + 1
+            # # Increase step
+            # self.step_nb = self.step_nb + 1
         elif bool(action_dict) is False:
             logging.info("Caution: Empty action dictionary!")
             return observations, rewards, terminateds, truncateds, infos
