@@ -1,16 +1,19 @@
 setup:
   nb_timesteps: &nb_timesteps 1000000
-  checkpoint_freq: 10000
+  # checkpoint_freq: 10000
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
+  experiment_name: rte_case5_example/hrl
+  save_artifact: True
+  num_samples: 1
 
 debugging:
   seed: &seed 14
 
 training:
   # tunable parameters
+  lr: 0.05 # !grid_search [0.0005, 0.005, 0.05]
   gamma: 0.95 # !grid_search [0.95, 0.99]
-  lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
@@ -22,14 +25,14 @@ training:
     - 256
     - 256
   _enable_learner_api: False
-  
+  batch_mode: complete_episodes
+
 rl_module:
   _enable_rl_module_api: False
 
 explore:
   exploration_config:
-    type: EpsilonGreedy
-    explore: False
+    type: StochasticSampling
 
 callbacks:
   callbacks: !CustomMetricsCallback
@@ -39,19 +42,18 @@ framework:
 
 multi_agent:
   policy_mapping_fn: !policy_mapping_fn
-  policies_to_train: ["reinforcement_learning_policy"]
+  policies_to_train: []
+  count_steps_by: agent_steps
 
 environment:
-  env_config:
-    env_name: rte_case14_realistic
+  env_config: &env_config_train
+    env_name: rte_case5_example
     num_agents: 3
     action_space: asymmetry
     lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
-      # general kwargs
-      reward_class: !LossReward
-      # kwargs specific to opponents
+       # kwargs specific to opponents
       opponent_attack_cooldown: 144 # max 2 attacks per day
       opponent_attack_duration: 48 # 4 hours in a day
       opponent_budget_per_ts: 0.333343333333 # taken from blazej, (opponent_attack_duration / opponent_attack_cooldown) + 1e-5
@@ -59,13 +61,25 @@ environment:
       opponent_action_class: !PowerlineSetAction 
       opponent_class: !RandomLineOpponent
       opponent_budget_class: !BaseActionBudget
-      opponent_space_type: !ReconnectingOpponentSpace
+      opponent_space_type: !ReconnectingOpponentSpace #reconnecting_opponent
       kwargs_opponent:
-        lines_attacked: 
-          - '3_4_6'
-          - '11_12_13'
-          - '3_6_15'
-          - '3_8_16'
-          - '6_8_19'
+        lines_attacked:
+          - '0_2_1'
+          - '0_3_2'
+          - '2_3_6'
+     # general kwargs
+      reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.95
+
+env_config_val: &env_config_val
+  <<: *env_config_train
+  env_name: rte_case5_example
+
+evaluation:
+  evaluation_interval: 2
+  evaluation_duration: 20 # as many as there are validation episodes
+  evaluation_duration_unit: episodes
+  evaluation_config: 
+    env_config: *env_config_val # use the validation environment
+    explore: False

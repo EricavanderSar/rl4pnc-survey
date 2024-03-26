@@ -129,23 +129,19 @@ class CapaPolicy(Policy):
         # in modelv2.html
 
         # convert all gym to grid2op actions
-        print(f"Obs:{obs_batch['proposed_actions']}")
         for gym_action in obs_batch["proposed_actions"]:
-            print(f"gymaction={gym_action}")
             obs_batch["proposed_actions"][gym_action] = self.converter.convert_act(
                 int(gym_action)
             )
-            print(f"gridop action={obs_batch['proposed_actions'][gym_action]}")
 
         # if no list is created yet, do so
-        if obs_batch["reset_capa_idx"][0]:
+        if not self.substation_to_act_on:
             self.idx = 0
             self.substation_to_act_on = get_capa_substation_id(
                 line_info, obs_batch, self.controllable_substations
             )
 
         # find an action that is not the do nothing action by looping over the substations
-        print(f"Obs:{obs_batch['proposed_actions']}")
         chosen_action = {}
         while (not chosen_action) and (self.idx < len(self.controllable_substations)):
             single_substation = self.substation_to_act_on[

@@ -118,7 +118,6 @@ def custom_synchronous_parallel_sample(
                     )
                 )
             sample_batches = new_batches
-            # print('sample_batches: ', sample_batches)
 
         for b in sample_batches:
             if max_agent_steps:
@@ -155,7 +154,7 @@ class CustomPPO(PPO):
                     worker_set=self.workers, max_env_steps=self.config.train_batch_size
                 )
         # print("policies", train_batch.policy_batches.keys())
-        # print("train_batch_size: ", train_batch.count)
+        # print(f"train_batch_size: {train_batch.count}")
         # print("agent_steps: ", train_batch.agent_steps())
         # print("env_steps : ", train_batch.env_steps())
         train_batch = train_batch.as_multi_agent()

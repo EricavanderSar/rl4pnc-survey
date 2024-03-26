@@ -576,14 +576,12 @@ class RandomAndGreedyAgent(GreedyAgent):
         return self.tested_action
 
 
-def create_greedy_agent_per_substation(
-    env: BaseEnv,
-    env_config: dict[str, Any],
+def get_actions_per_substation(
     controllable_substations: dict[int, int],
     possible_substation_actions: list[BaseAction],
-) -> dict[int, TopologyGreedyAgent]:
+) -> dict[int, list[BaseAction]]:
     """
-    Create a greedy agent for each substation.
+    Get the actions per substation.
     """
     actions_per_substation: dict[int, list[BaseAction]] = {
         substation: [] for substation in list(controllable_substations.keys())
@@ -593,6 +591,22 @@ def create_greedy_agent_per_substation(
     for action in possible_substation_actions[1:]:  # exclude the DoNothing action
         sub_id = int(action.as_dict()["set_bus_vect"]["modif_subs_id"][0])
         actions_per_substation[sub_id].append(action)
+
+    return actions_per_substation
+
+
+def create_greedy_agent_per_substation(
+    env: BaseEnv,
+    env_config: dict[str, Any],
+    controllable_substations: dict[int, int],
+    possible_substation_actions: list[BaseAction],
+) -> dict[int, TopologyGreedyAgent]:
+    """
+    Create a greedy agent for each substation.
+    """
+    actions_per_substation = get_actions_per_substation(
+        controllable_substations, possible_substation_actions
+    )
 
     # initialize greedy agents for all controllable substations
     agents = {}

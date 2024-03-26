@@ -122,11 +122,13 @@ def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
         )
 
 
-def load_action_space(path: str, env: BaseEnv) -> List[BaseAction]:
+def get_original_env_name(path: str) -> str:
     """
-    Loads the action space from a specified folder.
+    If the path contains _per_day or _train or _test or _val, then ignore this part of the string
     """
-    # if the path contains _per_day or _train or _test or _val, then ignore this part of the string
+
+    if "_blazej" in path:
+        path = path.replace("_blazej", "")
     if "_per_day" in path:
         path = path.replace("_per_day", "")
     if "_train" in path:
@@ -135,6 +137,15 @@ def load_action_space(path: str, env: BaseEnv) -> List[BaseAction]:
         path = path.replace("_test", "")
     if "_val" in path:
         path = path.replace("_val", "")
+
+    return path
+
+
+def load_action_space(path: str, env: BaseEnv) -> List[BaseAction]:
+    """
+    Loads the action space from a specified folder.
+    """
+    path = get_original_env_name(path)
 
     return load_actions(path, env)
 
@@ -158,18 +169,14 @@ def rescale_observation_space(
         ),
     )
 
-    # TODO: Adjust for 36-bus or 5-bus
     grid_name = g2op_env.name
-    if "_per_day" in grid_name:
-        grid_name = grid_name.replace("_per_day", "")
-    if "_train" in grid_name:
-        grid_name = grid_name.replace("_train", "")
-    if "_test" in grid_name:
-        grid_name = grid_name.replace("_test", "")
-    if "_val" in grid_name:
-        grid_name = grid_name.replace("_val", "")
+    grid_name = get_original_env_name(grid_name)
 
-    if grid_name == "rte_case14_realistic":
+    if (
+        grid_name == "rte_case14_realistic"
+        or grid_name == "rte_case5_example"
+        or grid_name == "l2rpn_icaps_2021_large"
+    ):
         for attr in ["p_ex", "p_or", "load_p"]:
             c = 1.2  # constant to account that our max/min are underestimated
             max_arr, min_arr = np.load(
@@ -188,7 +195,7 @@ def rescale_observation_space(
                 ),
             )
     else:
-        print("Warning: Other environments not implemented for scaling yet.")
+        print("Warning: Scaling is not yet fully implemented for this environment.")
 
     return gym_observation_space
 

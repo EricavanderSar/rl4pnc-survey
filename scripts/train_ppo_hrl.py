@@ -25,6 +25,7 @@ from mahrl.grid2op_env.custom_environment import (
     HierarchicalCustomizedGrid2OpEnvironment,
 )
 from mahrl.multi_agent.policy import CapaPolicy, DoNothingPolicy, SelectAgentPolicy
+from mahrl.algorithms.custom_ppo import CustomPPO
 
 
 def select_mid_level_policy(
@@ -33,38 +34,8 @@ def select_mid_level_policy(
     line_info: dict[int, list[int]],
     custom_config: dict[str, Any],
 ) -> PolicySpec:
-    # base_action = gymnasium.spaces.Dict(
-    #     {
-    #         "change_bus_vect": gymnasium.spaces.Dict(
-    #             {
-    #                 "nb_modif_objects": gymnasium.spaces.Discrete(3),
-    #                 "1": gymnasium.spaces.Dict(
-    #                     {
-    #                         str(i): gymnasium.spaces.Dict(
-    #                             {"type": gymnasium.spaces.Discrete(3)}
-    #                         )
-    #                         for i in list_of_agents
-    #                     }
-    #                 ),
-    #                 "nb_modif_subs": gymnasium.spaces.Discrete(2),
-    #                 "modif_subs_id": gymnasium.spaces.MultiDiscrete(
-    #                     [
-    #                         len(list_of_agents)
-    #                     ]  # TODO likely doesn't work if not consecutive list
-    #                 ),
-    #             }
-    #         )
-    #     }
-    # )
 
-    base_action = gymnasium.spaces.Dict(
-        {
-            "set_bus_vect": gymnasium.spaces.Dict(
-                {"nb_modif_objects": gymnasium.spaces.Discrete(3)}
-            ),
-        }
-    )
-    num_lines = max(max(values) for values in line_info.values()) + 1
+    # TODO Determine number of actions
     base_action = gymnasium.spaces.Discrete(100)
 
     capa_observation = gymnasium.spaces.Dict(
@@ -91,7 +62,7 @@ def select_mid_level_policy(
                 {str(i): base_action for i in list_of_agents}
             ),
             "reset_capa_idx": gymnasium.spaces.Discrete(2),
-        }  # TODO: Try as dict
+        }
     )
 
     if middle_agent_type == "capa":
@@ -125,7 +96,7 @@ def select_mid_level_policy(
                 AlgorithmConfig()
                 # .rollouts(preprocessor_pref=None)
                 .exploration(exploration_config={"type": "StochasticSampling"})
-            ),  # TODO: Is it correct to remove preproc?. Do I need to load configs here? Yes.
+            ),
         )
     else:
         raise ValueError(
@@ -145,7 +116,7 @@ def setup_config(
     custom_config = load_config(config_path)
 
     ppo_config.update(custom_config["training"])
-    # ppo_config.update(custom_config["debugging"])
+    ppo_config.update(custom_config["debugging"])
     ppo_config.update(custom_config["framework"])
     ppo_config.update(custom_config["rl_module"])
     ppo_config.update(custom_config["explore"])
@@ -155,6 +126,7 @@ def setup_config(
     ppo_config.update(custom_config["evaluation"])
 
     setup_env = grid2op.make(custom_config["environment"]["env_config"]["env_name"])
+
     # Make as number additional policies as controllable substations
     agent_per_substation = find_list_of_agents(
         setup_env,
@@ -233,14 +205,12 @@ def setup_config(
     elif lower_agent_type == "greedy":
         ppo_config.update({"env": GreedyHierarchicalCustomizedGrid2OpEnvironment})
 
-    # TODO: MAke a converter per agent? Where/How?
-
     # TODO: Get exploration from config explicitly?
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})
 
-    run_training(ppo_config, custom_config["setup"], ppo.PPO)
+    run_training(ppo_config, custom_config["setup"], CustomPPO)
 
 
 if __name__ == "__main__":

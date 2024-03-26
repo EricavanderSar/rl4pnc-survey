@@ -77,3 +77,4 @@ evaluation:
   evaluation_duration_unit: episodes
   evaluation_config: 
     env_config: *env_config_val # use the validation environment
+    explore: False

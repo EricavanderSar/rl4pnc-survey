@@ -19,11 +19,15 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
-from mahrl.evaluation.evaluation_agents import create_greedy_agent_per_substation
+from mahrl.evaluation.evaluation_agents import (
+    create_greedy_agent_per_substation,
+    get_actions_per_substation,
+)
 from mahrl.experiments.utils import (
     calculate_action_space_asymmetry,
     calculate_action_space_medha,
     calculate_action_space_tennet,
+    find_list_of_agents,
 )
 from mahrl.grid2op_env.utils import (
     CustomDiscreteActions,
@@ -51,6 +55,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         # create the gym environment
         self.env_gym = GymEnv(self.grid2op_env)
+
+        # TODO seed this so each scenario is only evaluated exactly once
+        # self.env_gym.init_env.chronics_handler()
 
         # setting up custom action space
         path = os.path.join(
@@ -82,8 +89,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.env_gym.observation_space = self.env_gym.observation_space.keep_only_attr(
             ["rho", "gen_p", "load_p", "topo_vect", "p_or", "p_ex", "timestep_overflow"]
         )
-
-        print(f"obs_space: {self.env_gym.observation_space}")
 
         # rescale observation space
         self.env_gym.observation_space = rescale_observation_space(
@@ -389,13 +394,6 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
             self.possible_substation_actions,
         )
 
-        # the middle agent can either be capa, or RL based
-        if "capa" in env_config:
-            self.capa_middle = True
-            self.reset_capa_idx = 1
-        else:
-            self.capa_middle = False
-
         # determine the acting agents
         self._agent_ids = [
             "high_level_agent",
@@ -403,7 +401,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
             "do_nothing_agent",
         ]
 
-        # TODO: Set observation space similar to CAPA, for middle agent.
+        self.reset_capa_idx = 1
         self.g2op_obs = None
         self.proposed_actions: dict[int, dict[str, Any]] = {}
 
@@ -484,16 +482,11 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
             truncateds = {"__all__": False}
             infos = {"__common__": info}
         elif "choose_substation_agent" in action_dict.keys():
-            # if self.capa_middle:  # capa middle agent returns g2op action
-            #     g2op_action = action_dict["choose_substation_agent"]
-            # else:  # RL agent returns rllib action, convert to g2op
             substation_id = action_dict["choose_substation_agent"]
             if substation_id == -1:
                 g2op_action = self.grid2op_env.action_space({})
             else:
                 g2op_action = self.proposed_actions[substation_id]
-
-            print(g2op_action)
 
             self.g2op_obs, reward, terminated, info = self.grid2op_env.step(g2op_action)
             self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
@@ -533,7 +526,17 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
     def __init__(self, env_config: dict[str, Any]):
         super().__init__(env_config)
 
-        # create greedy agents for each substation
+        # add all RL agents
+        list_of_substations = list(
+            find_list_of_agents(
+                self.grid2op_env,
+                env_config["action_space"],
+            ).keys()
+        )
+
+        self.rl_agent_ids = []
+
+        # get changeable substations
         if env_config["action_space"] == "asymmetry":
             _, _, controllable_substations = calculate_action_space_asymmetry(
                 self.grid2op_env
@@ -549,28 +552,50 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         else:
             raise ValueError("No action valid space is defined.")
 
-        self.agents = create_greedy_agent_per_substation(
-            self.grid2op_env,
-            env_config,
-            controllable_substations,
-            self.possible_substation_actions,
+        actions_per_substations = get_actions_per_substation(
+            controllable_substations=controllable_substations,
+            possible_substation_actions=self.possible_substation_actions,
         )
 
-        # the middle agent can either be capa, or RL based
-        if "capa" in env_config:
-            self.capa_middle = True
-            self.reset_capa_idx = 1
-        else:
-            self.capa_middle = False
+        # map individual substation action to global action space
+        # for each possible substation action, match the action in self.possible_substation_actions
+        self.local_to_global_action_map = {}
+        for sub_idx, actions in actions_per_substations.items():
+            self.local_to_global_action_map[sub_idx] = {
+                local_idx: self.possible_substation_actions.index(global_action)
+                for local_idx, global_action in enumerate(actions)
+            }
+
+        for sub_idx in list_of_substations:
+            # add agent
+            self.rl_agent_ids.append(f"reinforcement_learning_agent_{sub_idx}")
 
         # determine the acting agents
-        self._agent_ids = [
+        self._agent_ids = self.rl_agent_ids + [
             "high_level_agent",
             "choose_substation_agent",
             "do_nothing_agent",
         ]
 
-        # TODO: Set observation space similar to CAPA, for middle agent.
+        # converters = {}
+
+        # create approrpriate action spaces
+        # self.env_gym.action_space = {
+        #     f"reinforcement_learning_agent_{sub_idx}": CustomDiscreteActions(
+        #         converters[sub_idx], self.grid2op_env.action_space()
+        #     )
+        #     for sub_idx in list_of_substations
+        # }
+
+        # self.action_space = {"do_nothing_agent": gymnasium.spaces.Discrete(1)}
+
+        # # to avoid pickle issues, specific to rllib
+        # for sub_idx in list_of_substations:
+        #     self.action_space[f"reinforcement_learning_agent_{sub_idx}"] = (
+        #         gymnasium.spaces.Discrete(n=len(actions_per_substations[sub_idx]))
+        #     )
+
+        self.reset_capa_idx = 1
         self.g2op_obs = None
         self.proposed_actions: dict[int, dict[str, Any]] = {}
 
@@ -583,10 +608,8 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         """
         This function resets the environment.
         """
-        # Adjusted reset to also get g2op_obs
         self.reset_capa_idx = 1
-        self.g2op_obs = self.grid2op_env.reset()
-        self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
+        self.previous_obs, _ = self.env_gym.reset()
         observations = {"high_level_agent": self.previous_obs}
         return observations, {}
 
@@ -613,22 +636,11 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         if "high_level_agent" in action_dict.keys():
             action = action_dict["high_level_agent"]
             if action == 0:  # do something
-                self.proposed_actions = {
-                    sub_id: agent.act(self.g2op_obs, reward=None)
-                    for sub_id, agent in self.agents.items()
-                }
+                # add an observation key for all agents in self.rl_agent_ids
+                observations = {}
+                for agent_id in self.rl_agent_ids:
+                    observations[agent_id] = self.previous_obs
 
-                observation_for_middle_agent = OrderedDict(
-                    {
-                        "previous_obs": self.previous_obs,  # NOTE Pass entire obs
-                        "proposed_actions": {
-                            str(sub_id): self.converter.revert_act(action)
-                            for sub_id, action in self.proposed_actions.items()
-                        },
-                        "reset_capa_idx": self.reset_capa_idx,
-                    }
-                )
-                observations = {"choose_substation_agent": observation_for_middle_agent}
                 self.reset_capa_idx = 0
             elif action == 1:  # do nothing
                 self.reset_capa_idx = 1
@@ -639,44 +651,66 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                 )
         elif "do_nothing_agent" in action_dict.keys():
             # step do nothing in environment
-            self.g2op_obs, reward, terminated, info = self.grid2op_env.step(
-                self.grid2op_env.action_space({})
+            self.previous_obs, reward, terminated, truncated, info = self.env_gym.step(
+                0
             )
-            self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
 
             # reward the RL agent for this step, go back to HL agent
             rewards = {"choose_substation_agent": reward}
             observations = {"high_level_agent": self.previous_obs}
             terminateds = {"__all__": terminated}
-            truncateds = {"__all__": False}
+            truncateds = {"__all__": truncated}
             infos = {"__common__": info}
         elif "choose_substation_agent" in action_dict.keys():
             substation_id = action_dict["choose_substation_agent"]
             if substation_id == -1:
-                g2op_action = self.grid2op_env.action_space({})
+                action = 0  # TODO: Check if this is do nothing
             else:
-                g2op_action = self.proposed_actions[substation_id]
+                local_action = self.proposed_actions[substation_id]
+                action = self.local_to_global_action_map[substation_id][local_action]
 
-            self.g2op_obs, reward, terminated, info = self.grid2op_env.step(g2op_action)
-            self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
+            self.previous_obs, reward, terminated, truncated, info = self.env_gym.step(
+                action
+            )
 
             # reward the RL agent for this step, go back to HL agent
             observations = {"high_level_agent": self.previous_obs}
-            rewards = {"choose_substation_agent": reward}
+            if substation_id == -1:
+                rewards = {"choose_substation_agent": reward}
+            else:
+                rewards = {
+                    "choose_substation_agent": reward,
+                    f"reinforcement_learning_agent_{substation_id}": reward,
+                }
             terminateds = {"__all__": terminated}
-            truncateds = {"__all__": False}
+            truncateds = {"__all__": truncated}
             infos = {"__common__": info}
         elif any(
             key.startswith("reinforcement_learning_agent") for key in action_dict.keys()
         ):
+            # extract all proposed actions
+            for key, action in action_dict.items():
+                # extract integer at end of key
+                sub_id = int(key.split("_")[-1])
+                self.proposed_actions[sub_id] = action
 
-            # extract key
-            if len(action_dict) == 1:
-                key = next(iter(action_dict))
-            else:
-                raise ValueError(
-                    "Only one reinforcement_learning_agent should be in action_dict."
+            # check if all rl agents have acted
+            if len(self.proposed_actions) == len(self.rl_agent_ids):
+                print(f"complete actions: {self.proposed_actions}")
+                observation_for_middle_agent = OrderedDict(
+                    {
+                        "previous_obs": self.previous_obs,
+                        "proposed_actions": {
+                            str(sub_id): action
+                            for sub_id, action in self.proposed_actions.items()
+                        },
+                        "reset_capa_idx": self.reset_capa_idx,
+                    }
                 )
+                observations = {"choose_substation_agent": observation_for_middle_agent}
+                self.reset_capa_idx = 0
+            else:
+                raise ValueError("Not all RL agents have acted.")
 
         elif bool(action_dict) is False:
             print("Caution: Empty action dictionary!")

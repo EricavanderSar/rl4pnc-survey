@@ -1,5 +1,5 @@
 setup:
-  nb_timesteps: &nb_timesteps 10000000
+  nb_timesteps: &nb_timesteps 100000
   # checkpoint_freq: 100000
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
@@ -13,14 +13,15 @@ debugging:
 training:
   # tunable parameters
   gamma: 0.99 # !grid_search [0.95, 0.99]
-  lr: 0.005
+  lr: !grid_search [0.05, 0.005, 0.0005]
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
   lambda_: 0.95
-  num_sgd_iter: 15
-  sgd_minibatch_size: 320000 # !grid_search [32, 64, 128]
-  train_batch_size: 1280000
+  num_sgd_iter: !grid_search [5, 15]
+  sgd_minibatch_size: 256 # !grid_search [32, 64, 128]
+  train_batch_size: 1024
+  batch_mode: complete_episodes
   model:
     fcnet_hiddens: 
     - 256
@@ -67,4 +68,11 @@ evaluation:
   evaluation_duration: 100 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   evaluation_config: 
+    explore: False
     env_config: *env_config_val # use the validation environment
+
+resources:
+  num_cpus: 6
+
+rollouts:
+  rollout_fragment_length: 128

@@ -138,20 +138,14 @@ def get_capa_substation_id(
     """
     # calculate the mean rho per substation
     connected_rhos: dict[int, list[float]] = {agent: [] for agent in line_info}
-    print(type(line_info))
-    print(line_info)
     for sub_idx in line_info:
         for line_idx in line_info[sub_idx]:
             if isinstance(obs_batch, OrderedDict):
-                print(f"ordered:{connected_rhos}")
-                print(f"ordered obs:{obs_batch}")
                 connected_rhos[sub_idx].append(
                     obs_batch["previous_obs"]["rho"][0][line_idx]
                     # obs_batch["original_obs"]["rho"][0][line_idx]
                 )
             elif isinstance(obs_batch, dict):
-                print(f"dict:{connected_rhos}")
-                print(f"dict obs:{obs_batch}")
                 connected_rhos[sub_idx].append(
                     obs_batch["previous_obs"]["rho"][line_idx]
                     # obs_batch["original_obs"]["rho"][line_idx]
@@ -159,7 +153,6 @@ def get_capa_substation_id(
             else:
                 raise ValueError("The observation batch is not supported.")
     for sub_idx in connected_rhos:
-        print(f"Connected={connected_rhos}")
         connected_rhos[sub_idx] = np.mean(connected_rhos[sub_idx])
 
     # set non-controllable substations to 0
@@ -255,3 +248,15 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], algorithm) -> No
     finally:
         # Close ray instance
         ray.shutdown()
+
+    # save config to params.json in the runs file that is created
+    with open(
+        os.path.join(
+            setup["storage_path"],
+            # "mlruns",
+            # "configs",
+            "params.json",
+        ),
+        "w",
+    ) as f:
+        f.write(str(config))

@@ -65,4 +65,5 @@ evaluation:
   evaluation_duration: 14 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   evaluation_config: 
-    env_config: *env_config_val # use the validation environment
+      explore: False
+      env_config: *env_config_val # use the validation environment

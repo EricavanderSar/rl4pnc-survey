@@ -331,12 +331,12 @@ if __name__ == "__main__":
             )
         },
         "training": {
-            "lr": tune.grid_search([0.001, 0.0001]),
+            "lr": tune.grid_search([0.001, 0.01]),
             "kl_coeff": 0.2,
             "clip_param": 0.3,
             "rollout_fragment_length": 128,
-            "sgd_minibatch_size": tune.grid_search([128, 512]),
-            "train_batch_size": tune.grid_search([1024, 2048, 4096]),
+            "sgd_minibatch_size": tune.grid_search([128, 256]),
+            "train_batch_size": tune.grid_search([1024, 2048]),
             "num_sgd_iter": 5,
             "entropy_coeff": 0,
             "evaluation_interval": 2,

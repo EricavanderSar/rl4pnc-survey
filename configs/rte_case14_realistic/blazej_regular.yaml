@@ -1,9 +1,9 @@
 setup:
-  nb_timesteps: &nb_timesteps 10000000
+  nb_timesteps: &nb_timesteps 2000000
   checkpoint_freq: 2
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
-  experiment_name: rte_case14_realistic/single_agent/replicate_blazej
+  experiment_name: rte_case14_realistic/grid_search_25_03
   save_artifact: True
   num_samples: 2
 
@@ -30,7 +30,7 @@ training:
     fcnet_activation: relu
   _enable_learner_api: False
   batch_mode: complete_episodes
-  lr: 0.0001 #!choice [0.001, 0.0001] #tune.grid_search([1e-3 1e-41e-5])
+  lr: !grid_search [0.05, 0.005, 0.0005] #!choice [0.001, 0.0001] #tune.grid_search([1e-3 1e-41e-5])
   kl_coeff: 0.2 # !choice [0.15, 0.3, 0.2, 0.25]
   lambda:  0.95 # !quniform [0.94, 0.96, 0.01] 
   vf_loss_coeff: 0.9 #!choice [0.7, 0.9] # 0.9 #!quniform [0.75,1,0.05]
@@ -38,7 +38,7 @@ training:
   rollout_fragment_length: 128 #!choice [64,128,200] # 16
   sgd_minibatch_size: 256 #!choice [256,512] # 64
   train_batch_size: 1024 #!choice [1024, 2048] #2048
-  num_sgd_iter: 15 #!choice [10,15] #!choice [2,5,10,20,40]
+  num_sgd_iter: !grid_search [5, 15] #!choice [10,15] #!choice [2,5,10,20,40]
   entropy_coeff: 0.01 #!choice [0.01, 0.03, 0.05] #!choice [0.01, 0.05, 0.1, 0.15]
 
 rl_module:
@@ -63,7 +63,7 @@ environment:
   env_config: &env_config_train
     env_name: rte_case14_realistic
     num_agents: 3
-    action_space: medha
+    action_space: tennet
     lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ #  /home3/s3374610/mahrl_grid2op/ 
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
@@ -82,10 +82,11 @@ evaluation:
   evaluation_duration_unit: episodes
   evaluation_config: 
     env_config: *env_config_val # use the validation environment
+    explore: False
 
 resources:
   num_gpus: 0
-  num_learner_workers: 4
+  num_learner_workers: 6
 
 rollouts:
   num_rollout_workers: 4
