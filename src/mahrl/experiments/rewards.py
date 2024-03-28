@@ -3,7 +3,7 @@ Specifies reward functions for experiments.
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from grid2op.Action.baseAction import BaseAction
@@ -59,16 +59,57 @@ class ScaledL2RPNReward(L2RPNReward):
     Additionally -0.5 is awarded for illegal actions. Taken from Manczak, Viebahn and Van Hoof (2023).
     """
 
-    def initialize(self, env):
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        L2RPNReward.__init__(self, logger=None)
+        self.reward_min: float = -0.5
+        self.reward_illegal: float = -0.5
+        self.reward_max: float = 1.0
+        self.num_lines: int | None = None
+
+    def initialize(self, env: BaseEnv) -> None:
+        """
+        Initializes the reward values and other variables.
+
+        Args:
+            env (Environment): The environment object.
+
+        Returns:
+            None
+        """
         self.reward_min = -0.5
         self.reward_illegal = -0.5
         self.reward_max = 1.0
         self.num_lines = env.backend.n_line
 
-    def __call__(self, action, env, has_error, is_done, is_illegal, is_ambiguous):
+    def __call__(
+        self,
+        action: BaseAction,
+        env: BaseEnv,
+        has_error: bool,
+        is_done: bool,
+        is_illegal: bool,
+        is_ambiguous: bool,
+    ) -> float:
+        """
+        Calculate the reward for a given action in the environment.
+
+        Parameters:
+        - action: The action taken in the environment.
+        - env: The environment object.
+        - has_error: Flag indicating if there was an error during the action execution.
+        - is_done: Flag indicating if the episode is done.
+        - is_illegal: Flag indicating if the action is illegal.
+        - is_ambiguous: Flag indicating if the action is ambiguous.
+
+        Returns:
+        - res: The calculated reward value.
+        """
         if not is_done and not has_error:
             line_cap = self.__get_lines_capacity_usage(env)
-            res = np.sum(line_cap) / self.num_lines
+            if self.num_lines is not None:
+                res = np.sum(line_cap) / self.num_lines
+            else:
+                raise ValueError("Number of lines is not set.")
         else:
             # no more data to consider, no powerflow has been run, reward is what it is
             res = self.reward_min
@@ -76,14 +117,23 @@ class ScaledL2RPNReward(L2RPNReward):
         return res
 
     @staticmethod
-    def __get_lines_capacity_usage(env):
+    def __get_lines_capacity_usage(env: BaseEnv) -> Any:
+        """
+        Calculate the lines capacity usage score for the given environment.
+
+        Parameters:
+        env (object): The environment object.
+
+        Returns:
+        numpy.ndarray: The lines capacity usage score.
+        """
         ampere_flows = np.abs(env.backend.get_line_flow(), dtype=dt_float)
         thermal_limits = np.abs(env.get_thermal_limit(), dtype=dt_float)
         thermal_limits += 1e-1  # for numerical stability
         relative_flow = np.divide(ampere_flows, thermal_limits, dtype=dt_float)
 
-        x = np.minimum(relative_flow, dt_float(1.0))
+        min_value = np.minimum(relative_flow, dt_float(1.0))
         lines_capacity_usage_score = np.maximum(
-            dt_float(1.0) - x**2, np.zeros(x.shape, dtype=dt_float)
+            dt_float(1.0) - min_value**2, np.zeros(min_value.shape, dtype=dt_float)
         )
         return lines_capacity_usage_score

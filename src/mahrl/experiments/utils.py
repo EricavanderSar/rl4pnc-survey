@@ -11,7 +11,7 @@ import ray
 from grid2op.Environment import BaseEnv
 from ray import air, tune
 from ray.air.integrations.mlflow import MLflowLoggerCallback
-from ray.rllib.algorithms import ppo  # import the type of agents
+from ray.rllib.algorithms import Algorithm
 
 
 def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
@@ -210,7 +210,9 @@ def find_substation_per_lines(
     return line_info
 
 
-def run_training(config: dict[str, Any], setup: dict[str, Any], algorithm) -> None:
+def run_training(
+    config: dict[str, Any], setup: dict[str, Any], algorithm: Algorithm
+) -> None:
     """
     Function that runs the training script.
     """
@@ -221,7 +223,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], algorithm) -> No
     tuner = tune.Tuner(
         algorithm,
         param_space=config,
-        # tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
+        tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
         run_config=air.RunConfig(
             name="mlflow",
             callbacks=[
@@ -258,5 +260,6 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], algorithm) -> No
             "params.json",
         ),
         "w",
-    ) as f:
-        f.write(str(config))
+        encoding="utf-8",
+    ) as config_file:
+        config_file.write(str(config))

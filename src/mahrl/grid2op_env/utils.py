@@ -8,10 +8,10 @@ from typing import Any, List
 
 import grid2op
 import gymnasium
+import numpy as np
 from grid2op.Action import BaseAction
 from grid2op.Converter import IdToAct
 from grid2op.Environment import BaseEnv
-import numpy as np
 from grid2op.gym_compat import ScalerAttrConverter
 from grid2op.gym_compat.gym_obs_space import GymnasiumObservationSpace
 from grid2op.Parameters import Parameters
@@ -27,7 +27,7 @@ class CustomIdToAct(IdToAct):
         """
         Do the opposite of convert_act. Given an action, return the id of this action in the list of all actions.
         """
-        return np.where(self.all_actions == action)[0][0]
+        return int(np.where(self.all_actions == action)[0][0])
 
 
 class CustomDiscreteActions(gymnasium.spaces.Discrete):
@@ -64,7 +64,6 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
 
     def close(self) -> None:
         """Not implemented."""
-        pass
 
 
 def make_train_test_val_split(
@@ -105,7 +104,6 @@ def setup_converter(
     """
     converter = CustomIdToAct(env.action_space)
     converter.init_converter(all_actions=possible_substation_actions)
-    print(type(converter))
     return converter
 
 
@@ -152,7 +150,7 @@ def load_action_space(path: str, env: BaseEnv) -> List[BaseAction]:
 
 def rescale_observation_space(
     gym_observation_space: GymnasiumObservationSpace, g2op_env: BaseEnv
-):
+) -> GymnasiumObservationSpace:
     """
     Function that rescales the observation space.
     """
@@ -172,17 +170,19 @@ def rescale_observation_space(
     grid_name = g2op_env.name
     grid_name = get_original_env_name(grid_name)
 
-    if (
-        grid_name == "rte_case14_realistic"
-        or grid_name == "rte_case5_example"
-        or grid_name == "l2rpn_icaps_2021_large"
-    ):
+    if grid_name in [
+        "rte_case14_realistic",
+        "rte_case5_example",
+        "l2rpn_icaps_2021_large",
+    ]:
         for attr in ["p_ex", "p_or", "load_p"]:
-            c = 1.2  # constant to account that our max/min are underestimated
+            underestimation_constant = (
+                1.2  # constant to account that our max/min are underestimated
+            )
             max_arr, min_arr = np.load(
                 os.path.join(
                     "/Users/barberademol/Documents/GitHub/mahrl_grid2op/",
-                    "scripts/scaling_arrays",
+                    "data/scaling_arrays",
                     grid_name,
                     f"{attr}.npy",
                 )
@@ -191,11 +191,12 @@ def rescale_observation_space(
             gym_observation_space = gym_observation_space.reencode_space(
                 attr,
                 ScalerAttrConverter(
-                    substract=c * min_arr, divide=c * (max_arr - min_arr)
+                    substract=underestimation_constant * min_arr,
+                    divide=underestimation_constant * (max_arr - min_arr),
                 ),
             )
     else:
-        print("Warning: Scaling is not yet fully implemented for this environment.")
+        raise ValueError("This scaling is not yet implemented for this environment.")
 
     return gym_observation_space
 
@@ -211,7 +212,7 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
     )
     env.seed(env_config["seed"])
 
-    if env_config["env_name"] is "rte_case14_realistic":
+    if env_config["env_name"] == "rte_case14_realistic":
         env.set_thermal_limit(
             [
                 1000,

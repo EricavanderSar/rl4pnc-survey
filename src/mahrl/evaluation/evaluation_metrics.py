@@ -69,7 +69,7 @@ def get_controlled_substations(action_list: list[dict[str, Any]]) -> list[int]:
     """List the controlled substations in the dataset"""
     substation_list = []
     for action in action_list:
-        substation_list.append(action["set_bus_vect"]["modif_subs_id"][0])
+        substation_list.append(action["set_bus_vect"]["modif_subs_id"][-1])
     return substation_list
 
 

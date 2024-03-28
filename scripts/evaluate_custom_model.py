@@ -1,11 +1,9 @@
-# TODO: Checki f reconnection goes well in evaluation because it's  only on the grid2op side.
-
 """
 Class to evaluate custom RL models.
 """
+
 import argparse
 import importlib
-import logging
 import os
 import re
 import time
@@ -22,8 +20,7 @@ from ray.rllib.algorithms import ppo
 
 from mahrl.evaluation.evaluation_agents import (
     CapaAndGreedyAgent,
-    TopologyGreedyAgent,
-    LargeTopologyGreedyAgent,  # TODO ADD IN REST CODE
+    LargeTopologyGreedyAgent,
     RllibAgent,
 )
 from mahrl.experiments.yaml import load_config
@@ -179,8 +176,6 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         # if not, create the folder
         os.makedirs(store_trajectories_folder)
 
-    # start_time = time.time()
-
     # run the environment 10 times if an opponent is active, with different seeds
     for i in range(10 if "opponent_kwargs" in env_config["grid2op_kwargs"] else 1):
         env_config["seed"] = env_config["seed"] + i
@@ -215,7 +210,6 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
 
         individual_timesteps = []
 
-        logging.info(f"The results for {agent_instance} agent are:")
         for _, chron_name, _, nb_time_step, max_ts in res:
             with open(
                 f"{results_folder}/{file_name}",
@@ -228,10 +222,6 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
                 )
 
             individual_timesteps.append(nb_time_step)
-            logging.info(
-                f"\n\tFor chronics with id {chron_name}\n"
-                + f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
-            )
 
         with open(
             f"{results_folder}/{file_name}",
@@ -242,9 +232,6 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
                 f"\nAverage timesteps survived: {mean(individual_timesteps)}\n{individual_timesteps}\n"
                 + f"Total time = {time.time() - start_time}"
             )
-        logging.info(f"Total time = {time.time() - start_time}")
-        logging.info(f"Average timesteps survived: {mean(individual_timesteps)}")
-        # logging.info(f"Timesteps saved = {agent_instance.timesteps_saved}")
 
 
 def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> None:
@@ -266,7 +253,7 @@ def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> N
 
     run_runner(
         env_config=env_config,
-        agent_instance=TopologyGreedyAgent(
+        agent_instance=LargeTopologyGreedyAgent(
             action_space=setup_env.action_space,
             env_config=env_config,
             possible_actions=possible_actions,
@@ -315,15 +302,15 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
 
     # check if "opponent_action_class" is part of env_config["grid2op_kwargs"]
     if "opponent_action_class" in env_config["grid2op_kwargs"]:
-        env_config["grid2op_kwargs"]["opponent_action_class"] = (
-            instantiate_opponent_classes(
-                env_config["grid2op_kwargs"]["opponent_action_class"]
-            )
+        env_config["grid2op_kwargs"][
+            "opponent_action_class"
+        ] = instantiate_opponent_classes(
+            env_config["grid2op_kwargs"]["opponent_action_class"]
         )
-        env_config["grid2op_kwargs"]["opponent_budget_class"] = (
-            instantiate_opponent_classes(
-                env_config["grid2op_kwargs"]["opponent_budget_class"]
-            )
+        env_config["grid2op_kwargs"][
+            "opponent_budget_class"
+        ] = instantiate_opponent_classes(
+            env_config["grid2op_kwargs"]["opponent_budget_class"]
         )
         env_config["grid2op_kwargs"]["opponent_class"] = instantiate_opponent_classes(
             env_config["grid2op_kwargs"]["opponent_class"]
@@ -335,7 +322,7 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
             action_space=None,
             env_config=env_config,
             file_path=file_path,
-            policy_name="reinforcement_learning_policy",
+            policy_name="default_policy",
             algorithm=ppo.PPO,
             checkpoint_name=checkpoint_name,
             gym_wrapper=CustomizedGrid2OpEnvironment(env_config),
@@ -383,7 +370,6 @@ if __name__ == "__main__":
     ):  # run donothing or greedy evaluation
         if not args.config:
             init_parser.print_help()
-            logging.error("\nError: --cibfug is required for the agent.")
         else:
             # load config file
             environment_config = load_config(args.config)["environment"]["env_config"]
@@ -403,12 +389,8 @@ if __name__ == "__main__":
     else:
         if not args.file_path:
             init_parser.print_help()
-            logging.error("\nError: --file_path is required.")
         else:
             if not args.checkpoint_name:
-                logging.warning(
-                    "\nWarning: --checkpoint_name not specified. Using checkpoint_000000."
-                )
                 CHECKPOINT_NAME = "checkpoint_000000"
                 setup_rllib_evaluation(
                     file_path=args.file_path,
@@ -419,5 +401,3 @@ if __name__ == "__main__":
                     file_path=args.file_path,
                     checkpoint_name=args.checkpoint_name,
                 )
-
-    print(f"Total time={time.time() - start_time}")

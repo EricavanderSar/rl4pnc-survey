@@ -3,6 +3,7 @@ Defines agent policies.
 """
 
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -31,8 +32,7 @@ from mahrl.experiments.utils import (
     calculate_action_space_tennet,
     get_capa_substation_id,
 )
-from mahrl.grid2op_env.utils import setup_converter, load_action_space
-import os
+from mahrl.grid2op_env.utils import load_action_space, setup_converter
 
 
 def policy_mapping_fn(
@@ -75,6 +75,9 @@ class CapaPolicy(Policy):
             config=config,
         )
 
+        # get recurrent memory in view requirments
+        self._update_model_view_requirements_from_init_state()
+
         env_config = config["model"]["custom_model_config"]["environment"]["env_config"]
         setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
 
@@ -86,7 +89,6 @@ class CapaPolicy(Policy):
 
         self.converter = setup_converter(setup_env, self.possible_substation_actions)
 
-        print(f"Converter output-{self.converter.convert_act(1)}")
         # get changeable substations
         if env_config["action_space"] == "asymmetry":
             _, _, self.controllable_substations = calculate_action_space_asymmetry(
@@ -103,13 +105,29 @@ class CapaPolicy(Policy):
         else:
             raise ValueError("No action valid space is defined.")
 
-        self.idx = 0
         self.substation_to_act_on: list[int] = []
 
-    def compute_actions(
+    def get_initial_state(self) -> List[TensorType]:
+        """Returns initial RNN state for the current policy.
+
+        Returns:
+            List[TensorType]: Initial RNN state for the current policy.
+        """
+
+        return [0]
+
+    def is_recurrent(self) -> bool:
+        """Whether this Policy holds a recurrent Model.
+
+        Returns:
+            True if this Policy has-a RNN-based Model.
+        """
+        return True
+
+    def compute_actions(  # pylint: disable=signature-differs
         self,
         obs_batch: Dict[str, Any],  # WAS UNION with list before,
-        state_batches: Optional[List[TensorType]] = None,
+        state_batches: List[TensorType],
         prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
         prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,
         info_batch: Optional[Dict[str, List[Any]]] = None,
@@ -119,14 +137,9 @@ class CapaPolicy(Policy):
         **kwargs: Dict[str, Any],
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
         """Computes actions for the current policy."""
-        # print(f"State batch={state_batches}")
-        state_outs_result: List[Any] = []
-        info_result: Dict[str, Any] = {}
 
-        line_info = self.config["model"]["custom_model_config"]["line_info"]
-
-        # TODO: Use state dictionary instead of self. memory, get and return state
-        # in modelv2.html
+        # setup counter
+        idx = state_batches[0][0]
 
         # convert all gym to grid2op actions
         for gym_action in obs_batch["proposed_actions"]:
@@ -135,30 +148,42 @@ class CapaPolicy(Policy):
             )
 
         # if no list is created yet, do so
-        if not self.substation_to_act_on:
-            self.idx = 0
+        # print("obs_batch['reset_capa_idx'][0]: ", obs_batch["reset_capa_idx"][0])
+        if obs_batch["reset_capa_idx"][0]:
+            idx = 0
+
             self.substation_to_act_on = get_capa_substation_id(
-                line_info, obs_batch, self.controllable_substations
+                self.config["model"]["custom_model_config"]["line_info"],
+                obs_batch,
+                self.controllable_substations,
             )
 
-        # find an action that is not the do nothing action by looping over the substations
-        chosen_action = {}
-        while (not chosen_action) and (self.idx < len(self.controllable_substations)):
-            single_substation = self.substation_to_act_on[
-                self.idx % len(self.controllable_substations)
-            ]
+        # print(f"substations to act on : {self.substation_to_act_on}")
 
-            self.idx += 1
+        # find an action that is not the do nothing action by looping over the substations
+        chosen_action: dict[str, Any] = {}
+        while (not chosen_action) and (idx < len(self.controllable_substations)):
+            action_index = idx % len(self.controllable_substations)
+            # print(f"action index= {action_index}")
+            single_substation = self.substation_to_act_on[action_index]
+
+            idx += 1
             chosen_action = obs_batch["proposed_actions"][str(single_substation)]
 
-            # if it's not the do nothing action, return action
+            # if it's not the do nothing action, return action index (similar to NN)
             # if it's the do nothing action, continue the loop
+            # print("chosen sub idx: ", single_substation)
             if chosen_action:
-                return ([single_substation], state_outs_result, info_result)
+                return (
+                    np.array([single_substation]),
+                    [np.array([idx])],
+                    {},
+                )
 
+        # print("NO ACTION FOUND")
         # grid is safe or no action is found, reset list count and return DoNothing
-        self.idx = 0
-        return ([-1], state_outs_result, info_result)
+        # TODO communicate reset
+        return (np.array([-1]), [np.array([0])], {})
 
     def get_weights(self) -> ModelWeights:
         """No weights to save."""
@@ -204,10 +229,6 @@ class CapaPolicy(Policy):
     def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
         """Not implemented."""
         raise NotImplementedError
-
-
-# add policies
-# ModelCatalog.register_custom_model("capa_policy", CapaPolicy)
 
 
 class DoNothingPolicy(Policy):
@@ -289,11 +310,6 @@ class DoNothingPolicy(Policy):
         raise NotImplementedError
 
 
-# # add policies
-# ModelCatalog.register_custom_model("do_nothing_policy", DoNothingPolicy)
-# from ray.rllib.algorithms.registry
-
-
 class SelectAgentPolicy(Policy):
     """
     High level agent that determines whether an action is required.
@@ -329,7 +345,7 @@ class SelectAgentPolicy(Policy):
         info_result: Dict[str, Any] = {}
 
         if isinstance(obs_batch, list):
-            max_rho = np.max([item["rho"] for item in obs_batch])
+            max_rho: float = np.max([item["rho"] for item in obs_batch])
         elif isinstance(obs_batch, dict):
             max_rho = np.max(obs_batch["rho"])
         else:
@@ -393,7 +409,3 @@ class SelectAgentPolicy(Policy):
     def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
         """Not implemented."""
         raise NotImplementedError
-
-
-# add policies
-# ModelCatalog.register_custom_model("high_level_policy", SelectAgentPolicy)

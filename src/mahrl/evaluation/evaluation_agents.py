@@ -73,12 +73,12 @@ class RllibAgent(BaseAgent):
         if np.max(gym_obs["rho"]) > self.threshold:
             # get action as int
             action = self._rllib_agent.compute_single_action(
-                gym_obs, policy_id="reinforcement_learning_policy"
+                gym_obs, policy_id="default_policy"
             )
             # convert Rllib action to grid2op
             return self.gym_wrapper.env_gym.action_space.from_gym(action)
         # else
-        action = self.gym_wrapper.env_glop.action_space({})
+        action = self.gym_wrapper.grid2op_env.action_space({})
         return action
 
 
@@ -104,7 +104,7 @@ class LargeTopologyGreedyAgent(GreedyAgent):
 
         # Assuming self.tested_action is your list of dictionaries
         counts = Counter(
-            action.as_dict()["set_bus_vect"]["modif_subs_id"][0]
+            action.as_dict()["set_bus_vect"]["modif_subs_id"][-1]
             for action in possible_actions
         )
 
@@ -114,7 +114,7 @@ class LargeTopologyGreedyAgent(GreedyAgent):
         self.other_actions: list[BaseAction] = []
 
         for action in possible_actions:
-            if counts[action.as_dict()["set_bus_vect"]["modif_subs_id"][0]] > 1000:
+            if counts[action.as_dict()["set_bus_vect"]["modif_subs_id"][-1]] > 1000:
                 self.hub_actions.append(action)
             else:
                 self.other_actions.append(action)
@@ -161,7 +161,6 @@ class LargeTopologyGreedyAgent(GreedyAgent):
         """
         # if the threshold is exceeded, act
         if np.max(observation.to_dict()["rho"]) > self.threshold:
-            # print("ACT!")
             # first find the best action in all non-hub actions
             if len(self.tested_action) > 1:
                 min_other_rho = np.inf
@@ -169,7 +168,7 @@ class LargeTopologyGreedyAgent(GreedyAgent):
 
                 for idx, action in enumerate(self.tested_action):
                     simul_observation, _, _, simul_info = observation.simulate(action)
-                    rho = np.max(simul_observation.to_dict()["rho"])
+                    rho: float = np.max(simul_observation.to_dict()["rho"])
                     if not simul_info["exception"] and rho < min_other_rho:
                         min_other_rho = rho
                         best_other_action_idx = idx
@@ -184,62 +183,62 @@ class LargeTopologyGreedyAgent(GreedyAgent):
 
             # simulate randomized hub actions
             if len(self.hub_actions) > 1:
-                min_hub_rho = np.inf
-                best_hub_action_idx = 0
+                min_hub_rho, best_hub_action_idx, action_found = self.check_hub_actions(
+                    observation
+                )
 
-                # randomize tested_actions every time
-                # create a list of indices
-                indices = list(range(len(self.hub_actions)))
+                if action_found is not None:
+                    return action_found
 
-                # shuffle the indices
-                random.shuffle(indices)
-
-                # create a new list of shuffled actions
-                shuffled_actions = [self.hub_actions[i] for i in indices]
-
-                for idx, action in enumerate(shuffled_actions):
-                    (
-                        simul_observation,
-                        _,
-                        _,
-                        simul_info,
-                    ) = observation.simulate(action)
-                    rho = np.max(simul_observation.to_dict()["rho"])
-                    if not simul_info["exception"] and rho < min_hub_rho:
-                        min_hub_rho = rho
-                        best_hub_action_idx = indices[idx]
-
-                    # early stopping
-                    if (min_hub_rho < self.threshold) or (
-                        np.max(observation.to_dict()["rho"]) - min_hub_rho > 0.05
-                    ):  # 5% less load predicted or load below threshold
-                        # print(f"max={np.max(observation.to_dict()['rho'])}")
-                        # print(f"chosen={resulting_rho_observations[indices[i]]}")
-                        # print("Early stopping")
-                        # self.timesteps_saved += len(shuffled_actions) - idx
-                        # print(f"max={np.max(observation.to_dict()['rho'])}")
-                        # print(f"chosen={hub_resulting_rho_observations[indices[i]]}")
-                        # # print(
-                        # #     "Early stopping: Total saved timesteps in hub search: ",
-                        #     self.timesteps_saved,
-                        # )
-                        return self.hub_actions[best_hub_action_idx]
-
-                # print("Comparing minimum values")
                 # Compare the minimum values and print the result
                 if min_other_rho < min_hub_rho:
-                    # print("Best action was found in non-hub actions")
-                    best_action = self.tested_action[best_other_action_idx]
-                else:
-                    # print("Best action was found in hub actions")
-                    best_action = self.hub_actions[best_hub_action_idx]
-            else:  # no actions found, do nothing #TODO: Merge Greedy agents so they are compatible for both, this else statement is placed wrong
-                raise ValueError("No actions found")
+                    # Best action was found in non-hub actions
+                    return self.tested_action[best_other_action_idx]
+
+                # Best action was found in hub actions
+                return self.hub_actions[best_hub_action_idx]
 
         # if the threshold is not exceeded, do nothing
-        else:
-            best_action = self.tested_action[0]
-        return best_action
+        return self.tested_action[0]
+
+    def check_hub_actions(
+        self, observation: BaseObservation
+    ) -> tuple[float, int, BaseAction | None]:
+        """
+        Returns the best hub action that was found, and executes it immediately when it's good enough.
+        """
+        min_hub_rho = np.inf
+        best_hub_action_idx = 0
+
+        # randomize tested_actions every time
+        # create a list of indices
+        indices = list(range(len(self.hub_actions)))
+
+        # shuffle the indices
+        random.shuffle(list(range(len(self.hub_actions))))
+
+        # create a new list of shuffled actions
+        shuffled_actions = [self.hub_actions[i] for i in indices]
+
+        for idx, action in enumerate(shuffled_actions):
+            (
+                simul_observation,
+                _,
+                _,
+                simul_info,
+            ) = observation.simulate(action)
+            rho: float = np.max(simul_observation.to_dict()["rho"])
+            if not simul_info["exception"] and rho < min_hub_rho:
+                min_hub_rho = rho
+                best_hub_action_idx = indices[idx]
+
+            # early stopping
+            if (min_hub_rho < self.threshold) or (
+                np.max(observation.to_dict()["rho"]) - min_hub_rho > 0.05
+            ):  # 5% less load predicted or load below threshold
+                return 0.0, 0, self.hub_actions[best_hub_action_idx]
+
+        return min_hub_rho, best_hub_action_idx, None
 
     def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
         """
@@ -589,7 +588,7 @@ def get_actions_per_substation(
 
     # get possible actions related to that substation actions_per_substation
     for action in possible_substation_actions[1:]:  # exclude the DoNothing action
-        sub_id = int(action.as_dict()["set_bus_vect"]["modif_subs_id"][0])
+        sub_id = int(action.as_dict()["set_bus_vect"]["modif_subs_id"][-1])
         actions_per_substation[sub_id].append(action)
 
     return actions_per_substation

@@ -106,24 +106,24 @@ def custom_synchronous_parallel_sample(
         # Update our counters for the stopping criterion of the while loop.
         if max_agent_steps:
             new_batches = []
-            for b in sample_batches:
+            for batch in sample_batches:
                 filtered_policy_batches = {
                     pid: batch
-                    for pid, batch in b.policy_batches.items()
+                    for pid, batch in batch.policy_batches.items()
                     if pid in policies_to_train
                 }
                 new_batches.append(
                     MultiAgentBatch.wrap_as_needed(
-                        filtered_policy_batches, b.env_steps()
+                        filtered_policy_batches, batch.env_steps()
                     )
                 )
             sample_batches = new_batches
 
-        for b in sample_batches:
+        for batch in sample_batches:
             if max_agent_steps:
-                agent_or_env_steps += b.agent_steps()
+                agent_or_env_steps += batch.agent_steps()
             else:
-                agent_or_env_steps += b.env_steps()
+                agent_or_env_steps += batch.env_steps()
         all_sample_batches.extend(sample_batches)
         # print("agent or env steps:", agent_or_env_steps)
 
@@ -190,7 +190,7 @@ class CustomPPO(PPO):
             # TODO (Kourosh): We should also not be using train_results as a message
             #  passing medium to infer which policies to update. We could use
             #  policies_to_train variable that is given by the user to infer this.
-            policies_to_update = set(train_results.keys()) - {ALL_MODULES}
+            policies_to_update = list(set(train_results.keys()) - {ALL_MODULES})
         else:
             policies_to_update = list(train_results.keys())
 

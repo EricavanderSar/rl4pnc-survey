@@ -14,6 +14,7 @@ from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 
+from mahrl.algorithms.custom_ppo import CustomPPO
 from mahrl.experiments.utils import (
     find_list_of_agents,
     find_substation_per_lines,
@@ -25,7 +26,6 @@ from mahrl.grid2op_env.custom_environment import (
     HierarchicalCustomizedGrid2OpEnvironment,
 )
 from mahrl.multi_agent.policy import CapaPolicy, DoNothingPolicy, SelectAgentPolicy
-from mahrl.algorithms.custom_ppo import CustomPPO
 
 
 def select_mid_level_policy(
@@ -34,7 +34,9 @@ def select_mid_level_policy(
     line_info: dict[int, list[int]],
     custom_config: dict[str, Any],
 ) -> PolicySpec:
-
+    """
+    Specifies the policy for the middle level agent.
+    """
     # TODO Determine number of actions
     base_action = gymnasium.spaces.Discrete(100)
 
@@ -181,13 +183,13 @@ def setup_config(
     if lower_agent_type == "rl":  # add a rl agent for each substation
         # Add reinforcement learning policies to the dictionary
         for sub_idx, num_actions in agent_per_substation.items():
-            policies[f"reinforcement_learning_policy_{sub_idx}"] = (
-                PolicySpec(  # rule based substation selection
-                    policy_class=None,  # infer automatically from env (PPO)
-                    observation_space=None,  # infer automatically from env
-                    action_space=Discrete(num_actions),
-                    config=None,
-                )
+            policies[
+                f"reinforcement_learning_policy_{sub_idx}"
+            ] = PolicySpec(  # rule based substation selection
+                policy_class=None,  # infer automatically from env (PPO)
+                observation_space=None,  # infer automatically from env
+                action_space=Discrete(int(num_actions)),
+                config=None,
             )
 
     # if policy is rl, set an agent to train
