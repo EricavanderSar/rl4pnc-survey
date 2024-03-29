@@ -1,18 +1,21 @@
 setup:
   max_ep_len: 2016
-  nb_timesteps: 1_000
-  checkpoint_freq: 1 # number of iterations between checkpoints (1 iteration = 1 agent update?)
-  checkpoint_trainable_policies_only: True
+  nb_timesteps: 5_000
+  checkpoint_freq: 2 # number of iterations between checkpoints (1 iteration = 1 agent update?)
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "test_checkpoint"
-  experiment_name: "Checkpoint_Test"
+  folder_name: "Experiment_1"
+  experiment_name: "Test_Case5"
   save_artifact: True
 
 debugging:
   seed: &seed 14
 
+#checkpointing:
+#  checkpoint_trainable_policies_only: True
+
 training:
+  checkpoint_trainable_policies_only: True
   # tunable parameters
   lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
   gamma: !grid_search [0.95, 0.99] #0.95 #
@@ -27,11 +30,8 @@ training:
   train_batch_size: &train_batch_size 128 # !grid_search [32, 64, 128]
   batch_mode: complete_episodes
   model:
-    fcnet_hiddens:
-    - 128
-    - 128
-    - 128
-    fcnet_activation: relu
+    fcnet_hiddens: [128,128,128] #!grid_search [[256,256], [128,128,128]] #
+    fcnet_activation: !grid_search [relu, tanh]
   _enable_learner_api: False
 
 rl_module:
@@ -54,7 +54,7 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_type: new_env #old_env #
+    env_type: new_env # old_env #
     shuffle_scenarios: True
     env_name: rte_case5_example_train
     action_space: tennet
@@ -92,10 +92,10 @@ evaluation:
 reporting:
   keep_per_episode_custom_metrics: True
 
-#resources:
-#  num_learner_workers: 8
+resources:
+  num_learner_workers: 8
 
 rollouts:
   num_rollout_workers: 3
 
-my_log_level: 3
+my_log_level: 1

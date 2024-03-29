@@ -148,7 +148,6 @@ class CustomPPO(PPO):
         self.my_log_level = config["my_log_level"]
         super().__init__(config, env, logger_creator, **kwargs)
 
-
     def training_step(self) -> ResultDict:
         # Collect SampleBatches from sample workers until we have a full batch.
         with self._timers[SAMPLE_TIMER]:

@@ -136,8 +136,14 @@ def tune_search_grid_search_constructor(
     Constructor for tune grid search.
     """
     vals = []
-    for scalar_node in node.value:
-        val = float_to_integer(float(scalar_node.value))
+    for sub_node in node.value:
+        if isinstance(sub_node, yaml.SequenceNode):
+            val = loader.construct_sequence(sub_node)
+        elif isinstance(sub_node, yaml.ScalarNode):
+            try:
+                val = float_to_integer(float(sub_node.value))
+            except ValueError:
+                val = sub_node.value
         vals.append(val)
     return tune.grid_search(vals)
 

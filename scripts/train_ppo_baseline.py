@@ -7,6 +7,7 @@ import logging
 import os
 from typing import Any
 from tabulate import tabulate
+import re
 
 import grid2op
 
@@ -14,10 +15,12 @@ import ray
 import gymnasium as gym
 from ray import air, tune, train
 from ray.air.integrations.mlflow import MLflowLoggerCallback
+from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.result_grid import ResultGrid
+import ray.rllib.models.torch.torch_modelv2
 
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
@@ -58,6 +61,9 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
     # init ray
     # Set the environment variable
     os.environ["RAY_DEDUP_LOGS"] = "0"
+    # Run wandb offline and afterwards run :
+    # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
+    os.environ["WANDB_MODE"] = "offline"
     # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
     ray.init()
 
@@ -81,12 +87,15 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
             name=setup["folder_name"],
             stop={"timesteps_total": setup["nb_timesteps"], "custom_metrics/grid2op_end_mean": setup["max_ep_len"]}, #"training_iteration": 5}, #
             callbacks=[
-                MLflowLoggerCallback(
-                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
-                    experiment_name=setup["experiment_name"],
-                    tags={"user_name": "Erica"},
-                    save_artifact=setup["save_artifact"],
-                ),
+                # MLflowLoggerCallback(
+                #     tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+                #     experiment_name=setup["experiment_name"],
+                #     tags={"user_name": "Erica"},
+                #     save_artifact=setup["save_artifact"],
+                # ),
+                WandbLoggerCallback(
+                    project=setup["experiment_name"],
+                                    ),
                 TuneCallback(config["my_log_level"]),
             ],
             # storage_path=os.path.abspath(setup["storage_path"]),
@@ -94,10 +103,12 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
                 checkpoint_frequency=setup["checkpoint_freq"],
                 checkpoint_at_end=True,
                 checkpoint_score_attribute="custom_metrics/corrected_ep_len_mean",
+                num_to_keep=3,
             ),
             verbose=setup["verbose"],
             # progress_reporter=reporter,
         ),
+        # tune_config=tune.TuneConfig(search_alg=),
     )
 
     # Launch tuning
@@ -111,7 +122,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
         result = result_grid[i]
         if not result.error:
             print(Style.BOLD + f" *---- Trial {i} finished successfully with evaluation results ---*\n" + Style.END +
-                  f"{tabulate([result.metrics['evaluation']['sampler_results']['custom_metrics']], headers='keys', tablefmt='rounded_grid')}")
+                  f"{tabulate([result.metrics['evaluation']['custom_metrics']], headers='keys', tablefmt='rounded_grid')}")
 
             # print("ALL RESULT METRICS: ", result.metrics)
             # print("ENV CONFIG: ", result.config['env_config'])
@@ -150,7 +161,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     ppo_config.update(custom_config["environment"])
     ppo_config.update(custom_config["multi_agent"])
     # ppo_config.update(custom_config["resources"])
-    ppo_config.update(custom_config["rollouts"])
+    # ppo_config.update(custom_config["rollouts"])
     # ppo_config.update(custom_config["scaling_config"])
     ppo_config.update(custom_config["evaluation"])
     ppo_config.update(custom_config["reporting"])
@@ -226,7 +237,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default= "../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
+        default="../configs/rte_case5_example/ppo_baseline.yaml", # "../configs/rte_case14_realistic/ppo_baseline.yaml",  #
         help="Path to the config file.",
     )
     parser.add_argument(
