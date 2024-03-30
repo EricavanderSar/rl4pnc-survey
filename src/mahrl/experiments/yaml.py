@@ -128,6 +128,18 @@ def tune_search_quniform_constructor(
         vals.append(val)
     return tune.quniform(vals[0], vals[1], vals[2])
 
+def tune_search_qloguniform_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> Any:
+    """
+    Constructor for tune uniform float sampling
+
+    """
+    vals = []
+    for scalar_node in node.value:
+        val = float_to_integer(float(scalar_node.value))
+        vals.append(val)
+    return tune.qloguniform(vals[0], vals[1], vals[2])
 
 def tune_search_grid_search_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
@@ -156,14 +168,19 @@ def tune_choice_constructor(
 
     """
     vals = []
-    for scalar_node in node.value:
-        val: Union[int, bool, float]
-        if scalar_node.value == "True":
+    for sub_node in node.value:
+        if sub_node.value == "True":
             val = True
-        elif scalar_node.value == "False":
+        elif sub_node.value == "False":
             val = False
         else:
-            val = float_to_integer(float(scalar_node.value))
+            if isinstance(sub_node, yaml.SequenceNode):
+                val = loader.construct_sequence(sub_node)
+            elif isinstance(sub_node, yaml.ScalarNode):
+                try:
+                    val = float_to_integer(float(sub_node.value))
+                except ValueError:
+                    val = sub_node.value
         vals.append(val)
     return tune.choice(vals)
 
@@ -214,6 +231,7 @@ def add_constructors() -> None:
     yaml.FullLoader.add_constructor("!AlgorithmConfig", algorithm_config_constructor)
     yaml.FullLoader.add_constructor("!PolicySpec", policy_spec_constructor)
     yaml.FullLoader.add_constructor("!quniform", tune_search_quniform_constructor)
+    yaml.FullLoader.add_constructor("!qloguniform", tune_search_qloguniform_constructor)
     yaml.FullLoader.add_constructor("!grid_search", tune_search_grid_search_constructor)
     yaml.FullLoader.add_constructor("!choice", tune_choice_constructor)
     yaml.FullLoader.add_constructor("!PowerlineSetAction", powerline_action_constructor)

@@ -149,8 +149,8 @@ class CustomMetricsCallback(DefaultCallbacks):
         del result["custom_metrics"]["grid2op_end"]
         del result["custom_metrics"]["corrected_ep_len"]
         del result["episode_media"]["chronic_id"]
-        del result["sampler_results"]["custom_metrics"]
-        del result["evaluation"]["sampler_results"]["custom_metrics"]
+        del result["sampler_results"]
+        del result["evaluation"]["sampler_results"]
 
 
 class TuneCallback(TuneReporterBase):
@@ -224,6 +224,6 @@ class TuneCallback(TuneReporterBase):
                   eval_res["episode_reward_mean"],
                   train_res["grid2op_end_mean"],
                   train_res["corrected_ep_len_mean"],
-                  result["sampler_results"]["episode_reward_mean"],
+                  result["episode_reward_mean"],
                   result["episodes_this_iter"]]]
         print(tabulate(table, headers, tablefmt="rounded_grid", floatfmt=".3f"))

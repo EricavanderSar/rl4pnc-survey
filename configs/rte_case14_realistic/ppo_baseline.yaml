@@ -5,31 +5,30 @@ setup:
   checkpoint_trainable_policies_only: True
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "test_checkpoint"
-  experiment_name: "Checkpoint_Test"
+  folder_name: "Optina_test"
+  experiment_name: "Case_14_Optuna"
   save_artifact: True
+  optimize: True
+  num_samples: 10
 
 debugging:
   seed: &seed 14
 
 training:
   # tunable parameters
-  gamma: 0.95 #!grid_search [0.95, 0.99] #
-  lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
+  gamma: !quniform [0.95, 0.99, 0.01] #0.95 #
+  lr: 0.003 # !qloguniform [0.0005, 0.005, 0.0001] #
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
   lambda: 0.95
   num_sgd_iter: 4
-  sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
-  train_batch_size: &train_batch_size 128 # !grid_search [32, 64, 128]
+  sgd_minibatch_size: 32 # !choice [32, 64, 128]
+  train_batch_size: &train_batch_size 128 # !choice [32, 64, 128]
   batch_mode: complete_episodes
   model:
-    fcnet_hiddens: 
-    - 128
-    - 128
-    - 128
-    fcnet_activation: relu
+    fcnet_hiddens: !choice [[256,256], [128,128,128]] #[128,128,128] #
+    fcnet_activation: !choice [relu, tanh] #relu #
   _enable_learner_api: False
   
 rl_module:
@@ -76,7 +75,7 @@ env_config_val: &env_config_val
   prio: False # should always be False
 
 evaluation:
-  evaluation_interval: 1
+  evaluation_interval: 5
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   evaluation_config:
@@ -92,4 +91,4 @@ resources:
 rollouts:
   num_rollout_workers: 7
 
-my_log_level: 5
+my_log_level: 1

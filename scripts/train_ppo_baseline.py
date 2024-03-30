@@ -21,6 +21,7 @@ from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.result_grid import ResultGrid
 import ray.rllib.models.torch.torch_modelv2
+from ray.tune.search.optuna import OptunaSearch
 
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
@@ -61,7 +62,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
     # init ray
     # Set the environment variable
     os.environ["RAY_DEDUP_LOGS"] = "0"
-    # Run wandb offline and afterwards run :
+    # Run wandb offline and to sync after wards run :
     # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
     os.environ["WANDB_MODE"] = "offline"
     # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
@@ -73,11 +74,8 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
     print("Hostname:", host_name)
     print("Port:", port)
 
-    # reporter = ProgressReporter(get_air_verbosity(setup["verbose"]))
-    # # Add a custom metric column, in addition to the default metrics.
-    # # Note that this must be a metric that is returned in your training results.
-    # reporter.add_metric_column("custom_metrics/corrected_ep_len_mean")
-    # reporter.add_metric_column("custom_metrics/grid2op_end")
+    # Use Optuna search algorithm to find good working parameters
+    algo = OptunaSearch()
 
     # Create tuner
     tuner = tune.Tuner(
@@ -85,7 +83,8 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
         param_space=config,
         run_config=air.RunConfig(
             name=setup["folder_name"],
-            stop={"timesteps_total": setup["nb_timesteps"], "custom_metrics/grid2op_end_mean": setup["max_ep_len"]}, #"training_iteration": 5}, #
+            stop={"timesteps_total": setup["nb_timesteps"],
+                  "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
             callbacks=[
                 # MLflowLoggerCallback(
                 #     tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
@@ -98,7 +97,6 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
                                     ),
                 TuneCallback(config["my_log_level"]),
             ],
-            # storage_path=os.path.abspath(setup["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=setup["checkpoint_freq"],
                 checkpoint_at_end=True,
@@ -106,9 +104,14 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
                 num_to_keep=3,
             ),
             verbose=setup["verbose"],
-            # progress_reporter=reporter,
         ),
-        # tune_config=tune.TuneConfig(search_alg=),
+        tune_config=tune.TuneConfig(
+            metric="evaluation/custom_metrics/grid2op_end_mean",
+            mode="max",
+            search_alg=algo,
+            num_samples=setup["num_samples"]
+        ) if setup["optimize"] else None
+        ,
     )
 
     # Launch tuning
@@ -237,7 +240,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default="../configs/rte_case5_example/ppo_baseline.yaml", # "../configs/rte_case14_realistic/ppo_baseline.yaml",  #
+        default="../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
         help="Path to the config file.",
     )
     parser.add_argument(
