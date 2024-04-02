@@ -5,8 +5,8 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=rome
-#SBATCH --time=1:00:00
-#SBATCH --output=TrainFull_case5_ppo_baseline_%j.out
+#SBATCH --time=10:00:00
+#SBATCH --output=case14_ppo_baseline_%j.out
 
 
 ENVNAME=rte_case14_realistic
