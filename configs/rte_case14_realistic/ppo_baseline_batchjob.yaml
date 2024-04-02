@@ -92,9 +92,9 @@ reporting:
 scaling_config:
   num_workers: 6
 
-resources:
-  num_gpus: 1
-  num_learner_workers: 4
+#resources:
+#  num_gpus: 1
+#  num_learner_workers: 4
 
 rollouts:
   num_rollout_workers: 10
