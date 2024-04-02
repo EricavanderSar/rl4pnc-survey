@@ -82,13 +82,13 @@ evaluation:
   evaluation_duration: 2 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
-  evaluation_num_workers: 4
+  evaluation_num_workers: 2
   evaluation_config:
     explore: False
     env_config: *env_config_val # use the validation environment
 
 scaling_config:
-  num_workers: 16
+  num_workers: 6
 
 reporting:
   keep_per_episode_custom_metrics: True
@@ -97,7 +97,7 @@ reporting:
 #  num_learner_workers: 2
 
 rollouts:
-  num_rollout_workers: 32
+  num_rollout_workers: 12
 
 my_log_level: 1
 
