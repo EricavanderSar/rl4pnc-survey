@@ -3,7 +3,7 @@ setup:
   nb_timesteps: 5_000
   checkpoint_freq: 2 # number of iterations between checkpoints (1 iteration = 1 agent update?)
   verbose: 0
-  storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
+#  storage_path: ./runs # Not used
   folder_name: "Default params"
   experiment_name: "PPOSingle_Case5_default" # name in WandB
   save_artifact: True
@@ -93,7 +93,7 @@ reporting:
   keep_per_episode_custom_metrics: True
 
 resources:
-  num_learner_workers: 8
+  num_learner_workers: 2
 
 rollouts:
   num_rollout_workers: 3

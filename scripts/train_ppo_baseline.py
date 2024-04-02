@@ -228,6 +228,8 @@ def change_workdir(workdir: str, env_name: str) -> None:
     if os.path.exists(env_path):
         grid2op_data_dir = os.path.join(workdir, "data_grid2op")
         grid2op.change_local_dir(grid2op_data_dir)
+        print('test changing os workdir.')
+        os.chdir(workdir)
     else:
         grid2op.change_local_dir(os.path.expanduser("~/data_grid2op"))
     print(f"Environment data location used is: {grid2op.get_current_local_dir()}")
