@@ -97,7 +97,7 @@ reporting:
   keep_per_episode_custom_metrics: True
 
 resources:
-  num_learner_workers: 8
+  num_learner_workers: 2
 
 rollouts:
   num_rollout_workers: 3
