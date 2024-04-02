@@ -1,7 +1,7 @@
 """
 Implements yaml config loading.
 """
-
+import os
 from typing import Any, Callable, Union
 
 import yaml
@@ -213,6 +213,15 @@ def reconnecting_opponent_constructor(
     return ReconnectingOpponentSpace
 
 
+def path_workdir_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> str:
+    import os
+    """Custom constructor for ReconnectingOpponentSpace"""
+    print(os.getcwd())
+    return os.getcwd()
+
+
 def add_constructors() -> None:
     """Add the constructors to the yaml loader"""
     yaml.FullLoader.add_constructor(
@@ -241,6 +250,9 @@ def add_constructors() -> None:
     yaml.FullLoader.add_constructor("!BaseActionBudget", baseaction_budget_constructor)
     yaml.FullLoader.add_constructor(
         "!ReconnectingOpponentSpace", reconnecting_opponent_constructor
+    )
+    yaml.FullLoader.add_constructor(
+        "!workdir", path_workdir_constructor
     )
 
 

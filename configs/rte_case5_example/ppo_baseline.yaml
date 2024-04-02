@@ -60,7 +60,7 @@ environment:
     shuffle_scenarios: True
     env_name: rte_case5_example_train
     action_space: tennet
-    lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
+    lib_dir: !workdir #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
     max_tsteps: *train_batch_size
     grid2op_kwargs:
       # general kwargs
@@ -86,6 +86,7 @@ evaluation:
   evaluation_duration: 2 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
+  evaluation_num_workers: 3
   evaluation_config:
     explore: False
     env_config: *env_config_val # use the validation environment

@@ -56,7 +56,7 @@ environment:
     shuffle_scenarios: True
     env_name: rte_case5_example_train
     action_space: asymmetry
-    lib_dir: ./
+    lib_dir: !workdir
     max_tsteps: *train_batch_size
     grid2op_kwargs:
       # general kwargs
@@ -82,6 +82,7 @@ evaluation:
   evaluation_duration: 2 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
+  evaluation_num_workers: 3
   evaluation_config:
     explore: False
     env_config: *env_config_val # use the validation environment
@@ -92,11 +93,11 @@ evaluation:
 reporting:
   keep_per_episode_custom_metrics: True
 
-#resources:
-#  num_learner_workers: 2
-#
-#rollouts:
-#  num_rollout_workers: 3
+resources:
+  num_learner_workers: 2
+
+rollouts:
+  num_rollout_workers: 3
 
 my_log_level: 1
 

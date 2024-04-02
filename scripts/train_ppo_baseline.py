@@ -152,6 +152,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     """
     # load base PPO config and load in hyperparameters
     # Access the parsed arguments
+    os.chdir(workdir_path)
     config_path = os.path.join(workdir_path, input_path)
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
@@ -173,6 +174,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     env_type_config = ENV_TYPE[custom_config["environment"]["env_config"]["env_type"]]
 
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
+    # ppo_config["env_config"]["lib_dir"] = os.path.join(workdir_path, ppo_config["env_config"]["lib_dir"])
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=env_type_config["hl_policy"],
@@ -221,15 +223,12 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     return ppo_config, custom_config
 
 
-
 def change_workdir(workdir: str, env_name: str) -> None:
     # Change grid2op path if this exists
     env_path = os.path.join(workdir, f"data_grid2op/{env_name}")
     if os.path.exists(env_path):
         grid2op_data_dir = os.path.join(workdir, "data_grid2op")
         grid2op.change_local_dir(grid2op_data_dir)
-        print('test changing os workdir.')
-        os.chdir(workdir)
     else:
         grid2op.change_local_dir(os.path.expanduser("~/data_grid2op"))
     print(f"Environment data location used is: {grid2op.get_current_local_dir()}")
@@ -244,14 +243,14 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default="../configs/rte_case14_realistic/ppo_baseline.yaml",  #"../configs/rte_case5_example/ppo_baseline.yaml", #
+        default="./configs/rte_case5_example/ppo_baseline.yaml", #"./configs/rte_case14_realistic/ppo_baseline.yaml",  #
         help="Path to the config file.",
     )
     parser.add_argument(
         "-wd",
         "--workdir",
         type=str,
-        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/scripts/",
+        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/",
         help="path do store results.",
     )
 
