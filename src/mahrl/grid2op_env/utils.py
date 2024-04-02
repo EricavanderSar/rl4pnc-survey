@@ -102,3 +102,17 @@ def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
                 for action_dict in json.load(action_set_file)
             )
         )
+
+
+def rename_env(env: BaseEnv):
+    # if the path contains _per_day or _train or _test or _val, then ignore this part of the string
+    env_name = env.env_name
+    if "_per_day" in env_name:
+        env_name = env_name.replace("_per_day", "")
+    if "_train" in env_name:
+        env_name = env_name.replace("_train", "")
+    if "_test" in env_name:
+        env_name = env_name.replace("_test", "")
+    if "_val" in env_name:
+        env_name = env_name.replace("_val", "")
+    env.set_env_name(env_name)

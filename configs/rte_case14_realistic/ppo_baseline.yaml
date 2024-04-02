@@ -5,10 +5,10 @@ setup:
   checkpoint_trainable_policies_only: True
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Optina_test"
-  experiment_name: "Case_14_Optuna"
+  folder_name: "Old params"
+  experiment_name: "Case_14_Tr13Par"
   save_artifact: True
-  optimize: True
+  optimize: False
   num_samples: 10
 
 debugging:
@@ -16,19 +16,19 @@ debugging:
 
 training:
   # tunable parameters
-  gamma: !quniform [0.95, 0.99, 0.01] #0.95 #
-  lr: 0.003 # !qloguniform [0.0005, 0.005, 0.0001] #
+  gamma: 0.996 #!quniform [0.95, 0.99, 0.01] #
+  lr: 0.0013 # !qloguniform [0.0005, 0.005, 0.0001] #
   vf_loss_coeff: 0.5
-  entropy_coeff: 0.01
-  clip_param: 0.2
-  lambda: 0.95
-  num_sgd_iter: 4
-  sgd_minibatch_size: 32 # !choice [32, 64, 128]
-  train_batch_size: &train_batch_size 128 # !choice [32, 64, 128]
+  entropy_coeff: 0.05
+  clip_param: 0.18 # epsilon
+  lambda: 0.91
+  num_sgd_iter: 5
+  sgd_minibatch_size: 16 # !choice [32, 64, 128]
+  train_batch_size: &train_batch_size 80 # !choice [32, 64, 128]
   batch_mode: complete_episodes
   model:
-    fcnet_hiddens: !choice [[256,256], [128,128,128]] #[128,128,128] #
-    fcnet_activation: !choice [relu, tanh] #relu #
+    fcnet_hiddens: [128,128,128] # !choice [[256,256], [128,128,128]] #
+    fcnet_activation: relu #!choice [relu, tanh] #
   _enable_learner_api: False
   
 rl_module:
@@ -67,6 +67,7 @@ environment:
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     prio: True
+    normalize: True
 
 env_config_val: &env_config_val
   <<: *env_config_train
@@ -78,6 +79,9 @@ evaluation:
   evaluation_interval: 5
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
+  always_attach_evaluation_results: True
+#  evaluation_parallel_to_training: True #Currently not working
+  evaluation_num_workers: 4
   evaluation_config:
     explore: False,
     env_config: *env_config_val # use the validation environment
@@ -86,9 +90,9 @@ reporting:
   keep_per_episode_custom_metrics: True
 
 resources:
-  num_learner_workers: 1
+  num_learner_workers: 2
 
 rollouts:
-  num_rollout_workers: 7
+  num_rollout_workers: 6
 
 my_log_level: 1

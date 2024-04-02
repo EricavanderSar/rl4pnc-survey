@@ -27,6 +27,7 @@ from mahrl.grid2op_env.utils import (
     CustomDiscreteActions,
     get_possible_topologies,
     setup_converter,
+    rename_env,
 )
 
 CHANGEABLE_SUBSTATIONS = [0, 2, 3]
@@ -63,6 +64,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             env_config["env_name"], **env_config["grid2op_kwargs"], backend=LightSimBackend()
         )
         self.env_g2op.seed(env_config["seed"])
+        rename_env(self.env_g2op)
 
         # 1.a. Setting up custom action space
         if (
@@ -72,7 +74,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         ):
             path = os.path.join(
                 lib_dir,
-                f"data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
+                f"data/action_spaces/{self.env_g2op.env_name}/{env_config['action_space']}.json",
             )
             self.possible_substation_actions = self.load_action_space(path)
         elif env_config["action_space"] == "erica":
@@ -82,7 +84,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         else:
             path = os.path.join(
                 lib_dir,
-                f"data/action_spaces/{env_config['env_name']}/asymmetry.json",
+                f"data/action_spaces/{self.env_g2op.env_name}/asymmetry.json",
             )
             self.possible_substation_actions = self.load_action_space(path)
             logging.warning(
@@ -241,16 +243,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         Loads the action space from a specified folder.
         """
-        # if the path contains _per_day or _train or _test or _val, then ignore this part of the string
-        if "_per_day" in path:
-            path = path.replace("_per_day", "")
-        if "_train" in path:
-            path = path.replace("_train", "")
-        if "_test" in path:
-            path = path.replace("_test", "")
-        if "_val" in path:
-            path = path.replace("_val", "")
-
         with open(path, "rt", encoding="utf-8") as action_set_file:
             return list(
                 (

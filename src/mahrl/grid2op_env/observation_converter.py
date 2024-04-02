@@ -1,10 +1,17 @@
 import numpy as np
 import torch
+import os
 from grid2op import Observation
+from grid2op import Environment
 
 
 class ObsConverter:
-    def __init__(self, env, danger, attr=["p_i", "p_l", "r", "o", "d", "m"], n_history=1, adj_mat=True):
+    def __init__(self,
+                 env: Environment,
+                 danger,
+                 attr=["p_i", "p_l", "r", "o", "d", "m"],
+                 n_history=1,
+                 adj_mat=True,):
         self.obs_space = env.observation_space
         self.act_space = env.action_space
         self.danger = danger
@@ -14,6 +21,23 @@ class ObsConverter:
         self.stacked_obs = []
         self.n_history = n_history
         self.adj_mat = adj_mat
+        # add info for Normalizing params
+        self.state_mean = None
+        self.state_std = None
+        self.normalize = False
+
+    def load_mean_std(self, load_path):
+        self.normalize = True
+        # Add data DN to facilitate normalization:
+        mean = torch.load(os.path.join(load_path, "mean.pt"))
+        std = torch.load(os.path.join(load_path, "std.pt"))
+        self.state_mean = mean.numpy().flatten()
+        self.state_std = std.masked_fill(std < 1e-5, 1.0).numpy().flatten()
+        # don't normalize params that are not interesting.
+        last_attr = 'rho'
+        pos = self.obs_space.attr_list_vect.index(last_attr)
+        self.state_mean[sum(self.obs_space.shape[:pos]):] = 0
+        self.state_std[sum(self.act_space.shape[:pos]):] = 1
 
     def reset(self):
         self.stacked_obs = []
@@ -27,6 +51,10 @@ class ObsConverter:
             end = start + idx[pos]
             all_obs_ranges.append(np.arange(start, end))
         return all_obs_ranges
+
+    def state_normalize(self, s):
+        s = (s - self.state_mean) / self.state_std
+        return s
 
     def init_obs_converter(self):
         list_attr = [
@@ -108,8 +136,9 @@ class ObsConverter:
     def get_cur_obs(self, obs: Observation):
         # Get the observation: Feature matrix
         obs_vect = obs.to_vect()
-        # TODO: Normalize (or will RLlib do this for us?)
-        # obs_vect = self.state_normalize(obs_vect)
+        if self.normalize:
+            # improve performance with normalization/scaling of data
+            obs_vect = self.state_normalize(obs_vect)
         obs_vect, topo = self.convert_obs(obs_vect)
         if len(self.stacked_obs) == 0:
             for _ in range(self.n_history):

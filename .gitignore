@@ -166,3 +166,5 @@ lightsim2grid
 
 # batchjob output
 *.out
+/wandb/*
+/data/observations_dn/rte_case14_realistic/data.pt

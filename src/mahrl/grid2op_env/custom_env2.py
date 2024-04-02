@@ -5,6 +5,7 @@ Class that defines the custom Grid2op to gym environment with the set observatio
 import logging
 from typing import Any, Dict, List, Optional, Tuple, TypeVar
 import numpy as np
+import os
 import torch
 import gymnasium as gym
 import grid2op
@@ -39,6 +40,14 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
 
         self.obs_converter = ObsConverter(self.env_g2op, env_config.get("danger", 0.9), attr=obs_features, n_history=n_history, adj_mat=env_config.get("adj_matrix"))
         self.cur_obs = None
+
+        # Normalize state observations:
+        if env_config.get("normalize", True):
+            load_path = os.path.join(
+                env_config["lib_dir"],
+                f"data/observations_dn/{self.env_g2op.env_name}",
+            )
+            self.obs_converter.load_mean_std(load_path)
 
         # initialize training chronic sampling weights
         self.chron_prios = ChronPrioMatrix(self.env_g2op)

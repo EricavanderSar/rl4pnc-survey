@@ -101,7 +101,7 @@ class CustomMetricsCallback(DefaultCallbacks):
             evaluation_metrics: dict,
             **kwargs,
     ) -> None:
-        data = evaluation_metrics["evaluation"]["sampler_results"]
+        data = evaluation_metrics["evaluation"]
         # Save summarized data
         data["custom_metrics"]["grid2op_end_min"] = np.int(np.min(data["custom_metrics"]["grid2op_end"]))
         data["custom_metrics"]["grid2op_end_mean"] = np.int(np.mean(data["custom_metrics"]["grid2op_end"]))
@@ -130,6 +130,7 @@ class CustomMetricsCallback(DefaultCallbacks):
         del data["custom_metrics"]["grid2op_end"]
         del data["episode_media"]["chronic_id"]
         del data["custom_metrics"]["corrected_ep_len"]
+        del data["sampler_results"]
 
     def on_train_result(
         self,
@@ -150,13 +151,12 @@ class CustomMetricsCallback(DefaultCallbacks):
         del result["custom_metrics"]["corrected_ep_len"]
         del result["episode_media"]["chronic_id"]
         del result["sampler_results"]
-        del result["evaluation"]["sampler_results"]
 
 
 class TuneCallback(TuneReporterBase):
     def __init__(
             self,
-            log_level
+            log_level,
     ):
         super().__init__(get_air_verbosity(0))
         self._start_end_verbosity = 0
@@ -187,16 +187,17 @@ class TuneCallback(TuneReporterBase):
         **info,
     ):
         if self.log_level:
-            print(Style.BOLD + " ------ TRAIL RESULTS -------" + Style.END)
-            self._start_block(f"trial_{trial}_result_{result['training_iteration']}")
-            curr_time_str, running_time_str = _get_time_str(self._start_time, time.time())
-            print(
-                f"{self._addressing_tmpl.format(trial)} "
-                f"finished iteration {result['training_iteration']} "
-                f"at {curr_time_str}. Total running time: " + running_time_str
-            )
-            # print intermediate results for trial:
-            self._print_result(trial, result)
+            if 'custom_metrics' in result["evaluation"].keys(): # start printing after first evaluation
+                print(Style.BOLD + " ------ TRAIL RESULTS -------" + Style.END)
+                self._start_block(f"trial_{trial}_result_{result['training_iteration']}")
+                curr_time_str, running_time_str = _get_time_str(self._start_time, time.time())
+                print(
+                    f"{self._addressing_tmpl.format(trial)} "
+                    f"finished iteration {result['training_iteration']} "
+                    f"at {curr_time_str}. Total running time: " + running_time_str
+                )
+                # print intermediate results for trial:
+                self._print_result(trial, result)
 
     def _print_result(self, trial, result: Optional[Dict] = None, force: bool = False):
         result = result or trial.last_result
@@ -210,10 +211,10 @@ class TuneCallback(TuneReporterBase):
                    "iter",
                    "total time",
                    "ts",
-                   "EVAL g2op end",
+                   "EVAL g2op_end",
                    "EVAL reward",
-                   "TRAIN g2op end",
-                   "TRAIN ep duration",
+                   "TRAIN g2op_end",
+                   "TRAIN ep_duration",
                    "TRAIN reward",
                    "episodes_this_iter"]
         table = [[trial_id,
