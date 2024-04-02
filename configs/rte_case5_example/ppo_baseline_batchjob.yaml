@@ -4,7 +4,7 @@ setup:
   checkpoint_freq: 2 # number of iterations between checkpoints (1 iteration = 1 agent update?)
   verbose: 0
 #  storage_path: ./runs # Not used
-  folder_name: "Default params"
+  folder_name: "DefaultParams"
   experiment_name: "PPOSingle_Case5_default" # name in WandB
   save_artifact: True
   optimize: False
@@ -92,11 +92,11 @@ evaluation:
 reporting:
   keep_per_episode_custom_metrics: True
 
-resources:
-  num_learner_workers: 2
-
-rollouts:
-  num_rollout_workers: 3
+#resources:
+#  num_learner_workers: 2
+#
+#rollouts:
+#  num_rollout_workers: 3
 
 my_log_level: 1
 
