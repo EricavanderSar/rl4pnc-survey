@@ -168,7 +168,8 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
         ppo_config.update(custom_config["resources"])
     if "rollouts" in custom_config.keys():
         ppo_config.update(custom_config["rollouts"])
-    ppo_config.update(custom_config["scaling_config"])
+    if "scaling_config" in custom_config.keys():
+        ppo_config.update(custom_config["scaling_config"])
     ppo_config.update(custom_config["evaluation"])
     ppo_config.update(custom_config["reporting"])
     env_type_config = ENV_TYPE[custom_config["environment"]["env_config"]["env_type"]]

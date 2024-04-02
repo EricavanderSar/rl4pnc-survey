@@ -1,32 +1,36 @@
 setup:
+  max_ep_len: 8064
   nb_timesteps: &nb_timesteps 100_000
-  checkpoint_freq: 1000
+  checkpoint_freq: 10
   checkpoint_trainable_policies_only: True
-  verbose: 1
+  verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
+  folder_name: "Old params"
+  experiment_name: "Case_14_Tr13Par"
+  save_artifact: True
+  optimize: False
+  num_samples: 10
 
 debugging:
   seed: &seed 14
 
 training:
   # tunable parameters
-  gamma: 0.996 # !grid_search [0.95, 0.99]
-  lr: 0.0013 # !grid_search [0.0005, 0.005, 0.05]
+  gamma: 0.996 #!quniform [0.95, 0.99, 0.01] #
+  lr: 0.0013 # !qloguniform [0.0005, 0.005, 0.0001] #
   vf_loss_coeff: 0.5
-  entropy_coeff: 0.01
-  clip_param: 0.18
-  lambda_: 0.91
+  entropy_coeff: 0.05
+  clip_param: 0.18 # epsilon
+  lambda: 0.91
   num_sgd_iter: 5
-  sgd_minibatch_size: 16 # !grid_search [32, 64, 128]
-  train_batch_size: &train_batch_size 80 # !grid_search [32, 64, 128]
+  sgd_minibatch_size: 16 # !choice [32, 64, 128]
+  train_batch_size: &train_batch_size 80 # !choice [32, 64, 128]
   batch_mode: complete_episodes
   model:
-    fcnet_hiddens: 
-    - 128
-    - 128
-    - 128
+    fcnet_hiddens: [128,128,128] # !choice [[256,256], [128,128,128]] #
+    fcnet_activation: relu #!choice [relu, tanh] #
   _enable_learner_api: False
-  
+
 rl_module:
   _enable_rl_module_api: False
 
@@ -46,21 +50,53 @@ multi_agent:
   count_steps_by: agent_steps
 
 environment:
-  env_config:
-    env_name: rte_case14_realistic
+  env_config: &env_config_train
+    env_type: new_env #old_env #
+    shuffle_scenarios: True
+    env_name: rte_case14_realistic_train
     action_space: tennet
-    lib_dir: ./
+    lib_dir: !workdir
     max_tsteps: *train_batch_size
     grid2op_kwargs:
       # general kwargs
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.90
+    n_history: 6
+    input: [ "p_i", "r", "o", "d" ]
+    danger: 0.9
+    adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
+    prio: True
+    normalize: True
+
+env_config_val: &env_config_val
+  <<: *env_config_train
+  env_name: rte_case14_realistic_val
+  shuffle_scenarios: False
+  prio: False # should always be False
+
+evaluation:
+  evaluation_interval: 10
+  evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
+  evaluation_duration_unit: episodes
+  always_attach_evaluation_results: True
+#  evaluation_parallel_to_training: True #Currently not working
+  evaluation_num_workers: 4
+  evaluation_config:
+    explore: False,
+    env_config: *env_config_val # use the validation environment
+
+reporting:
+  keep_per_episode_custom_metrics: True
+
+scaling_config:
+  num_workers: 6
 
 resources:
   num_gpus: 1
   num_learner_workers: 4
 
 rollouts:
-  num_rollout_workers: 4
+  num_rollout_workers: 10
 
+my_log_level: 1
