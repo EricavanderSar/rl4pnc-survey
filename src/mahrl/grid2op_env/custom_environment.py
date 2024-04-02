@@ -65,7 +65,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         )
         self.env_g2op.seed(env_config["seed"])
         rename_env(self.env_g2op)
-
+        # Debug snellius
+        print('cwd: ', os.getcwd())
+        print('in dir: ', os.listdir(os.curdir))
         # 1.a. Setting up custom action space
         if (
             env_config["action_space"] == "asymmetry"

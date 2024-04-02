@@ -31,6 +31,7 @@ echo "Copy necessary files"
 mkdir $WORKDIR
 srun cp -r $HOME/mahrl_grid2op/configs $WORKDIR/configs
 srun cp -r $HOME/mahrl_grid2op/data $WORKDIR/data
+ls $WORKDIR/data
 mkdir $WORKDIR/data_grid2op/
 srun cp -r $HOME/data_grid2op/$ENVNAME $WORKDIR/data_grid2op/$ENVNAME
 
