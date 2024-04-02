@@ -81,7 +81,7 @@ evaluation:
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
 #  evaluation_parallel_to_training: True #Currently not working
-  evaluation_num_workers: 4
+  evaluation_num_workers: 3
   evaluation_config:
     explore: False,
     env_config: *env_config_val # use the validation environment
@@ -90,9 +90,9 @@ reporting:
   keep_per_episode_custom_metrics: True
 
 resources:
-  num_learner_workers: 2
+  num_learner_workers: 1
 
 rollouts:
-  num_rollout_workers: 6
+  num_rollout_workers: 2
 
 my_log_level: 1

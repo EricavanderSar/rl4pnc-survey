@@ -163,8 +163,10 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     ppo_config.update(custom_config["callbacks"])
     ppo_config.update(custom_config["environment"])
     ppo_config.update(custom_config["multi_agent"])
-    # ppo_config.update(custom_config["resources"])
-    # ppo_config.update(custom_config["rollouts"])
+    if "resources" in custom_config.keys():
+        ppo_config.update(custom_config["resources"])
+    if "rollouts" in custom_config.keys():
+        ppo_config.update(custom_config["rollouts"])
     # ppo_config.update(custom_config["scaling_config"])
     ppo_config.update(custom_config["evaluation"])
     ppo_config.update(custom_config["reporting"])
