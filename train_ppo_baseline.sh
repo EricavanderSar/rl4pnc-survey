@@ -9,7 +9,7 @@
 #SBATCH --output=TrainFull_case5_ppo_baseline_%j.out
 
 
-ENVNAME=rte_case5_example
+ENVNAME=rte_case14_realistic
 WORKDIR=$TMPDIR/evds_output_dir
 
 # function to handle the SIGTERM signal
