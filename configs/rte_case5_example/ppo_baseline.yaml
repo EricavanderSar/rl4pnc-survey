@@ -1,6 +1,6 @@
 setup:
   max_ep_len: 2016
-  nb_timesteps: 5_000
+  nb_timesteps: 1_000
   checkpoint_freq: 2 # number of iterations between checkpoints (1 iteration = 1 agent update?)
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
@@ -86,19 +86,19 @@ evaluation:
   evaluation_duration: 2 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
-  evaluation_num_workers: 3
+  evaluation_num_workers: 2
   evaluation_config:
     explore: False
     env_config: *env_config_val # use the validation environment
 
-#scaling_config:
-#  num_workers: 1
+scaling_config:
+  num_workers: 4
 
 reporting:
   keep_per_episode_custom_metrics: True
 
-resources:
-  num_learner_workers: 2
+#resources:
+#  num_learner_workers: 4
 
 rollouts:
   num_rollout_workers: 3
