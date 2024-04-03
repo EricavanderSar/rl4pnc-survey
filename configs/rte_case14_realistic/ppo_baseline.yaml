@@ -2,7 +2,6 @@ setup:
   max_ep_len: 8064
   nb_timesteps: &nb_timesteps 1_000
   checkpoint_freq: 5
-  checkpoint_trainable_policies_only: True
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
   folder_name: "Old params"
@@ -15,6 +14,7 @@ debugging:
   seed: &seed 14
 
 training:
+  checkpoint_trainable_policies_only: True
   # tunable parameters
   gamma: 0.996 #!quniform [0.95, 0.99, 0.01] #
   lr: 0.0013 # !qloguniform [0.0005, 0.005, 0.0001] #

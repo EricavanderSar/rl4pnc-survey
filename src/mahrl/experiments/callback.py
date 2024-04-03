@@ -161,6 +161,8 @@ class TuneCallback(TuneReporterBase):
         super().__init__(get_air_verbosity(0))
         self._start_end_verbosity = 0
         self.log_level = log_level
+        self._last_res_time = float("-inf")
+        self._result_freq = 2 * self._heartbeat_freq
 
     def print_heartbeat(self, trials, *args, force: bool = False):
         if force or time.time() - self._last_heartbeat_time >= self._heartbeat_freq:
@@ -187,7 +189,9 @@ class TuneCallback(TuneReporterBase):
         **info,
     ):
         if self.log_level:
-            if 'custom_metrics' in result["evaluation"].keys(): # start printing after first evaluation
+            # start printing after first evaluation
+            if ('custom_metrics' in result["evaluation"].keys()) & \
+                    (time.time() - self._last_res_time >= self._result_freq):
                 print(Style.BOLD + " ------ TRAIL RESULTS -------" + Style.END)
                 self._start_block(f"trial_{trial}_result_{result['training_iteration']}")
                 curr_time_str, running_time_str = _get_time_str(self._start_time, time.time())
@@ -198,6 +202,7 @@ class TuneCallback(TuneReporterBase):
                 )
                 # print intermediate results for trial:
                 self._print_result(trial, result)
+                self._last_res_time = time.time()
 
     def _print_result(self, trial, result: Optional[Dict] = None, force: bool = False):
         result = result or trial.last_result
@@ -219,7 +224,7 @@ class TuneCallback(TuneReporterBase):
                    "episodes_this_iter"]
         table = [[trial_id,
                   result['training_iteration'],
-                  '%dmin %02ds' % (seconds / 60, seconds % 60),
+                  _get_time_str(self._start_time, time.time()),
                   result["timesteps_total"],
                   eval_res["custom_metrics"]["grid2op_end_mean"],
                   eval_res["episode_reward_mean"],

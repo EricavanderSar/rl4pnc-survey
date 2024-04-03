@@ -244,7 +244,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default="./configs/rte_case5_example/ppo_baseline.yaml", #"./configs/rte_case14_realistic/ppo_baseline.yaml",  #
+        default="./configs/rte_case14_realistic/ppo_baseline.yaml",  #"./configs/rte_case5_example/ppo_baseline.yaml", #
         help="Path to the config file.",
     )
     parser.add_argument(
