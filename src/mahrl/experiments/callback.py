@@ -224,7 +224,7 @@ class TuneCallback(TuneReporterBase):
                    "episodes_this_iter"]
         table = [[trial_id,
                   result['training_iteration'],
-                  _get_time_str(self._start_time, time.time()),
+                  _get_time_str(self._start_time, time.time())[1],
                   result["timesteps_total"],
                   eval_res["custom_metrics"]["grid2op_end_mean"],
                   eval_res["episode_reward_mean"],
