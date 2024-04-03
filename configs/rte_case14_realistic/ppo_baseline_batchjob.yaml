@@ -5,7 +5,7 @@ setup:
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
   folder_name: "Old params"
-  experiment_name: "Case_14_Medha"
+  experiment_name: "Case_14_Masked"
   save_artifact: True
   optimize: False
   num_samples: 10
@@ -54,7 +54,8 @@ environment:
     env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: rte_case14_realistic_train
-    action_space: medha
+    action_space: masked
+    mask: 3
     lib_dir: !workdir
     max_tsteps: *train_batch_size
     grid2op_kwargs:

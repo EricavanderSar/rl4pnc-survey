@@ -7,6 +7,7 @@ import argparse
 import os
 
 import grid2op
+from lightsim2grid import LightSimBackend
 
 from mahrl.experiments.action_spaces import (
     get_asymmetrical_action_space,
@@ -67,6 +68,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-e",
         "--environment",
+        default="rte_case5_example",
         type=str,
         help="Name of the environment to be used.",
     )

@@ -30,8 +30,6 @@ from mahrl.grid2op_env.utils import (
     rename_env,
 )
 
-CHANGEABLE_SUBSTATIONS = [0, 2, 3]
-
 OBSTYPE = TypeVar("OBSTYPE")
 ACTTYPE = TypeVar("ACTTYPE")
 RENDERFRAME = TypeVar("RENDERFRAME")
@@ -76,10 +74,13 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 f"data/action_spaces/{self.env_g2op.env_name}/{env_config['action_space']}.json",
             )
             self.possible_substation_actions = self.load_action_space(path)
-        elif env_config["action_space"] == "erica":
+        elif env_config["action_space"] == "masked":
+            mask = env_config.get("mask", 3)
+            subs = [i for i, big_enough in enumerate(self.env_g2op.action_space.sub_info > mask) if big_enough]
             self.possible_substation_actions = get_possible_topologies(
-                self.env_g2op, CHANGEABLE_SUBSTATIONS
+                self.env_g2op, subs
             )
+            print('subs to act: ', subs)
         else:
             path = os.path.join(
                 lib_dir,
