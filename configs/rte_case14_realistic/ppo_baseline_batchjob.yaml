@@ -4,8 +4,8 @@ setup:
   checkpoint_freq: 10
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Old params"
-  experiment_name: "Case_14_Masked"
+  folder_name: "Case14_TestPars"
+  experiment_name: "Case_14_HRLpars"
   save_artifact: True
   optimize: False
   num_samples: 10
@@ -16,18 +16,19 @@ debugging:
 training:
   checkpoint_trainable_policies_only: True
   # tunable parameters
-  gamma: 0.996 #!quniform [0.95, 0.99, 0.01] #
-  lr: 0.0013 # !qloguniform [0.0005, 0.005, 0.0001] #
+  gamma: 0.99 #!quniform [0.95, 0.99, 0.01] #
+  lr: 0.0001 # !qloguniform [0.0005, 0.005, 0.0001] #
   vf_loss_coeff: 0.5
-  entropy_coeff: 0.05
-  clip_param: 0.18 # epsilon
-  lambda: 0.91
-  num_sgd_iter: 5
-  sgd_minibatch_size: 16 # !choice [32, 64, 128]
-  train_batch_size: &train_batch_size 80 # !choice [32, 64, 128]
+  kl_coeff: 0.2
+  entropy_coeff: 0
+  clip_param: 0.3 # epsilon
+  lambda: 0.95
+  num_sgd_iter: 15
+  sgd_minibatch_size: 256 # !choice [32, 64, 128]
+  train_batch_size: &train_batch_size 1024 # !choice [32, 64, 128]
   batch_mode: complete_episodes
   model:
-    fcnet_hiddens: [128,128,128] # !choice [[256,256], [128,128,128]] #
+    fcnet_hiddens: [256,256,256] # !choice [[256,256], [128,128,128]] #
     fcnet_activation: relu #!choice [relu, tanh] #
   _enable_learner_api: False
 

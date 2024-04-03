@@ -156,13 +156,14 @@ class CustomMetricsCallback(DefaultCallbacks):
 class TuneCallback(TuneReporterBase):
     def __init__(
             self,
-            log_level,
+            log_level: int,
+            res_freq: int = 2,
     ):
         super().__init__(get_air_verbosity(0))
         self._start_end_verbosity = 0
         self.log_level = log_level
         self._last_res_time = float("-inf")
-        self._result_freq = 2 * self._heartbeat_freq
+        self._result_freq = res_freq * self._heartbeat_freq
 
     def print_heartbeat(self, trials, *args, force: bool = False):
         if force or time.time() - self._last_heartbeat_time >= self._heartbeat_freq:

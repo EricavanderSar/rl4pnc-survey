@@ -35,6 +35,8 @@ from mahrl.multi_agent.policy import (
 from mahrl.algorithms.custom_ppo import CustomPPO
 from mahrl.experiments.callback import Style, TuneCallback
 
+REPORT_END = False
+
 ENV_TYPE = {
     "old_env": {
         'env': CustomizedGrid2OpEnvironment,
@@ -95,7 +97,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
                 WandbLoggerCallback(
                     project=setup["experiment_name"],
                                     ),
-                TuneCallback(config["my_log_level"]),
+                TuneCallback(config["my_log_level"], res_freq=5),
             ],
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=setup["checkpoint_freq"],
@@ -131,16 +133,17 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
             # print("ENV CONFIG: ", result.config['env_config'])
             # print("RESULT CONFIG: ", result.config['env_config'])
             # Print table with environment config.
-            print(f"--- Environment Configuration  ---- \n"
-                  f"{tabulate([result.config['env_config']], headers='keys', tablefmt='rounded_grid')}")
-            # print other params:
-            params_ppo = ['gamma', 'lr', 'exploration_config',  'vf_loss_coeff', 'entropy_coeff', 'clip_param',
-                          'lambda', 'vf_clip_param', 'num_sgd_iter', 'sgd_minibatch_size', 'train_batch_size']
-            values = [result.config[par] for par in params_ppo]
-            print(f"--- PPO Configuration  ---- \n"
-                  f"{tabulate([values], headers=params_ppo, tablefmt='rounded_grid')}")
-            print(f"--- Model Configuration  ---- \n"
-                  f"{tabulate([result.config['model']], headers='keys', tablefmt='rounded_grid')}")
+            if REPORT_END:
+                print(f"--- Environment Configuration  ---- \n"
+                      f"{tabulate([result.config['env_config']], headers='keys', tablefmt='rounded_grid')}")
+                # print other params:
+                params_ppo = ['gamma', 'lr', 'exploration_config',  'vf_loss_coeff', 'entropy_coeff', 'clip_param',
+                              'lambda', 'vf_clip_param', 'num_sgd_iter', 'sgd_minibatch_size', 'train_batch_size']
+                values = [result.config[par] for par in params_ppo]
+                print(f"--- PPO Configuration  ---- \n"
+                      f"{tabulate([values], headers=params_ppo, tablefmt='rounded_grid')}")
+                print(f"--- Model Configuration  ---- \n"
+                      f"{tabulate([result.config['model']], headers='keys', tablefmt='rounded_grid')}")
         else:
             print(f"Trial failed with error {result.error}.")
     return result_grid
