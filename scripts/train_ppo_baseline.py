@@ -105,7 +105,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
                                     ),
                 TuneCallback(
                     config["my_log_level"],
-                    setup["score_metric"],
+                    "evaluation/custom_metrics/grid2op_end_mean",
                     res_freq=5,
                     heartbeat_freq=60,
                 ),
@@ -121,7 +121,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
         tune_config=tune.TuneConfig(
             search_alg=algo,
             num_samples=setup["num_samples"],
-            scheduler=scheduler
+            scheduler=scheduler,
         ) if setup["optimize"] else None
         ,
     )
