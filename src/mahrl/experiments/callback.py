@@ -10,7 +10,14 @@ import time
 
 # from grid2op.Environment import BaseEnv
 import ray
-from ray.tune.experimental.output import TuneReporterBase, get_air_verbosity, _get_time_str, AIR_TABULATE_TABLEFMT, _get_trial_table_data
+from ray.tune.experimental.output import (
+    TuneReporterBase,
+    get_air_verbosity,
+    _get_time_str,
+    _current_best_trial,
+    _best_trial_str
+)
+from ray._private.dict import unflattened_lookup
 from ray.tune.experiment import Trial
 from ray.air.integrations.wandb import WandbLoggerCallback
 
@@ -157,13 +164,20 @@ class TuneCallback(TuneReporterBase):
     def __init__(
             self,
             log_level: int,
+            metric: str,
+            mode: str = "max",
             res_freq: int = 2,
+            heartbeat_freq: int = 30
     ):
         super().__init__(get_air_verbosity(0))
-        self._start_end_verbosity = 0
+        self._start_end_verbosity = 1
+        self._heartbeat_freq = heartbeat_freq
         self.log_level = log_level
         self._last_res_time = float("-inf")
         self._result_freq = res_freq * self._heartbeat_freq
+        self._metric = metric
+        self._mode = mode
+        self._best_trial = None
 
     def print_heartbeat(self, trials, *args, force: bool = False):
         if force or time.time() - self._last_heartbeat_time >= self._heartbeat_freq:
@@ -178,6 +192,16 @@ class TuneCallback(TuneReporterBase):
         result.append(self._time_heartbeat_str)
         # Logical resource usage: 8.0/64 CPUs, 0/0 GPUs
         result.extend(sys_args)
+        # *** Current BEST TRIAL: 6c81141f  ***  | with SCORE: 267 found at TIMESTEP: 529
+        current_best_trial, metric_val = _current_best_trial(
+            trials, self._metric, self._mode
+        )
+        if current_best_trial:
+            best_trial_str = f" *** Current BEST TRIAL: {current_best_trial.trial_id}  ***  |" \
+                             f" with SCORE: " \
+                             f"{unflattened_lookup(self._metric, current_best_trial.last_result)} " \
+                             f" at TIMESTEP: {current_best_trial.last_result['timesteps_total']} "
+            result.append(best_trial_str)
         for line in result:
             print(line)
 

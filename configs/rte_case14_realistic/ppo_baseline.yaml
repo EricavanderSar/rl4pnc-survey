@@ -4,11 +4,13 @@ setup:
   checkpoint_freq: 5
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Old params"
-  experiment_name: "Case_14_Tr13Par"
+  folder_name: "Print_test"
+  experiment_name: "Test Optuna"
   save_artifact: True
-  optimize: False
+  optimize: True
   num_samples: 10
+  score_metric: evaluation/custom_metrics/grid2op_end_mean
+  grace_period: 60
 
 debugging:
   seed: &seed 14
@@ -16,15 +18,17 @@ debugging:
 training:
   checkpoint_trainable_policies_only: True
   # tunable parameters
-  gamma: 0.996 #!quniform [0.95, 0.99, 0.01] #
-  lr: 0.0013 # !qloguniform [0.0005, 0.005, 0.0001] #
+  gamma: 0.99 #!quniform [0.95, 0.99, 0.01] #
+  lr: 0.003 # !qloguniform [0.0005, 0.005, 0.0001] #
   vf_loss_coeff: 0.5
   entropy_coeff: 0.05
   clip_param: 0.18 # epsilon
   lambda: 0.91
-  num_sgd_iter: 5
-  sgd_minibatch_size: 16 # !choice [32, 64, 128]
-  train_batch_size: &train_batch_size 80 # !choice [32, 64, 128]
+  vf_clip_param: 10
+  use_kl_loss: False # setting this similar to orig EVDS implementation
+  num_sgd_iter: !quniform [4, 16, 4] #spec.config.train_batch_size / spec.config.sgd_minibatch_size
+  sgd_minibatch_size: !choice [32, 64, 128]
+  train_batch_size: &train_batch_size !choice [128, 256, 512] #80 #
   batch_mode: complete_episodes
   model:
     fcnet_hiddens: [128,128,128] # !choice [[256,256], [128,128,128]] #
@@ -56,7 +60,7 @@ environment:
     env_name: rte_case14_realistic_train
     action_space: masked
     mask: 3
-    lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/ #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
+    lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/
     max_tsteps: *train_batch_size
     grid2op_kwargs:
       # general kwargs
@@ -77,12 +81,12 @@ env_config_val: &env_config_val
   prio: False # should always be False
 
 evaluation:
-  evaluation_interval: 5
+  evaluation_interval: 1
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
 #  evaluation_parallel_to_training: True #Currently not working
-  evaluation_num_workers: 3
+  evaluation_num_workers: 1
   evaluation_config:
     explore: False,
     env_config: *env_config_val # use the validation environment
@@ -96,4 +100,4 @@ resources:
 rollouts:
   num_rollout_workers: 2
 
-my_log_level: 1
+my_log_level: 0

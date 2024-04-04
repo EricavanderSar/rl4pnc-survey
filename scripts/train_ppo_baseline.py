@@ -22,6 +22,7 @@ from ray.rllib.policy.policy import PolicySpec
 from ray.tune.result_grid import ResultGrid
 import ray.rllib.models.torch.torch_modelv2
 from ray.tune.search.optuna import OptunaSearch
+from ray.tune.schedulers import MedianStoppingRule
 
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
@@ -67,6 +68,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
     # Run wandb offline and to sync after wards run :
     # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
     os.environ["WANDB_MODE"] = "offline"
+    os.environ["WANDB_SILENT"] = "true"
     # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
     ray.init()
 
@@ -77,7 +79,17 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
     print("Port:", port)
 
     # Use Optuna search algorithm to find good working parameters
-    algo = OptunaSearch()
+    algo = OptunaSearch(
+        metric=setup["score_metric"],
+        mode="max",
+    )
+    scheduler = MedianStoppingRule(
+        # time_attr="timesteps_total", #Default = "time_total_s"
+        metric=setup["score_metric"],
+        mode="max",
+        grace_period=setup["grace_period"], # First 5 minutes exploration before stopping
+        min_samples_required=3 # Default = 3
+    )
 
     # Create tuner
     tuner = tune.Tuner(
@@ -88,16 +100,15 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
             stop={"timesteps_total": setup["nb_timesteps"],
                   "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
             callbacks=[
-                # MLflowLoggerCallback(
-                #     tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
-                #     experiment_name=setup["experiment_name"],
-                #     tags={"user_name": "Erica"},
-                #     save_artifact=setup["save_artifact"],
-                # ),
                 WandbLoggerCallback(
                     project=setup["experiment_name"],
                                     ),
-                TuneCallback(config["my_log_level"], res_freq=5),
+                TuneCallback(
+                    config["my_log_level"],
+                    setup["score_metric"],
+                    res_freq=5,
+                    heartbeat_freq=60,
+                ),
             ],
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=setup["checkpoint_freq"],
@@ -108,10 +119,9 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
             verbose=setup["verbose"],
         ),
         tune_config=tune.TuneConfig(
-            metric="evaluation/custom_metrics/grid2op_end_mean",
-            mode="max",
             search_alg=algo,
-            num_samples=setup["num_samples"]
+            num_samples=setup["num_samples"],
+            scheduler=scheduler
         ) if setup["optimize"] else None
         ,
     )

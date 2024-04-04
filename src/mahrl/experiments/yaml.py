@@ -23,7 +23,7 @@ from ray.rllib.core.rl_module.rl_module import SingleAgentRLModuleSpec
 from ray.rllib.core.rl_module.marl_module import MultiAgentRLModuleSpec
 
 from yaml.loader import FullLoader, Loader, UnsafeLoader
-from yaml.nodes import MappingNode, ScalarNode
+from yaml.nodes import MappingNode, ScalarNode, SequenceNode
 
 from mahrl.experiments.callback import CustomMetricsCallback
 from mahrl.experiments.opponent import ReconnectingOpponentSpace
@@ -116,16 +116,15 @@ def float_to_integer(float_value: float) -> Union[int, float]:
 
 
 def tune_search_quniform_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: SequenceNode
 ) -> Any:
     """
     Constructor for tune uniform float sampling
 
     """
-    vals = []
-    for scalar_node in node.value:
-        val = float_to_integer(float(scalar_node.value))
-        vals.append(val)
+    vals = loader.construct_sequence(node)
+    if all(isinstance(val, int) for val in vals):
+        return tune.qrandint(vals[0], vals[1], vals[2])
     return tune.quniform(vals[0], vals[1], vals[2])
 
 def tune_search_qloguniform_constructor(
@@ -135,10 +134,7 @@ def tune_search_qloguniform_constructor(
     Constructor for tune uniform float sampling
 
     """
-    vals = []
-    for scalar_node in node.value:
-        val = float_to_integer(float(scalar_node.value))
-        vals.append(val)
+    vals = loader.construct_sequence(node)
     return tune.qloguniform(vals[0], vals[1], vals[2])
 
 def tune_search_grid_search_constructor(
@@ -216,8 +212,8 @@ def reconnecting_opponent_constructor(
 def path_workdir_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> str:
+    """Adjust working directory"""
     import os
-    """Custom constructor for ReconnectingOpponentSpace"""
     print(os.getcwd())
     return os.getcwd()
 
