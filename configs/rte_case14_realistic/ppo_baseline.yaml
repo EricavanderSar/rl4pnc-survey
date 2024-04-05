@@ -4,13 +4,13 @@ setup:
   checkpoint_freq: 5
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Print_test"
+  folder_name: "Test14"
   experiment_name: "Test Optuna"
   save_artifact: True
-  optimize: True
+  optimize: False
   num_samples: 10
   score_metric: evaluation/custom_metrics/grid2op_end_mean
-  grace_period: 60
+  grace_period: 200
 
 debugging:
   seed: &seed 14
@@ -28,7 +28,7 @@ training:
   use_kl_loss: False # setting this similar to orig EVDS implementation
   num_sgd_iter: !quniform [4, 16, 4] #spec.config.train_batch_size / spec.config.sgd_minibatch_size
   sgd_minibatch_size: !choice [32, 64, 128]
-  train_batch_size: &train_batch_size !choice [128, 256, 512] #80 #
+  train_batch_size: &train_batch_size 128 #80 #!choice [128, 256, 512]
   batch_mode: complete_episodes
   model:
     fcnet_hiddens: [128,128,128] # !choice [[256,256], [128,128,128]] #
@@ -100,4 +100,4 @@ resources:
 rollouts:
   num_rollout_workers: 2
 
-my_log_level: 0
+my_log_level: 1

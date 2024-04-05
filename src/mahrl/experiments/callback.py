@@ -4,22 +4,18 @@ Implements callbacks.
 
 from typing import Any, Dict, Optional, List, Union
 from tabulate import tabulate
-import os
 import numpy as np
 import time
 
 # from grid2op.Environment import BaseEnv
-import ray
 from ray.tune.experimental.output import (
     TuneReporterBase,
     get_air_verbosity,
     _get_time_str,
     _current_best_trial,
-    _best_trial_str
 )
 from ray._private.dict import unflattened_lookup
 from ray.tune.experiment import Trial
-from ray.air.integrations.wandb import WandbLoggerCallback
 
 from ray.rllib.env import BaseEnv
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
@@ -110,9 +106,9 @@ class CustomMetricsCallback(DefaultCallbacks):
     ) -> None:
         data = evaluation_metrics["evaluation"]
         # Save summarized data
-        data["custom_metrics"]["grid2op_end_min"] = np.int(np.min(data["custom_metrics"]["grid2op_end"]))
-        data["custom_metrics"]["grid2op_end_mean"] = np.int(np.mean(data["custom_metrics"]["grid2op_end"]))
-        data["custom_metrics"]["grid2op_end_max"] = np.int(np.max(data["custom_metrics"]["grid2op_end"]))
+        data["custom_metrics"]["grid2op_end_min"] = int(np.min(data["custom_metrics"]["grid2op_end"]))
+        data["custom_metrics"]["grid2op_end_mean"] = int(np.mean(data["custom_metrics"]["grid2op_end"]))
+        data["custom_metrics"]["grid2op_end_max"] = int(np.max(data["custom_metrics"]["grid2op_end"]))
         data["custom_metrics"]["grid2op_end_std"] = np.std(data["custom_metrics"]["grid2op_end"])
         # # Print specified logging level
         # if self.log_level:
@@ -147,9 +143,9 @@ class CustomMetricsCallback(DefaultCallbacks):
         **kwargs,
     ) -> None:
         # print(f'ALL METRICS {result}')
-        mean_grid2op_end = np.int(np.mean(result["custom_metrics"]["grid2op_end"]))
+        mean_grid2op_end = int(np.mean(result["custom_metrics"]["grid2op_end"]))
         std_grid2op_end = np.var(result["custom_metrics"]["grid2op_end"])
-        mean_episode_duration = np.int(np.mean(result["custom_metrics"]["corrected_ep_len"]))
+        mean_episode_duration = int(np.mean(result["custom_metrics"]["corrected_ep_len"]))
         result["custom_metrics"]["grid2op_end_mean"] = mean_grid2op_end
         result["custom_metrics"]["grid2op_end_std"] = std_grid2op_end
         result["custom_metrics"]["corrected_ep_len_mean"] = mean_episode_duration
@@ -233,7 +229,6 @@ class TuneCallback(TuneReporterBase):
         result = result or trial.last_result
         # skip for now since this is already printed after tuning... Perhaps move?
         trial_id = str(trial)
-        seconds = result["time_total_s"]
         eval_res = result["evaluation"]
         train_res = result["custom_metrics"]
         # Print the table

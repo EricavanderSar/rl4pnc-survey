@@ -40,10 +40,10 @@ requires-python = ">=3.10"
 
 dependencies = [
   "Grid2Op==1.9.3",
-  "pandapower==2.2.2",
-  "numba==0.56.4",
-  "numpy==1.22.4",
-  "ray==2.7.0",
+  "pandapower>=2.2.2",
+  "numba>=0.56.4",
+  "numpy>=1.24",
+  "ray==2.10.0",
   "lz4==4.3.2",
   "pyarrow==13.0.0",
   "dm_tree==0.1.8",
@@ -64,6 +64,10 @@ dependencies = [
   "rich==12.1.0",
   "typeguard==4.0.0",
   "fsspec==2023.10.0",
+  "tabulate",
+  "wandb",
+  "optuna",
+  "typer",
 ]
 
 [project.optional-dependencies]

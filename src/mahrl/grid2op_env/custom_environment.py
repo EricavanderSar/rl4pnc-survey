@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, TypeVar
 
 import grid2op
 from lightsim2grid import LightSimBackend
-import gymnasium
+import gymnasium as gym
 from grid2op.Action import BaseAction
 from grid2op.gym_compat import GymEnv
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
@@ -43,6 +43,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
     def __init__(self, env_config: dict[str, Any]):
         super().__init__()
+        self._skip_env_checking = True
 
         self._agent_ids = [
             "high_level_agent",
@@ -119,10 +120,15 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.env_gym.observation_space = ob_space
 
         # 4. specific to rllib
-        self.action_space = gymnasium.spaces.Discrete(
-            len(self.possible_substation_actions)
+        self._action_space_in_preferred_format = True
+        self.action_space = gym.spaces.Dict(
+            {
+                "high_level_agent": gym.spaces.Discrete(2),
+                "reinforcement_learning_agent": gym.spaces.Discrete(len(self.possible_substation_actions)),
+                "do_nothing_agent": gym.spaces.Discrete(1),
+            }
         )
-        self.observation_space = gymnasium.spaces.Dict(
+        self.observation_space = gym.spaces.Dict(
             dict(self.env_gym.observation_space.spaces.items())
         )
 
@@ -251,11 +257,16 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 )
             )
 
-    def observation_space_sample(self, agent_ids: list = None):
-        return {}
+    # def observation_space_sample(self, agent_ids: list = None):
+    #     return {}
 
-    def action_space_sample(self, agent_ids: list = None):
-        return {}
+    # def action_space_sample(self, agent_ids: list = None):
+    #     return {}
+
+    def observation_space_contains(self, x: MultiAgentDict) -> bool:
+        if not isinstance(x, dict):
+            return False
+        return all(self.observation_space.contains(val) for val in x.values())
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)
 

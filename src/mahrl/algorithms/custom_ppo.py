@@ -5,7 +5,7 @@ import numpy as np
 from ray.rllib.evaluation.worker_set import WorkerSet
 from ray.util.debug import log_once
 from ray.rllib.algorithms.ppo import PPO
-from ray.rllib.algorithms.ppo.ppo_learner import LEARNER_RESULTS_KL_KEY
+from ray.rllib.algorithms.ppo.ppo import LEARNER_RESULTS_KL_KEY
 from ray.rllib.execution.train_ops import (
     train_one_step,
     multi_gpu_train_one_step,

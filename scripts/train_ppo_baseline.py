@@ -14,7 +14,7 @@ import grid2op
 import ray
 import gymnasium as gym
 from ray import air, tune, train
-from ray.air.integrations.mlflow import MLflowLoggerCallback
+# from ray.air.integrations.mlflow import MLflowLoggerCallback
 from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
@@ -84,10 +84,10 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
         mode="max",
     )
     scheduler = MedianStoppingRule(
-        # time_attr="timesteps_total", #Default = "time_total_s"
+        time_attr="timesteps_total", #Default = "time_total_s"
         metric=setup["score_metric"],
         mode="max",
-        grace_period=setup["grace_period"], # First 5 minutes exploration before stopping
+        grace_period=setup["grace_period"], # First exploration before stopping
         min_samples_required=3 # Default = 3
     )
 
@@ -172,7 +172,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     ppo_config.update(custom_config["training"])
     ppo_config.update(custom_config["debugging"])
     ppo_config.update(custom_config["framework"])
-    ppo_config.update(custom_config["rl_module"])
+    # ppo_config.update(custom_config["rl_module"])
     ppo_config.update(custom_config["explore"])
     ppo_config.update(custom_config["callbacks"])
     ppo_config.update(custom_config["environment"])
@@ -192,12 +192,12 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=env_type_config["hl_policy"],
-            observation_space=env_type_config["hl_obs_space"],
-            action_space=gym.spaces.Discrete(2),  # choose one of agents
+            # observation_space=env_type_config["hl_obs_space"],
+            # action_space=gym.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
-                    _enable_learner_api=False,
+                    # _enable_learner_api=False,
                     model={
                         "custom_model_config": {
                             "rho_threshold": custom_config["environment"]["env_config"][
@@ -206,24 +206,24 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
                         }
                     },
                 )
-                .rl_module(_enable_rl_module_api=False)
+                # .rl_module(_enable_rl_module_api=False)
                 .rollouts(preprocessor_pref=None)
             ),
         ),
         "reinforcement_learning_policy": PolicySpec(  # performs RL topology
             policy_class=None,  # use default policy of PPO
-            observation_space=None,  # infer automatically from env
-            action_space=None,  # infer automatically from env
+            # observation_space=None,  # infer automatically from env
+            # action_space=None,  # infer automatically from env
             config=None,
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=env_type_config["dn_policy"],
-            observation_space=env_type_config["dn_obs_space"],
-            action_space=gym.spaces.Discrete(1),  # only perform do-nothing
+            # observation_space=env_type_config["dn_obs_space"],
+            # action_space=gym.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
-                .training(_enable_learner_api=False)
-                .rl_module(_enable_rl_module_api=False)
+                # .training(_enable_learner_api=False)
+                # .rl_module(_enable_rl_module_api=False)
             ),
         ),
     }

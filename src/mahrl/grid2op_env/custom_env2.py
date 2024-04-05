@@ -31,11 +31,19 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
         # re-define RLlib observationspace:
         dim_topo = self.env_g2op.observation_space.dim_topo
 
-        self.observation_space = gym.spaces.Dict({
-            "feature_matrix": gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_feature * n_history)),
-            "topology": gym.spaces.Box(0, 2, shape=(dim_topo, dim_topo)) if env_config.get("adj_matrix") else
-            gym.spaces.Box(-1, 1, shape=(dim_topo,))
-        })
+        self._obs_space_in_preferred_format = True
+        self.observation_space = gym.spaces.Dict(
+            {
+                "high_level_agent": gym.spaces.Box(-1, 2),
+                "reinforcement_learning_agent":
+                    gym.spaces.Dict({
+                        "feature_matrix": gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_feature * n_history)),
+                        "topology": gym.spaces.Box(0, 2, shape=(dim_topo, dim_topo)) if env_config.get("adj_matrix")
+                        else gym.spaces.Box(-1, 1, shape=(dim_topo,))
+                    }),
+                "do_nothing_agent": gym.spaces.Discrete(1)
+            }
+        )
 
         self.obs_converter = ObsConverter(self.env_g2op, env_config.get("danger", 0.9), attr=obs_features, n_history=n_history, adj_mat=env_config.get("adj_matrix"))
         self.cur_obs = None
