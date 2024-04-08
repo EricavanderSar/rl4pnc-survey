@@ -37,7 +37,7 @@ srun find $HOME/data_grid2op -type d -name "${ENVNAME}*" -print0 | xargs -0 -I {
 
 
 echo "Run code:"
-time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -rd $RESDIR
+time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR
 echo "Done"
 
 #Copy output directory from scratch to home
