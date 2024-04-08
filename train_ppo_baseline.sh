@@ -3,10 +3,10 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=64
 #SBATCH --partition=rome
-#SBATCH --time=10:00:00
-#SBATCH --output=case14_ppo_baseline_%j.out
+#SBATCH --time=24:00:00
+#SBATCH --output=ParamTunCase14_ppo_baseline_%j.out
 
 
 ENVNAME=rte_case14_realistic
