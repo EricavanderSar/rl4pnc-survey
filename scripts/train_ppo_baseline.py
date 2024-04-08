@@ -82,6 +82,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], res_dir: str = '
     algo = OptunaSearch(
         metric=setup["score_metric"],
         mode="max",
+        points_to_evaluate=[setup['points_to_evaluate']] if 'points_to_evaluate' in setup else None,
     )
     if res_dir:
         algo.restore_from_dir(res_dir)

@@ -11,15 +11,15 @@ setup:
   num_samples: 100
   score_metric: episode_len_mean
   grace_period: 10_000 # First 10_000 steps of training before stopping
-#  points_to_evaluate:
-#    gamma: 0.99
-#    lr: 0.0001
-#    num_sgd_iter: 16
-#    sgd_minibatch_size: 64
-#    train_batch_size: 512
-#    model:
-#      fcnet_hiddens: [256,256,256]
-#      fcnet_activation: relu
+  points_to_evaluate:
+    gamma: 0.99
+    lr: 0.0001
+    num_sgd_iter: 16
+    sgd_minibatch_size: 64
+    train_batch_size: 512
+    model:
+      fcnet_hiddens: [256,256,256]
+      fcnet_activation: relu
 
 
 debugging:
@@ -72,7 +72,6 @@ environment:
     action_space: masked
     mask: 3
     lib_dir: !workdir
-    max_tsteps: *train_batch_size
     grid2op_kwargs:
       # general kwargs
       reward_class: !LossReward

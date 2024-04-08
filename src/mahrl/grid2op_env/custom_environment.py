@@ -56,7 +56,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             raise RuntimeError(
                 "The configuration for RLLIB should provide the env name"
             )
-        self.max_tsteps = env_config["max_tsteps"]
         lib_dir = env_config["lib_dir"]
 
         self.env_g2op = grid2op.make(
@@ -133,7 +132,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         )
 
         self.previous_obs: OrderedDict[str, Any] = OrderedDict()
-        self.step_nb = 0
 
     def reset(
         self,
@@ -157,16 +155,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         This function performs a single step in the environment.
         """
 
-        # # Increase step
-        # self.step_nb = self.step_nb + 1
-
         # Build termination dict
         terminateds = {
-            "__all__": self.step_nb >= self.max_tsteps,
+            "__all__": False,
         }
-        if self.step_nb >= self.max_tsteps:
-            # terminate when train_batch_size is collected and reset step count.
-            self.step_nb = 0
 
         truncateds = {
             "__all__": False,
@@ -226,8 +218,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {}
-            # Increase step
-            self.step_nb = self.step_nb + 1
         elif bool(action_dict) is False:
             logging.info("Caution: Empty action dictionary!")
             rewards = {}

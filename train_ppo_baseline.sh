@@ -11,7 +11,7 @@
 
 ENVNAME=rte_case14_realistic
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=$HOME/mahrl/oldruns/${ENVNAME}_train/Case14_TestPars
+RESDIR= #$HOME/mahrl/oldruns/${ENVNAME}_train/Case14_TestPars
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
