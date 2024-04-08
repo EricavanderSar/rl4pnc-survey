@@ -211,8 +211,7 @@ class TuneCallback(TuneReporterBase):
     ):
         if self.log_level:
             # start printing after first evaluation
-            if ('custom_metrics' in result["evaluation"].keys()) & \
-                    (time.time() - self._last_res_time >= self._result_freq):
+            if (time.time() - self._last_res_time >= self._result_freq) & ('custom_metrics' in result["evaluation"].keys()):
                 print(Style.BOLD + " ------ TRAIL RESULTS -------" + Style.END)
                 self._start_block(f"trial_{trial}_result_{result['training_iteration']}")
                 curr_time_str, running_time_str = _get_time_str(self._start_time, time.time())
