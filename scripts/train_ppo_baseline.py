@@ -56,7 +56,7 @@ ENV_TYPE = {
 }
 
 
-def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
+def run_training(config: dict[str, Any], setup: dict[str, Any], res_dir: str = '') -> ResultGrid:
     """
     Function that runs the training script.
     """
@@ -83,6 +83,8 @@ def run_training(config: dict[str, Any], setup: dict[str, Any]) -> ResultGrid:
         metric=setup["score_metric"],
         mode="max",
     )
+    if res_dir:
+        algo.restore_from_dir(res_dir)
     scheduler = MedianStoppingRule(
         time_attr="timesteps_total", #Default = "time_total_s"
         metric=setup["score_metric"],
@@ -267,13 +269,20 @@ if __name__ == "__main__":
         default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/",
         help="path do store results.",
     )
+    parser.add_argument(
+        "-rd",
+        "--resultdir",
+        type=str,
+        default="",
+        help="load old results from this folder"
+    )
 
     # Parse the command-line arguments
     args = parser.parse_args()
 
     if args.file_path:
         ppo_config, custom_config = setup_config(args.workdir, args.file_path)
-        result_grid = run_training(ppo_config, custom_config["setup"])
+        result_grid = run_training(ppo_config, custom_config["setup"], args.resultdir)
     else:
         parser.print_help()
         logging.error("\nError: --file_path is required to specify config location.")
