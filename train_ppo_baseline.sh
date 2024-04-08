@@ -15,7 +15,7 @@ WORKDIR=$TMPDIR/evds_output_dir
 # function to handle the SIGTERM signal
 function handle_interrupt {
     echo "Caught SIGTERM signal, copying output directory from scratch to home..."
-    srun mkdir -p "$WORKDIR/runs" && cp -r $WORKDIR/runs $HOME/mahrl/
+    srun mkdir -p "$HOME/mahrl/runs" && cp -r $WORKDIR/runs $HOME/mahrl/
     exit 1
 }
 
@@ -41,5 +41,5 @@ echo "Done"
 
 #Copy output directory from scratch to home
 echo "copy output to home dir"
-srun mkdir -p "$WORKDIR/runs" && cp -r $WORKDIR/runs $HOME/mahrl/
+srun mkdir -p "$HOME/mahrl/runs" && cp -r $WORKDIR/runs $HOME/mahrl/
 
