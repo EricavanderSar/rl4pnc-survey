@@ -3,7 +3,7 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=64
+#SBATCH --cpus-per-task=128
 #SBATCH --partition=rome
 #SBATCH --time=24:00:00
 #SBATCH --output=ParamTunCase14_ppo_baseline_%j.out
@@ -15,7 +15,7 @@ WORKDIR=$TMPDIR/evds_output_dir
 # function to handle the SIGTERM signal
 function handle_interrupt {
     echo "Caught SIGTERM signal, copying output directory from scratch to home..."
-    cp -r $WORKDIR/runs $HOME/mahrl/
+    srun mkdir -p "$WORKDIR/runs" && cp -r $WORKDIR/runs $HOME/mahrl/
     exit 1
 }
 
@@ -41,5 +41,5 @@ echo "Done"
 
 #Copy output directory from scratch to home
 echo "copy output to home dir"
-srun cp -r $WORKDIR/runs $HOME/mahrl/
+srun mkdir -p "$WORKDIR/runs" && cp -r $WORKDIR/runs $HOME/mahrl/
 
