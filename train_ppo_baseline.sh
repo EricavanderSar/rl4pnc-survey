@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --partition=rome
 #SBATCH --time=02:00:00
-#SBATCH --output=Test2_NOautolog_ParamTunCase14_ppo_baseline_%j.out
+#SBATCH --output=Test1_storewd_ParamTunCase14_ppo_baseline_%j.out
 
 
 ENVNAME=rte_case14_realistic
