@@ -101,7 +101,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, re
         param_space=config,
         run_config=air.RunConfig(
             name=setup["folder_name"],
-            storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
+            # storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
             stop={"timesteps_total": setup["nb_timesteps"],
                   "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
             callbacks=[
