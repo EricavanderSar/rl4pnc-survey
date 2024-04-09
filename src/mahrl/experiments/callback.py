@@ -162,15 +162,15 @@ class TuneCallback(TuneReporterBase):
             log_level: int,
             metric: str,
             mode: str = "max",
-            res_freq: int = 2,
-            heartbeat_freq: int = 30
+            heartbeat_freq: int = 30,
+            eval_freq: int = 1,
     ):
         super().__init__(get_air_verbosity(0))
         self._start_end_verbosity = 1
         self._heartbeat_freq = heartbeat_freq
         self.log_level = log_level
-        self._last_res_time = float("-inf")
-        self._result_freq = res_freq * self._heartbeat_freq
+        self._last_res_it = 0
+        self._eval_freq = eval_freq
         self._metric = metric
         self._mode = mode
         self._best_trial = None
@@ -211,7 +211,8 @@ class TuneCallback(TuneReporterBase):
     ):
         if self.log_level:
             # start printing after first evaluation
-            if (time.time() - self._last_res_time >= self._result_freq) & ('custom_metrics' in result["evaluation"].keys()):
+            print('training_iteration ', result['training_iteration'])
+            if result['training_iteration'] % self._eval_freq == 0:
                 print(Style.BOLD + " ------ TRAIL RESULTS -------" + Style.END)
                 self._start_block(f"trial_{trial}_result_{result['training_iteration']}")
                 curr_time_str, running_time_str = _get_time_str(self._start_time, time.time())
@@ -222,7 +223,7 @@ class TuneCallback(TuneReporterBase):
                 )
                 # print intermediate results for trial:
                 self._print_result(trial, result)
-                self._last_res_time = time.time()
+                self._last_res_it = result['training_iteration']
 
     def _print_result(self, trial, result: Optional[Dict] = None, force: bool = False):
         result = result or trial.last_result

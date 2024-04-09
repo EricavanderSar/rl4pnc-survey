@@ -80,7 +80,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             self.possible_substation_actions = get_possible_topologies(
                 self.env_g2op, subs
             )
-            print('subs to act: ', subs)
+            # print('subs to act: ', subs)
         else:
             path = os.path.join(
                 lib_dir,
@@ -90,8 +90,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             logging.warning(
                 "No valid space is defined, using asymmetrical action space."
             )
-        print('action_space is ', env_config.get("action_space"))
-        print('number possible sub actions: ', len(self.possible_substation_actions))
+        # print('action_space is ', env_config.get("action_space"))
+        # print('number possible sub actions: ', len(self.possible_substation_actions))
 
         logging.info(f"LEN ACTIONS={len(self.possible_substation_actions)}")
         # Add the do-nothing action at index 0

@@ -56,7 +56,7 @@ ENV_TYPE = {
 }
 
 
-def run_training(config: dict[str, Any], setup: dict[str, Any], res_dir: str = '') -> ResultGrid:
+def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, res_dir: str = '') -> ResultGrid:
     """
     Function that runs the training script.
     """
@@ -65,11 +65,12 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], res_dir: str = '
     # init ray
     # Set the environment variable
     os.environ["RAY_DEDUP_LOGS"] = "0"
-    # Run wandb offline and to sync after wards run :
+    os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
+    # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
+    # Run wandb offline and to sync when finished use following command in result directory:
     # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
     os.environ["WANDB_MODE"] = "offline"
     os.environ["WANDB_SILENT"] = "true"
-    # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
     ray.init()
 
     # Get the hostname and port
@@ -100,6 +101,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], res_dir: str = '
         param_space=config,
         run_config=air.RunConfig(
             name=setup["folder_name"],
+            storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
             stop={"timesteps_total": setup["nb_timesteps"],
                   "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
             callbacks=[
@@ -109,7 +111,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], res_dir: str = '
                 TuneCallback(
                     config["my_log_level"],
                     "evaluation/custom_metrics/grid2op_end_mean",
-                    res_freq=5,
+                    eval_freq=config["evaluation_interval"],
                     heartbeat_freq=60,
                 ),
             ],
@@ -249,8 +251,8 @@ def change_workdir(workdir: str, env_name: str) -> None:
     else:
         grid2op.change_local_dir(os.path.expanduser("~/data_grid2op"))
     print(f"Environment data location used is: {grid2op.get_current_local_dir()}")
-    # Change dir for RLlib ray_results output tensorboard
-    os.environ["RAY_AIR_LOCAL_CACHE_DIR"] = os.path.join(workdir, f"runs/{env_name}")
+    # Change dir for RLlib ray_results output and disable the default output
+    # os.environ["DEFAULT_STORAGE_PATH"] = os.path.join(workdir, f"runs/{env_name}")
 
 
 if __name__ == "__main__":
@@ -283,7 +285,7 @@ if __name__ == "__main__":
 
     if args.file_path:
         ppo_config, custom_config = setup_config(args.workdir, args.file_path)
-        result_grid = run_training(ppo_config, custom_config["setup"], args.resultdir)
+        result_grid = run_training(ppo_config, custom_config["setup"], args.workdir, args.resultdir)
     else:
         parser.print_help()
         logging.error("\nError: --file_path is required to specify config location.")

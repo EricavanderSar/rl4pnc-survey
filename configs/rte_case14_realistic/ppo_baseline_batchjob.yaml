@@ -1,19 +1,17 @@
 setup:
   max_ep_len: 8064
-  nb_timesteps: &nb_timesteps 100_000
+  nb_timesteps: &nb_timesteps 1_000
   checkpoint_freq: 10
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Case14_TestPars"
-  experiment_name: "Case14_Optuna2"
-  save_artifact: True
+  folder_name: "Case14_TestOnly"
+  experiment_name: "Case14_Bla"
   optimize: True
-  num_samples: 100
+  num_samples: 2
   score_metric: episode_len_mean
   grace_period: 10_000 # First 10_000 steps of training before stopping
   points_to_evaluate:
     gamma: 0.99
-    lr: 0.0001
     num_sgd_iter: 16
     sgd_minibatch_size: 64
     train_batch_size: 512
@@ -28,7 +26,7 @@ training:
   checkpoint_trainable_policies_only: True
   # tunable parameters
   gamma: !quniform [0.95, 0.99, 0.001] #0.99 #
-  lr: !qloguniform [0.0001, 0.005, 0.0001] #0.0001 #
+  lr: 0.0001 #!qloguniform [0.0001, 0.005, 0.0001] #
   vf_loss_coeff: 0.5
   kl_coeff: 0.2
   entropy_coeff: 0
@@ -104,7 +102,7 @@ reporting:
   keep_per_episode_custom_metrics: True
 
 scaling_config:
-  num_workers: 6
+  num_workers: 4
 
 resources:
   num_gpus: 0
