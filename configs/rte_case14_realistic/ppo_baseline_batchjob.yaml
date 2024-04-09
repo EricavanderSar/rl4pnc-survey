@@ -1,6 +1,6 @@
 setup:
   max_ep_len: 8064
-  nb_timesteps: &nb_timesteps 1_000
+  nb_timesteps: &nb_timesteps 3_000
   checkpoint_freq: 10
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
@@ -88,7 +88,7 @@ env_config_val: &env_config_val
   prio: False # should always be False
 
 evaluation:
-  evaluation_interval: 10
+  evaluation_interval: 3
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
