@@ -65,7 +65,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, re
     # init ray
     # Set the environment variable
     os.environ["RAY_DEDUP_LOGS"] = "0"
-    os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
+    # os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
     # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
     # Run wandb offline and to sync when finished use following command in result directory:
     # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
