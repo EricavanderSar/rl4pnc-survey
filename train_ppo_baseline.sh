@@ -3,7 +3,7 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=128
+#SBATCH --cpus-per-task=72
 #SBATCH --gpus=1
 #SBATCH --partition=gpu
 #SBATCH --time=42:00:00
