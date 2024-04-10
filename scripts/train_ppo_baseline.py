@@ -21,7 +21,7 @@ from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.result_grid import ResultGrid
 # import ray.rllib.models.torch.torch_modelv2
-from ray.tune.search.optuna import OptunaSearch
+# from ray.tune.search.optuna import OptunaSearch
 from ray.tune.schedulers import MedianStoppingRule
 
 from mahrl.experiments.yaml import load_config
@@ -34,6 +34,7 @@ from mahrl.multi_agent.policy import (
     SelectAgentPolicy2
 )
 from mahrl.algorithms.custom_ppo import CustomPPO
+from mahrl.algorithms.optuna_search import MyOptunaSearch
 from mahrl.experiments.callback import Style, TuneCallback
 
 REPORT_END = False
@@ -66,7 +67,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, re
     # Set the environment variable
     os.environ["RAY_DEDUP_LOGS"] = "0"
     os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
-    # os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
+    os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
     # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
     # Run wandb offline and to sync when finished use following command in result directory:
     # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
@@ -81,7 +82,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, re
     print("Port:", port)
 
     # Use Optuna search algorithm to find good working parameters
-    algo = OptunaSearch(
+    algo = MyOptunaSearch(
         metric=setup["score_metric"],
         mode="max",
         points_to_evaluate=[setup['points_to_evaluate']] if 'points_to_evaluate' in setup else None,
