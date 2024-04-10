@@ -95,7 +95,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, re
         mode="max",
         grace_period=setup["grace_period"], # First exploration before stopping
         min_samples_required=3, # Default = 3
-        min_slice_time=3,
+        min_time_slice=3,
     )
 
     # Create tuner
