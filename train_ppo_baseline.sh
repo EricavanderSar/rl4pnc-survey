@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=rome
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=TestParam2_Case14_ppo_baseline_%j.out
 
 
