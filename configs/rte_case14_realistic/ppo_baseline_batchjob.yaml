@@ -1,13 +1,13 @@
 setup:
   max_ep_len: 8064
-  nb_timesteps: &nb_timesteps 3_000
+  nb_timesteps: &nb_timesteps 100_000
   checkpoint_freq: 10
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Case14_TestOnly"
-  experiment_name: "Case14_Bla"
+  folder_name: "Case14_TestPrio"
+  experiment_name: "Case14_Prio"
   optimize: True
-  num_samples: 2
+  num_samples: 25
   score_metric: episode_len_mean
   grace_period: 10_000 # First 10_000 steps of training before stopping
   points_to_evaluate:
@@ -25,7 +25,7 @@ debugging:
 training:
   checkpoint_trainable_policies_only: True
   # tunable parameters
-  gamma: !quniform [0.95, 0.99, 0.001] #0.99 #
+  gamma: !quniform [0.975, 0.995, 0.001] #0.99 #
   lr: 0.0001 #!qloguniform [0.0001, 0.005, 0.0001] #
   vf_loss_coeff: 0.5
   kl_coeff: 0.2
@@ -78,7 +78,7 @@ environment:
     input: [ "p_i", "r", "o", "d" ]
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
-    prio: False
+    prio: True
     normalize: True
 
 env_config_val: &env_config_val
@@ -88,7 +88,7 @@ env_config_val: &env_config_val
   prio: False # should always be False
 
 evaluation:
-  evaluation_interval: 3
+  evaluation_interval: 10
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
@@ -109,6 +109,6 @@ resources:
   num_learner_workers: 4
 
 rollouts:
-  num_rollout_workers: 11
+  num_rollout_workers: 6
 
 my_log_level: 1

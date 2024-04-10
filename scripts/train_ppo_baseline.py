@@ -20,7 +20,7 @@ from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.result_grid import ResultGrid
-import ray.rllib.models.torch.torch_modelv2
+# import ray.rllib.models.torch.torch_modelv2
 from ray.tune.search.optuna import OptunaSearch
 from ray.tune.schedulers import MedianStoppingRule
 
@@ -66,6 +66,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, re
     # Set the environment variable
     os.environ["RAY_DEDUP_LOGS"] = "0"
     os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
+    # os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
     # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
     # Run wandb offline and to sync when finished use following command in result directory:
     # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
@@ -87,12 +88,14 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, re
     )
     if res_dir:
         algo.restore_from_dir(res_dir)
+    # Scheduler determines if we should prematurely stop a certain experiment
     scheduler = MedianStoppingRule(
         time_attr="timesteps_total", #Default = "time_total_s"
         metric=setup["score_metric"],
         mode="max",
         grace_period=setup["grace_period"], # First exploration before stopping
-        min_samples_required=3 # Default = 3
+        min_samples_required=3, # Default = 3
+        min_slice_time=3,
     )
 
     # Create tuner
@@ -101,7 +104,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, re
         param_space=config,
         run_config=air.RunConfig(
             name=setup["folder_name"],
-            storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
+            # storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
             stop={"timesteps_total": setup["nb_timesteps"],
                   "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
             callbacks=[

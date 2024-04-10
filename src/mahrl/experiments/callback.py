@@ -211,7 +211,6 @@ class TuneCallback(TuneReporterBase):
     ):
         if self.log_level:
             # start printing after first evaluation
-            print('training_iteration ', result['training_iteration'])
             if result['training_iteration'] % self._eval_freq == 0:
                 print(Style.BOLD + " ------ TRAIL RESULTS -------" + Style.END)
                 self._start_block(f"trial_{trial}_result_{result['training_iteration']}")
