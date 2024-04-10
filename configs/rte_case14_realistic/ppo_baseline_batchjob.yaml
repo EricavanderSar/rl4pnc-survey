@@ -105,10 +105,10 @@ scaling_config:
   num_workers: 4
 
 resources:
-  num_gpus: 0
+  num_gpus: 1
   num_learner_workers: 4
 
 rollouts:
-  num_rollout_workers: 10
+  num_rollout_workers: 11
 
 my_log_level: 1
