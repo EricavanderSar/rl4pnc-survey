@@ -176,7 +176,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     # Access the parsed arguments
     os.chdir(workdir_path)
     config_path = os.path.join(workdir_path, input_path)
-    ppo_config = ppo.PPOConfig().to_dict()
+    ppo_config = ppo.PPOConfig().resources().to_dict()
     custom_config = load_config(config_path)
     ppo_config.update(custom_config["training"])
     ppo_config.update(custom_config["debugging"])

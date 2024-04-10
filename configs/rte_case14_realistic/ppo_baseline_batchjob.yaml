@@ -105,7 +105,7 @@ scaling_config:
   num_workers: 4
 
 resources:
-  num_gpus: 1
+  num_gpus: 2
   num_learner_workers: 1
 
 rollouts:
