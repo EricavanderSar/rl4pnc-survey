@@ -95,7 +95,8 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
             for key in algo._space.keys():
                 if '/' in key:
                     delete_nested_key(config, key)
-                del config[key]
+                else:
+                    del config[key]
         # Scheduler determines if we should prematurely stop a certain experiment
         scheduler = MedianStoppingRule(
             time_attr="timesteps_total", #Default = "time_total_s"
