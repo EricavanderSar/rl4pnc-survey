@@ -545,16 +545,13 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         Raises:
             ValueError: If the substation ID is not an integer.
         """
-        if isinstance(substation_id, int):
-            if substation_id == -1:
-                action = 0
-            else:
-                if not self.is_capa:
-                    substation_id = self.middle_to_substation_map[substation_id]
-                local_action = self.proposed_actions[substation_id]
-                action = self.local_to_global_action_map[substation_id][local_action]
+        if substation_id == -1:
+            action = 0
         else:
-            raise ValueError("SubID is not an integer.")
+            if not self.is_capa:
+                substation_id = self.middle_to_substation_map[substation_id]
+            local_action = self.proposed_actions[substation_id]
+            action = self.local_to_global_action_map[substation_id][local_action]
         return action
 
     def extract_proposed_actions(self, action_dict: MultiAgentDict) -> dict[int, int]:
@@ -565,10 +562,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         for key, action in action_dict.items():
             # extract integer at end of key
             agent_id = int(key.split("_")[-1])
-            if isinstance(action, int):
-                proposed_actions[agent_id] = action
-            else:
-                raise ValueError("Action is not an int.")
+            proposed_actions[agent_id] = action
 
         return proposed_actions
 
