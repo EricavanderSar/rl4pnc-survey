@@ -1,9 +1,12 @@
 import logging
 from typing import List, Optional, Union
 import numpy as np
+import os
 
 from ray.rllib.evaluation.worker_set import WorkerSet
 from ray.util.debug import log_once
+from ray.rllib.algorithms.algorithm import Algorithm
+from ray.rllib.utils.annotations import override
 from ray.rllib.algorithms.ppo import PPO
 from ray.rllib.algorithms.ppo.ppo import LEARNER_RESULTS_KL_KEY
 from ray.rllib.execution.train_ops import (
@@ -21,6 +24,7 @@ from ray.rllib.utils.metrics import (
     SAMPLE_TIMER,
     ALL_MODULES,
 )
+from ray.rllib.utils.checkpoints import get_checkpoint_info
 from ray.rllib.utils.typing import ResultDict
 
 from ray.rllib.policy.sample_batch import concat_samples, MultiAgentBatch
@@ -300,6 +304,24 @@ class CustomPPO(PPO):
         self.workers.local_worker().set_global_vars(global_vars)
 
         return train_results
+
+    @override(Algorithm)
+    def load_checkpoint(self, checkpoint_dir: str) -> None:
+        # Checkpoint is provided as a local directory.
+        # Restore from the checkpoint file or dir.
+
+        checkpoint_info = get_checkpoint_info(checkpoint_dir)
+        #EVDS: BugFix: When you use checkpoint trainable policies only you need to specify policy_ids to be only
+        # the checkpointed policies.
+        checkpoint_data = Algorithm._checkpoint_info_to_algorithm_state(checkpoint_info,
+                                                                        policy_ids=checkpoint_info['policy_ids'])
+        self.__setstate__(checkpoint_data)
+        if self.config._enable_new_api_stack:
+            learner_state_dir = os.path.join(checkpoint_dir, "learner")
+            self.learner_group.load_state(learner_state_dir)
+
+        # Call the `on_checkpoint_loaded` callback.
+        self.callbacks.on_checkpoint_loaded(algorithm=self)
 
     # def postprocess_trajectory(self, sample_batch, other_agent_batches, agent_id, **kwargs):
     #     # Filter out samples that are not from the trainable policy

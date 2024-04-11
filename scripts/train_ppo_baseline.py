@@ -57,7 +57,7 @@ ENV_TYPE = {
 }
 
 
-def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, res_dir: str = '') -> ResultGrid:
+def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) -> ResultGrid:
     """
     Function that runs the training script.
     """
@@ -66,7 +66,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, re
     # init ray
     # Set the environment variable
     os.environ["RAY_DEDUP_LOGS"] = "0"
-    os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
+    # os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
     os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
     # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
     # Run wandb offline and to sync when finished use following command in result directory:
@@ -87,8 +87,11 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str, re
         mode="max",
         points_to_evaluate=[setup['points_to_evaluate']] if 'points_to_evaluate' in setup else None,
     )
-    if res_dir:
-        algo.restore_from_dir(res_dir)
+    if setup['result_dir']:
+        print("Retrieving data old experiment from : ", setup['result_dir'])
+        algo.restore_from_dir(setup['result_dir'])
+        for key in algo._space.keys():
+            del config[key]
     # Scheduler determines if we should prematurely stop a certain experiment
     scheduler = MedianStoppingRule(
         time_attr="timesteps_total", #Default = "time_total_s"
@@ -176,7 +179,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     # Access the parsed arguments
     os.chdir(workdir_path)
     config_path = os.path.join(workdir_path, input_path)
-    ppo_config = ppo.PPOConfig().resources().to_dict()
+    ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
     ppo_config.update(custom_config["training"])
     ppo_config.update(custom_config["debugging"])
@@ -276,20 +279,13 @@ if __name__ == "__main__":
         default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/",
         help="path do store results.",
     )
-    parser.add_argument(
-        "-rd",
-        "--resultdir",
-        type=str,
-        default="",
-        help="load old results from this folder"
-    )
 
     # Parse the command-line arguments
     args = parser.parse_args()
 
     if args.file_path:
         ppo_config, custom_config = setup_config(args.workdir, args.file_path)
-        result_grid = run_training(ppo_config, custom_config["setup"], args.workdir, args.resultdir)
+        result_grid = run_training(ppo_config, custom_config["setup"], args.workdir)
     else:
         parser.print_help()
         logging.error("\nError: --file_path is required to specify config location.")

@@ -4,9 +4,9 @@ setup:
   checkpoint_freq: 10
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Case14_PrioScoreMetric"
-  experiment_name: "Case14_PrioScoreMetric"
-  optimize: True
+  folder_name: "Case14_PrioBest"
+  experiment_name: "Case14_PrioBest"
+  optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
   grace_period: 10_000 # First 10_000 steps of training before stopping
@@ -25,7 +25,7 @@ debugging:
 training:
   checkpoint_trainable_policies_only: True
   # tunable parameters
-  gamma: !quniform [0.975, 0.995, 0.001] #0.99 #
+  gamma: 0.994 #!quniform [0.975, 0.995, 0.001] #
   lr: 0.0001 #!qloguniform [0.0001, 0.005, 0.0001] #
   vf_loss_coeff: 0.5
   kl_coeff: 0.2
@@ -34,13 +34,13 @@ training:
   lambda: 0.95
   vf_clip_param: 10
 #  use_kl_loss: False # setting this similar to orig EVDS implementation
-  num_sgd_iter: !quniform [4, 16, 4]
-  sgd_minibatch_size: !choice [16, 32, 64] # 256 #
-  train_batch_size: &train_batch_size !choice [64, 128, 256, 512] #1024 #
+  num_sgd_iter: 4 # !quniform [4, 16, 4]
+  sgd_minibatch_size: 64 #!choice [16, 32, 64] # 256 #
+  train_batch_size: &train_batch_size 128 # !choice [64, 128, 256, 512] #1024 #
   batch_mode: complete_episodes
   model:
-    fcnet_hiddens: !choice [[256,256], [128,128,128], [256,256,256]] #[256,256,256] #
-    fcnet_activation: !choice [relu, tanh] #relu #
+    fcnet_hiddens: [256,256,256] #!choice [[256,256], [128,128,128], [256,256,256]]  #
+    fcnet_activation: tanh # !choice [relu, tanh] #relu #
   _enable_learner_api: False
 
 rl_module:
@@ -93,7 +93,7 @@ evaluation:
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
 #  evaluation_parallel_to_training: True #Currently not working
-  evaluation_num_workers: 3
+  evaluation_num_workers: 5
   evaluation_config:
     explore: False,
     env_config: *env_config_val # use the validation environment
@@ -106,9 +106,9 @@ scaling_config:
 
 resources:
   num_gpus: 1
-  num_learner_workers: 2
+  num_learner_workers: 4
 
 rollouts:
-  num_rollout_workers: 6
+  num_rollout_workers: 10
 
 my_log_level: 1
