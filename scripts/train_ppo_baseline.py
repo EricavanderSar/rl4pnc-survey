@@ -82,25 +82,26 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
     print("Port:", port)
 
     # Use Optuna search algorithm to find good working parameters
-    algo = MyOptunaSearch(
-        metric=setup["score_metric"],
-        mode="max",
-        points_to_evaluate=[setup['points_to_evaluate']] if 'points_to_evaluate' in setup else None,
-    )
-    if setup['result_dir']:
-        print("Retrieving data old experiment from : ", setup['result_dir'])
-        algo.restore_from_dir(setup['result_dir'])
-        for key in algo._space.keys():
-            del config[key]
-    # Scheduler determines if we should prematurely stop a certain experiment
-    scheduler = MedianStoppingRule(
-        time_attr="timesteps_total", #Default = "time_total_s"
-        metric=setup["score_metric"],
-        mode="max",
-        grace_period=setup["grace_period"], # First exploration before stopping
-        min_samples_required=3, # Default = 3
-        min_time_slice=3,
-    )
+    if setup['optimize']:
+        algo = MyOptunaSearch(
+            metric=setup["score_metric"],
+            mode="max",
+            points_to_evaluate=[setup['points_to_evaluate']] if 'points_to_evaluate' in setup else None,
+        )
+        if setup['result_dir']:
+            print("Retrieving data old experiment from : ", setup['result_dir'])
+            algo.restore_from_dir(setup['result_dir'])
+            for key in algo._space.keys():
+                del config[key]
+        # Scheduler determines if we should prematurely stop a certain experiment
+        scheduler = MedianStoppingRule(
+            time_attr="timesteps_total", #Default = "time_total_s"
+            metric=setup["score_metric"],
+            mode="max",
+            grace_period=setup["grace_period"], # First exploration before stopping
+            min_samples_required=3, # Default = 3
+            min_time_slice=3,
+        )
 
     # Create tuner
     tuner = tune.Tuner(
