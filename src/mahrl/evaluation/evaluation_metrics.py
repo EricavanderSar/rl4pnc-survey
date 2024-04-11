@@ -1,6 +1,7 @@
 """
 This describes possible metrics to be used for evaluation of the agent..
 """
+
 import ast
 import os
 from collections import Counter
@@ -68,7 +69,7 @@ def get_controlled_substations(action_list: list[dict[str, Any]]) -> list[int]:
     """List the controlled substations in the dataset"""
     substation_list = []
     for action in action_list:
-        substation_list.append(action["set_bus_vect"]["modif_subs_id"][0])
+        substation_list.append(action["set_bus_vect"]["modif_subs_id"][-1])
     return substation_list
 
 
@@ -142,7 +143,11 @@ def get_number_of_unique_action_sequences(
 
 def get_max_action_sequence_length(action_sequences: list[list[dict[str, Any]]]) -> int:
     """Return the maximum action sequence length."""
-    return int(np.max([len(action_sequence) for action_sequence in action_sequences]))
+    if len(action_sequences) != 0:
+        return int(
+            np.max([len(action_sequence) for action_sequence in action_sequences])
+        )
+    return 0
 
 
 def get_substation_counts(

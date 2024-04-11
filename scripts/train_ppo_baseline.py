@@ -1,75 +1,41 @@
 """
 Trains PPO baseline agent.
 """
+
 import argparse
 import logging
-import os
-from typing import Any
 
-import ray
-from gymnasium.spaces import Discrete
-from ray import air, tune
+import gymnasium
+import numpy as np
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 
+from mahrl.experiments.utils import run_training
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
 
 
-def run_training(config: dict[str, Any], setup: dict[str, Any]) -> None:
-    """
-    Function that runs the training script.
-    """
-    # init ray
-    ray.init()
-
-    # Create tuner
-    tuner = tune.Tuner(
-        ppo.PPO,
-        param_space=config,
-        run_config=air.RunConfig(
-            stop={"timesteps_total": setup["nb_timesteps"]},
-            storage_path=os.path.abspath(setup["storage_path"]),
-            checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=setup["checkpoint_freq"],
-                checkpoint_at_end=True,
-                checkpoint_score_attribute="evaluation/episode_reward_mean",
-            ),
-            verbose=setup["verbose"],
-        ),
-    )
-
-    # Launch tuning
-    try:
-        tuner.fit()
-    finally:
-        # Close ray instance
-        ray.shutdown()
-
-
-def setup_config(config_path: str) -> None:
+def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     """
     Loads the json as config and sets it up for training.
     """
     # load base PPO config and load in hyperparameters
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
-    ppo_config.update(custom_config["training"])
-    ppo_config.update(custom_config["debugging"])
-    ppo_config.update(custom_config["framework"])
-    ppo_config.update(custom_config["rl_module"])
-    ppo_config.update(custom_config["explore"])
-    ppo_config.update(custom_config["callbacks"])
-    ppo_config.update(custom_config["environment"])
-    ppo_config.update(custom_config["multi_agent"])
+    if checkpoint_path:
+        custom_config["setup"]["checkpoint_path"] = checkpoint_path
+
+    for key in custom_config.keys():
+        if key != "setup":
+            ppo_config.update(custom_config[key])
 
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy,
-            observation_space=None,  # infer automatically from env
-            action_space=Discrete(2),  # choose one of agents
+            observation_space=gymnasium.spaces.Box(-np.inf, np.inf),  # only the max rho
+            action_space=gymnasium.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -83,11 +49,6 @@ def setup_config(config_path: str) -> None:
                     },
                 )
                 .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
                 .rollouts(preprocessor_pref=None)
             ),
         ),
@@ -99,17 +60,12 @@ def setup_config(config_path: str) -> None:
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,
-            observation_space=None,  # infer automatically from env
-            action_space=Discrete(1),  # only perform do-nothing
+            observation_space=gymnasium.spaces.Discrete(1),  # no observation space
+            action_space=gymnasium.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
                 .rl_module(_enable_rl_module_api=False)
-                .exploration(
-                    exploration_config={
-                        "type": "EpsilonGreedy",
-                    }
-                )
             ),
         ),
     }
@@ -118,27 +74,34 @@ def setup_config(config_path: str) -> None:
     ppo_config.update({"policies": policies})
     ppo_config.update({"env": CustomizedGrid2OpEnvironment})
 
-    run_training(ppo_config, custom_config["setup"])
+    run_training(ppo_config, custom_config["setup"], ppo.PPO)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
     parser.add_argument(
-        "-f",
-        "--file_path",
+        "-c",
+        "--config",
         type=str,
         help="Path to the config file.",
+    )
+
+    parser.add_argument(
+        "-r",
+        "--retrain",
+        type=str,
+        help="Path to the checkpoint file for retraining.",
     )
 
     # Parse the command-line arguments
     args = parser.parse_args()
 
-    # Access the parsed arguments
-    input_file_path = args.file_path
-
-    if input_file_path:
-        setup_config(input_file_path)
+    if args.config:
+        if args.retrain:
+            setup_config(args.config, args.retrain)
+        else:
+            setup_config(args.config, None)
     else:
         parser.print_help()
-        logging.error("\nError: --file_path is required to specify config location.")
+        logging.error("\nError: --config is required to specify config location.")

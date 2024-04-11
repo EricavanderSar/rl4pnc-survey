@@ -1,12 +1,9 @@
-# TODO: Checki f reconnection goes well in evaluation because it's  only on the grid2op side.
-
 """
 Class to evaluate custom RL models.
 """
+
 import argparse
 import importlib
-import json
-import logging
 import os
 import re
 import time
@@ -14,15 +11,21 @@ from statistics import mean
 from typing import Any
 
 import grid2op
-from grid2op.Action import BaseAction
 from grid2op.Agent import BaseAgent, DoNothingAgent
 from grid2op.Environment import BaseEnv
 from grid2op.Reward import BaseReward
 from grid2op.Runner import Runner
+from lightsim2grid import LightSimBackend  # pylint: disable=wrong-import-order
 from ray.rllib.algorithms import ppo
 
-from mahrl.evaluation.evaluation_agents import RllibAgent, TopologyGreedyAgent
+from mahrl.evaluation.evaluation_agents import (
+    CapaAndGreedyAgent,
+    LargeTopologyGreedyAgent,
+    RllibAgent,
+)
 from mahrl.experiments.yaml import load_config
+from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from mahrl.grid2op_env.utils import load_actions
 
 
 def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
@@ -47,6 +50,13 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
         action="store_true",
         help="Signals to evaluate a Greedy agent.",
     )
+    parser.add_argument(
+        "-r",
+        "--rule_based_hierarchical",
+        action="store_true",
+        help="Signals to evaluate a Capa and Greedy agent.",
+    )
+
     parser.add_argument(
         "-c",
         "--config",
@@ -106,19 +116,6 @@ def instantiate_opponent_classes(class_name: str) -> Any:
     raise ValueError("Problem instantiating opponent class for evaluation.")
 
 
-def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
-    """
-    Loads the .json with specified topology actions.
-    """
-    with open(path, "rt", encoding="utf-8") as action_set_file:
-        return list(
-            (
-                env.action_space(action_dict)
-                for action_dict in json.load(action_set_file)
-            )
-        )
-
-
 def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
     """
     Perform runner on the implemented networks.
@@ -129,7 +126,35 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         # if not, create the folder
         os.makedirs(results_folder)
 
-    env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+    env = grid2op.make(
+        env_config["env_name"],
+        **env_config["grid2op_kwargs"],
+        backend=LightSimBackend(),
+    )
+
+    thermal_limits = [  # TODO: Remove?
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        1000,
+        760,
+        450,
+        760,
+        380,
+        380,
+        760,
+        380,
+        760,
+        380,
+        380,
+        380,
+        2000,
+        2000,
+    ]
+    env.set_thermal_limit(thermal_limits)
 
     params = env.get_params_for_runner()
     params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
@@ -177,6 +202,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             path_save=os.path.abspath(
                 f"{store_trajectories_folder}/{env_config['env_name']}"
             ),
+            # nb_episode=1,
             nb_episode=len(env.chronics_handler.subpaths),
             max_iter=-1,
             nb_process=1,
@@ -184,8 +210,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
 
         individual_timesteps = []
 
-        logging.info(f"The results for {agent_instance} agent are:")
-        for _, chron_name, cum_reward, nb_time_step, max_ts in res:
+        for _, chron_name, _, nb_time_step, max_ts in res:
             with open(
                 f"{results_folder}/{file_name}",
                 "a",
@@ -193,16 +218,10 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             ) as file:
                 file.write(
                     f"\n\tFor chronics with id {chron_name}\n"
-                    + f"\t\t - cumulative reward: {cum_reward:.6f}\n"
                     + f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
                 )
 
             individual_timesteps.append(nb_time_step)
-            logging.info(
-                f"\n\tFor chronics with id {chron_name}\n"
-                + f"\t\t - cumulative reward: {cum_reward:.6f}\n"
-                + f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
-            )
 
         with open(
             f"{results_folder}/{file_name}",
@@ -210,10 +229,9 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             encoding="utf-8",
         ) as file:
             file.write(
-                f"\nAverage timesteps survived: {mean(individual_timesteps)}\n{individual_timesteps}"
+                f"\nAverage timesteps survived: {mean(individual_timesteps)}\n{individual_timesteps}\n"
+                + f"Total time = {time.time() - start_time}"
             )
-
-        logging.info(f"Average timesteps survived: {mean(individual_timesteps)}")
 
 
 def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> None:
@@ -235,7 +253,7 @@ def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> N
 
     run_runner(
         env_config=env_config,
-        agent_instance=TopologyGreedyAgent(
+        agent_instance=LargeTopologyGreedyAgent(
             action_space=setup_env.action_space,
             env_config=env_config,
             possible_actions=possible_actions,
@@ -275,11 +293,15 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
     config_path = os.path.join(args.file_path, "params.json")
     config = load_config(config_path)
     env_config = config["env_config"]
+    # change the env_name from _train to _test
+    env_config["env_name"] = env_config["env_name"].replace("_train", "_test")
+
     env_config["grid2op_kwargs"]["reward_class"] = instantiate_reward_class(
         env_config["grid2op_kwargs"]["reward_class"]
     )
 
-    if env_config["grid2op_kwargs"]["opponent_action_class"]:
+    # check if "opponent_action_class" is part of env_config["grid2op_kwargs"]
+    if "opponent_action_class" in env_config["grid2op_kwargs"]:
         env_config["grid2op_kwargs"][
             "opponent_action_class"
         ] = instantiate_opponent_classes(
@@ -300,43 +322,75 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
             action_space=None,
             env_config=env_config,
             file_path=file_path,
-            policy_name="reinforcement_learning_policy",
+            policy_name="default_policy",
             algorithm=ppo.PPO,
             checkpoint_name=checkpoint_name,
+            gym_wrapper=CustomizedGrid2OpEnvironment(env_config),
+        ),
+    )
+
+
+def setup_capa_greedy_evaluation(
+    env_config: dict[str, Any], setup_env: BaseEnv
+) -> None:
+    """
+    Set up the evaluation of a greedy agent on a given environment configuration.
+
+    Args:
+        env_config (dict): The configuration of the environment.
+        setup_env (object): The setup environment object.
+
+    Returns:
+        None
+    """
+    actions_path = os.path.abspath(
+        f"{env_config['lib_dir']}/data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
+    )
+
+    possible_actions = load_actions(actions_path, setup_env)
+
+    run_runner(
+        env_config=env_config,
+        agent_instance=CapaAndGreedyAgent(
+            action_space=setup_env.action_space,
+            env_config=env_config,
+            possible_actions=possible_actions,
         ),
     )
 
 
 if __name__ == "__main__":
     start_time = time.time()
-
     init_parser = argparse.ArgumentParser(description="Process possible variables.")
     args = setup_parser(init_parser)
 
     # Check which arguments are provided
-    if args.greedy or args.nothing:  # run donothing or greedy evaluation
+    if (
+        args.greedy or args.nothing or args.rule_based_hierarchical
+    ):  # run donothing or greedy evaluation
         if not args.config:
             init_parser.print_help()
-            logging.error("\nError: --actions is required for the greedy agent.")
         else:
             # load config file
             environment_config = load_config(args.config)["environment"]["env_config"]
+            # change the env_name from _train to _test
+            environment_config["env_name"] = environment_config["env_name"].replace(
+                "_train", "_test"
+            )
             init_setup_env = grid2op.make(environment_config["env_name"])
 
             # start runners
             if args.greedy:
                 setup_greedy_evaluation(environment_config, init_setup_env)
+            elif args.rule_based_hierarchical:
+                setup_capa_greedy_evaluation(environment_config, init_setup_env)
             else:
                 setup_do_nothing_evaluation(environment_config, init_setup_env)
     else:
         if not args.file_path:
             init_parser.print_help()
-            logging.error("\nError: --file_path is required.")
         else:
             if not args.checkpoint_name:
-                logging.warning(
-                    "\nWarning: --checkpoint_name not specified. Using checkpoint_000000."
-                )
                 CHECKPOINT_NAME = "checkpoint_000000"
                 setup_rllib_evaluation(
                     file_path=args.file_path,
@@ -347,5 +401,3 @@ if __name__ == "__main__":
                     file_path=args.file_path,
                     checkpoint_name=args.checkpoint_name,
                 )
-
-    logging.info(f"Total time = {time.time() - start_time}")

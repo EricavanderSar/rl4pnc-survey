@@ -29,6 +29,7 @@ rl_module:
 explore:
   exploration_config:
     type: EpsilonGreedy
+    explore: False
 
 callbacks:
   callbacks: !CustomMetricsCallback

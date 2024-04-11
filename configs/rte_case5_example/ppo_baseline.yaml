@@ -1,22 +1,25 @@
 setup:
-  nb_timesteps: &nb_timesteps 1000000
-  checkpoint_freq: 10000
+  nb_timesteps: &nb_timesteps 100000
+  # checkpoint_freq: 10000
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
+  experiment_name: bugfixing
+  save_artifact: True
+  num_samples: 1
 
 debugging:
   seed: &seed 14
 
 training:
   # tunable parameters
-  lr: 0.05 # !grid_search [0.0005, 0.005, 0.05]
+  lr: 0.00005 #!grid_search [0.00005, 0.0005, 0.005]
   gamma: 0.95 # !grid_search [0.95, 0.99]
   vf_loss_coeff: 0.5
   entropy_coeff: 0.01
   clip_param: 0.2
   lambda_: 0.95
-  sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
-  train_batch_size: 128
+  sgd_minibatch_size: 2000 # !grid_search [32, 64, 128]
+  train_batch_size: 40000 # !grid_search [800, 8000, 80000]
   model:
     fcnet_hiddens: 
     - 256
@@ -28,7 +31,7 @@ rl_module:
 
 explore:
   exploration_config:
-    type: EpsilonGreedy
+    type: StochasticSampling
 
 callbacks:
   callbacks: !CustomMetricsCallback
@@ -41,7 +44,7 @@ multi_agent:
   policies_to_train: ["reinforcement_learning_policy"]
 
 environment:
-  env_config:
+  env_config: &env_config_train
     env_name: rte_case5_example
     num_agents: 3
     action_space: asymmetry
@@ -52,3 +55,15 @@ environment:
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.95
+
+env_config_val: &env_config_val
+  <<: *env_config_train
+  env_name: rte_case5_example
+
+evaluation:
+  evaluation_interval: 1000
+  evaluation_duration: 14 # as many as there are validation episodes
+  evaluation_duration_unit: episodes
+  evaluation_config: 
+      explore: False
+      env_config: *env_config_val # use the validation environment
