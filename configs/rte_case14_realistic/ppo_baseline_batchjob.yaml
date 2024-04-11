@@ -10,13 +10,14 @@ setup:
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
   grace_period: 10_000 # First 10_000 steps of training before stopping
-  points_to_evaluate:
-    gamma: 0.985
-    num_sgd_iter: 4
-    sgd_minibatch_size: 64
-    train_batch_size: 256
-    model/fcnet_hiddens: [128,128,128]
-    model/fcnet_activation: relu
+  result_dir: ""
+#  points_to_evaluate:
+#    gamma: 0.985
+#    num_sgd_iter: 4
+#    sgd_minibatch_size: 64
+#    train_batch_size: 256
+#    model/fcnet_hiddens: [128,128,128]
+#    model/fcnet_activation: relu
 
 
 debugging:
