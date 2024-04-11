@@ -36,6 +36,7 @@ from mahrl.multi_agent.policy import (
 from mahrl.algorithms.custom_ppo import CustomPPO
 from mahrl.algorithms.optuna_search import MyOptunaSearch
 from mahrl.experiments.callback import Style, TuneCallback
+from mahrl.experiments.utils import delete_nested_key
 
 REPORT_END = False
 
@@ -92,6 +93,8 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
             print("Retrieving data old experiment from : ", setup['result_dir'])
             algo.restore_from_dir(setup['result_dir'])
             for key in algo._space.keys():
+                if '/' in key:
+                    delete_nested_key(config, key)
                 del config[key]
         # Scheduler determines if we should prematurely stop a certain experiment
         scheduler = MedianStoppingRule(

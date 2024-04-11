@@ -197,3 +197,20 @@ def find_substation_per_lines(
             line_info[sub_idx].append(ex_id)
 
     return line_info
+
+
+def delete_nested_key(d, path):
+    keys = path.split('/')
+    current = d
+
+    # Traverse through the dictionary using keys from the path
+    for key in keys[:-1]:  # Iterate until the second last key
+        if key in current:
+            current = current[key]
+        else:
+            return  # If any key is missing, return without making changes
+
+    # Now current points to the dictionary containing the key to be deleted
+    last_key = keys[-1]
+    if last_key in current:
+        del current[last_key]
