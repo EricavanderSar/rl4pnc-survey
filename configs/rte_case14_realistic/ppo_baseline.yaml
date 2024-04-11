@@ -3,7 +3,7 @@ setup:
   # checkpoint_freq: 100000
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
-  experiment_name: rte_case14_example/ppo_baseline/initial_gridsearch
+  experiment_name: replicate_ppo_baseline
   save_artifact: True
   num_samples: 2
 
@@ -12,13 +12,14 @@ debugging:
 
 training:
   # tunable parameters
-  gamma: 0.99 # !grid_search [0.95, 0.99]
-  lr: !grid_search [0.05, 0.005, 0.0005]
-  vf_loss_coeff: 0.5
-  entropy_coeff: 0.01
-  clip_param: 0.2
-  lambda_: 0.95
-  num_sgd_iter: !grid_search [5, 15]
+  # gamma: 0.99 # !grid_search [0.95, 0.99]
+  lr: 0.0001 #!grid_search [05, 0.005, 0.0005]
+  # vf_loss_coeff: 0.5
+  entropy_coeff: 0
+  clip_param: 0.3
+  # lambda_: 0.95
+  kl_coeff: 0.2
+  num_sgd_iter: 5 #!grid_search [5, 15]
   sgd_minibatch_size: 256 # !grid_search [32, 64, 128]
   train_batch_size: 1024
   batch_mode: complete_episodes
@@ -50,18 +51,20 @@ environment:
   env_config: &env_config_train
     env_name: rte_case14_realistic_train
     num_agents: 3
-    action_space: tennet
+    action_space: davide
     lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ #  /home3/s3374610/mahrl_grid2op/ 
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
       # general kwargs
-      reward_class: !LossReward
+      reward_class: !ScaledL2RPNReward
     seed: *seed
     rho_threshold: 0.95
+    shuffle_scenarios: True
 
 env_config_val: &env_config_val
   <<: *env_config_train
   env_name: rte_case14_realistic_val
+  shuffle_scenarios: False
 
 evaluation:
   evaluation_interval: 5

@@ -2,6 +2,9 @@
 Implement PPO in Rllib with an accurate batch size, taken from Erica.
 """
 
+# pylint: skip-file
+# flake8: noqa
+
 import logging
 from typing import List, Optional, Union
 
@@ -81,7 +84,7 @@ def custom_synchronous_parallel_sample(
     assert not (max_agent_steps is not None and max_env_steps is not None)
     agent_or_env_steps = 0
     max_agent_or_env_steps = max_agent_steps or max_env_steps or None
-    all_sample_batches = []
+    all_sample_batches: List[SampleBatchType] = []
 
     policies_to_train = worker_set.local_worker().get_policies_to_train()
     worker_set.local_worker()
@@ -136,12 +139,14 @@ def custom_synchronous_parallel_sample(
         #    ].reverse().index(1)
         #    full_batch = full_batch.slice(0, last_complete_ep_idx)
         return full_batch
-    else:
-        return all_sample_batches
+    return all_sample_batches
 
 
 class CustomPPO(PPO):
     def training_step(self) -> ResultDict:
+        """
+        Defines the custom training step.
+        """
         # Collect SampleBatches from sample workers until we have a full batch.
         with self._timers[SAMPLE_TIMER]:
             if self.config.count_steps_by == "agent_steps":
@@ -157,7 +162,7 @@ class CustomPPO(PPO):
         # print(f"train_batch_size: {train_batch.count}")
         # print("agent_steps: ", train_batch.agent_steps())
         # print("env_steps : ", train_batch.env_steps())
-        train_batch = train_batch.as_multi_agent()
+        train_batch = train_batch.as_multi_agent()  # type: ignore
         self._counters[NUM_AGENT_STEPS_SAMPLED] += train_batch.agent_steps()
         self._counters[NUM_ENV_STEPS_SAMPLED] += train_batch.env_steps()
 

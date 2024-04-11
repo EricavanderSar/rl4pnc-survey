@@ -120,6 +120,24 @@ def get_medha_action_space(env: BaseEnv) -> list[BaseAction]:
                 )
             )
 
+    # # return all actions that have at least one nonzero element
+    # for index, row in dataframe.iterrows():
+    #     if any(row):
+    #         legal_actions.append(possible_substation_actions[index])
+
+    # add sub 7 manually
+    # legal_actions.append(
+    #     env.action_space(
+    #         {
+    #             "set_bus": {
+    #                 "generators_id": [[3, 1]],
+    #                 "lines_or_id": [],
+    #                 "lines_ex_id": [[18, 1]],
+    #             }
+    #         }
+    #     )
+    # )
+
     for index, row in dataframe.iterrows():
         # Identify positive entries in the current row
         positive_entries = row[row > 0].index.tolist()

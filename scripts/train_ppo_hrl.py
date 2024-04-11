@@ -9,7 +9,6 @@ from typing import Any
 import grid2op
 import gymnasium
 import numpy as np
-from gymnasium.spaces import Discrete
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
@@ -25,20 +24,24 @@ from mahrl.grid2op_env.custom_environment import (
     GreedyHierarchicalCustomizedGrid2OpEnvironment,
     HierarchicalCustomizedGrid2OpEnvironment,
 )
-from mahrl.multi_agent.policy import CapaPolicy, DoNothingPolicy, SelectAgentPolicy
+from mahrl.multi_agent.policy import (
+    CapaPolicy,
+    DoNothingPolicy,
+    RandomPolicy,
+    SelectAgentPolicy,
+)
 
 
 def select_mid_level_policy(
     middle_agent_type: str,
-    list_of_agents: list[int],
+    agent_per_substation: dict[int, int],
     line_info: dict[int, list[int]],
     custom_config: dict[str, Any],
 ) -> PolicySpec:
     """
     Specifies the policy for the middle level agent.
     """
-    # TODO Determine number of actions
-    base_action = gymnasium.spaces.Discrete(100)
+    list_of_agents = list(agent_per_substation.keys())
 
     capa_observation = gymnasium.spaces.Dict(
         {
@@ -61,7 +64,10 @@ def select_mid_level_policy(
                 }
             ),
             "proposed_actions": gymnasium.spaces.Dict(
-                {str(i): base_action for i in list_of_agents}
+                {
+                    str(i): gymnasium.spaces.Discrete(agent_per_substation[i])
+                    for i in list_of_agents
+                }
             ),
             "reset_capa_idx": gymnasium.spaces.Discrete(2),
         }
@@ -73,7 +79,9 @@ def select_mid_level_policy(
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=CapaPolicy,
             observation_space=capa_observation,  # information specifically for CAPA
-            action_space=Discrete(len(list_of_agents)),  # choose one of agents
+            action_space=gymnasium.spaces.Discrete(
+                len(list_of_agents)
+            ),  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -90,14 +98,36 @@ def select_mid_level_policy(
             ),
         )
     elif middle_agent_type == "rl":
+        custom_config["environment"]["env_config"]["capa"] = False
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=None,  # use default policy of PPO
             observation_space=capa_observation,
-            action_space=Discrete(len(list_of_agents)),  # choose one of agents
+            action_space=gymnasium.spaces.Discrete(
+                len(list_of_agents)
+            ),  # choose one of agents
+            config=None,
+        )
+    elif middle_agent_type == "random":
+        custom_config["environment"]["env_config"]["capa"] = False
+        mid_level_policy = PolicySpec(  # rule based substation selection
+            policy_class=RandomPolicy,
+            observation_space=capa_observation,  # NOTE: Observation space is redundant but needed in custom_env
+            action_space=gymnasium.spaces.Discrete(
+                len(list_of_agents)
+            ),  # choose one of agents
             config=(
                 AlgorithmConfig()
-                # .rollouts(preprocessor_pref=None)
-                .exploration(exploration_config={"type": "StochasticSampling"})
+                .training(
+                    _enable_learner_api=False,
+                    model={
+                        "custom_model_config": {
+                            "line_info": line_info,
+                            "environment": custom_config["environment"],
+                        },
+                    },
+                )
+                .rl_module(_enable_rl_module_api=False)
+                .rollouts(preprocessor_pref=None)
             ),
         )
     else:
@@ -117,15 +147,9 @@ def setup_config(
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
 
-    ppo_config.update(custom_config["training"])
-    ppo_config.update(custom_config["debugging"])
-    ppo_config.update(custom_config["framework"])
-    ppo_config.update(custom_config["rl_module"])
-    ppo_config.update(custom_config["explore"])
-    ppo_config.update(custom_config["callbacks"])
-    ppo_config.update(custom_config["environment"])
-    ppo_config.update(custom_config["multi_agent"])
-    ppo_config.update(custom_config["evaluation"])
+    for key in custom_config.keys():
+        if key != "setup":
+            ppo_config.update(custom_config[key])
 
     setup_env = grid2op.make(custom_config["environment"]["env_config"]["env_name"])
 
@@ -138,19 +162,16 @@ def setup_config(
     list_of_substations = list(agent_per_substation.keys())
 
     line_info = find_substation_per_lines(setup_env, list_of_substations)
-    # TODO: Give these policies own parameters
-    # TODO: First use the rule-based policies
-    # TODO adjust policies to train config
 
     mid_level_policy = select_mid_level_policy(
-        middle_agent_type, list_of_substations, line_info, custom_config
+        middle_agent_type, agent_per_substation, line_info, custom_config
     )
 
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy,
-            observation_space=None,  # infer automatically from env
-            action_space=Discrete(2),  # choose one of agents
+            observation_space=gymnasium.spaces.Box(-np.inf, np.inf),  # only the max rho
+            action_space=gymnasium.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -170,8 +191,8 @@ def setup_config(
         "choose_substation_policy": mid_level_policy,
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,
-            observation_space=None,  # infer automatically from env
-            action_space=Discrete(1),  # only perform do-nothing
+            observation_space=gymnasium.spaces.Discrete(1),  # no observation space
+            action_space=gymnasium.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
@@ -188,7 +209,7 @@ def setup_config(
             ] = PolicySpec(  # rule based substation selection
                 policy_class=None,  # infer automatically from env (PPO)
                 observation_space=None,  # infer automatically from env
-                action_space=Discrete(int(num_actions)),
+                action_space=gymnasium.spaces.Discrete(int(num_actions)),
                 config=None,
             )
 
@@ -206,8 +227,6 @@ def setup_config(
         ppo_config.update({"env": HierarchicalCustomizedGrid2OpEnvironment})
     elif lower_agent_type == "greedy":
         ppo_config.update({"env": GreedyHierarchicalCustomizedGrid2OpEnvironment})
-
-    # TODO: Get exploration from config explicitly?
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})

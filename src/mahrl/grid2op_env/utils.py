@@ -51,12 +51,18 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
 
     """
 
-    def __init__(self, converter: CustomIdToAct, do_nothing: BaseAction):
+    def __init__(self, converter: CustomIdToAct):
         self.converter = converter
-        self.do_nothing = do_nothing
         super().__init__(n=converter.n)
 
-    def from_gym(self, gym_action: dict[str, Any]) -> BaseAction:
+    # # NOTE: Implementation before fixing single agent
+    # def from_gym(self, gym_action: dict[str, Any]) -> BaseAction:
+    #     """
+    #     Function that converts a gym action into a grid2op action.
+    #     """
+    #     return self.converter.convert_act(gym_action)
+
+    def from_gym(self, gym_action: int) -> BaseAction:
         """
         Function that converts a gym action into a grid2op action.
         """
@@ -167,8 +173,7 @@ def rescale_observation_space(
         ),
     )
 
-    grid_name = g2op_env.name
-    grid_name = get_original_env_name(grid_name)
+    grid_name = get_original_env_name(g2op_env.name)
 
     if grid_name in [
         "rte_case14_realistic",
@@ -210,9 +215,10 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
         **env_config["grid2op_kwargs"],
         backend=LightSimBackend(),
     )
+
     env.seed(env_config["seed"])
 
-    if env_config["env_name"] == "rte_case14_realistic":
+    if str(env_config["env_name"]).startswith("rte_case14_realistic"):
         env.set_thermal_limit(
             [
                 1000,

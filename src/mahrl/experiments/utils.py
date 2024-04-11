@@ -12,6 +12,9 @@ from grid2op.Environment import BaseEnv
 from ray import air, tune
 from ray.air.integrations.mlflow import MLflowLoggerCallback
 from ray.rllib.algorithms import Algorithm
+from ray.rllib.models import ModelCatalog
+
+from mahrl.models.mlp import SimpleMlp
 
 
 def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
@@ -153,7 +156,7 @@ def get_capa_substation_id(
             else:
                 raise ValueError("The observation batch is not supported.")
     for sub_idx in connected_rhos:
-        connected_rhos[sub_idx] = np.mean(connected_rhos[sub_idx])
+        connected_rhos[sub_idx] = [float(np.mean(connected_rhos[sub_idx]))]
 
     # set non-controllable substations to 0
     for sub_idx in connected_rhos:
@@ -217,7 +220,10 @@ def run_training(
     Function that runs the training script.
     """
     # init ray
-    ray.init()
+    # ray.shutdown()
+    ray.init(ignore_reinit_error=False)
+
+    ModelCatalog.register_custom_model("fcn", SimpleMlp)
 
     # Create tuner
     tuner = tune.Tuner(
@@ -236,9 +242,10 @@ def run_training(
             stop={"timesteps_total": setup["nb_timesteps"]},
             storage_path=os.path.abspath(setup["storage_path"]),
             checkpoint_config=air.CheckpointConfig(
-                # checkpoint_frequency=setup["checkpoint_freq"],
-                checkpoint_at_end=True,
-                # checkpoint_score_attribute="evaluation/episode_reward_mean",
+                checkpoint_frequency=setup["checkpoint_freq"],
+                checkpoint_at_end=setup["checkpoint_at_end"],
+                checkpoint_score_attribute=setup["checkpoint_score_attr"],
+                num_to_keep=setup["keep_checkpoints_num"],
             ),
             verbose=setup["verbose"],
         ),

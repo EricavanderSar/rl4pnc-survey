@@ -22,14 +22,9 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     if checkpoint_path:
         custom_config["setup"]["checkpoint_path"] = checkpoint_path
 
-    ppo_config.update(custom_config["training"])
-    ppo_config.update(custom_config["debugging"])
-    ppo_config.update(custom_config["framework"])
-    ppo_config.update(custom_config["rl_module"])
-    ppo_config.update(custom_config["explore"])
-    ppo_config.update(custom_config["callbacks"])
-    ppo_config.update(custom_config["environment"])
-    ppo_config.update(custom_config["evaluation"])
+    for key in custom_config.keys():
+        if key != "setup":
+            ppo_config.update(custom_config[key])
     ppo_config.update({"env": SingleAgentGrid2OpEnvironment})
 
     run_training(ppo_config, custom_config["setup"], ppo.PPO)

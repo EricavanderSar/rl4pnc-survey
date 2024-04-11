@@ -81,6 +81,7 @@ if __name__ == "__main__":
         "-s",
         "--save_path",
         type=str,
+        default="/Users/barberademol/Documents/GitHub/mahrl_grid2op/data/action_spaces/",
         help="Path the action spaces must be saved.",
     )
 
