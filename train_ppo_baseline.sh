@@ -3,10 +3,11 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --partition=rome
-#SBATCH --time=12:00:00
-#SBATCH --output=PrioBest_Case14_ppo_baseline_%j.out
+#SBATCH --cpus-per-task=36
+#SBATCH --gpus=2
+#SBATCH --partition=gpu
+#SBATCH --time=42:00:00
+#SBATCH --output=PrioParamTune_Case14_ppo_baseline_%j.out
 
 
 ENVNAME=rte_case14_realistic

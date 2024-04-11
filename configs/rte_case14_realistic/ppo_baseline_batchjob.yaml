@@ -4,13 +4,13 @@ setup:
   checkpoint_freq: 10
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Case14_PrioBest"
-  experiment_name: "Case14_PrioBest"
+  folder_name: "Case14_PrioContinue"
+  experiment_name: "Case14_PrioContinue"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
   grace_period: 10_000 # First 10_000 steps of training before stopping
-  result_dir: ""
+  result_dir: "/home/evandersar/ray_results/Case14_PrioScoreMetric"
 #  points_to_evaluate:
 #    gamma: 0.985
 #    num_sgd_iter: 4
@@ -94,7 +94,7 @@ evaluation:
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
 #  evaluation_parallel_to_training: True #Currently not working
-  evaluation_num_workers: 5
+  evaluation_num_workers: 7
   evaluation_config:
     explore: False,
     env_config: *env_config_val # use the validation environment
@@ -106,7 +106,7 @@ scaling_config:
   num_workers: 4
 
 resources:
-  num_gpus: 0
+  num_gpus: 1
   num_learner_workers: 4
 
 rollouts:
