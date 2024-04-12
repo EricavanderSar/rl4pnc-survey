@@ -89,7 +89,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
             mode="max",
             points_to_evaluate=[setup['points_to_evaluate']] if 'points_to_evaluate' in setup else None,
         )
-        if setup['result_dir']:
+        if 'result_dir' in setup.keys():
             print("Retrieving data old experiment from : ", setup['result_dir'])
             algo.restore_from_dir(setup['result_dir'])
             for key in algo._space.keys():
