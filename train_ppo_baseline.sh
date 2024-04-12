@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=36
 #SBATCH --gpus=4
-#SBATCH --partition=gpu-mig
+#SBATCH --partition=gpu_mig
 #SBATCH --time=42:00:00
 #SBATCH --output=FiFo_Case14_ppo_baseline_%j.out
 
