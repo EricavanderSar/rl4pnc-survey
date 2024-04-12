@@ -3,9 +3,9 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=72
+#SBATCH --cpus-per-task=36
 #SBATCH --gpus=4
-#SBATCH --partition=gpu
+#SBATCH --partition=gpu-mig
 #SBATCH --time=42:00:00
 #SBATCH --output=FiFo_Case14_ppo_baseline_%j.out
 
