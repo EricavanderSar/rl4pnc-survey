@@ -98,14 +98,15 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
                 else:
                     del config[key]
         # Scheduler determines if we should prematurely stop a certain experiment
-        # scheduler = MedianStoppingRule(
-        #     time_attr="timesteps_total", #Default = "time_total_s"
-        #     metric=setup["score_metric"],
-        #     mode="max",
-        #     grace_period=setup["grace_period"], # First exploration before stopping
-        #     min_samples_required=3, # Default = 3
-        #     min_time_slice=3,
-        # )
+        scheduler = MedianStoppingRule(
+            time_attr="timesteps_total", #Default = "time_total_s"
+            metric=setup["score_metric"],
+            mode="max",
+            grace_period=setup["grace_period"], # First exploration before stopping
+            min_samples_required=5, # Default = 3
+            min_time_slice=10,
+            hard_stop=False,
+        )
 
     # Create tuner
     tuner = tune.Tuner(
@@ -138,7 +139,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
         tune_config=tune.TuneConfig(
             search_alg=algo,
             num_samples=setup["num_samples"],
-            # scheduler=scheduler,
+            scheduler=scheduler,
         ) if setup["optimize"] else None
         ,
     )
