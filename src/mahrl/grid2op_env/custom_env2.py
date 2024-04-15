@@ -34,7 +34,7 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
         self._obs_space_in_preferred_format = True
         self.observation_space = gym.spaces.Dict(
             {
-                "high_level_agent": gym.spaces.Box(-1, 2),
+                "high_level_agent": gym.spaces.Discrete(2),
                 "reinforcement_learning_agent":
                     gym.spaces.Dict({
                         "feature_matrix": gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_feature * n_history)),
