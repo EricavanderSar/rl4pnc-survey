@@ -1,12 +1,12 @@
 setup:
   max_ep_len: 8064
-  nb_timesteps: &nb_timesteps 3_000
+  nb_timesteps: &nb_timesteps 1_000
   checkpoint_freq: 2
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
   folder_name: "Test14"
   experiment_name: "TestOptuna"
-  optimize: True
+  optimize: False
   num_samples: 3
   score_metric: evaluation/custom_metrics/grid2op_end_mean
   grace_period: 500
@@ -30,13 +30,14 @@ training:
   lambda: 0.91
   vf_clip_param: 10
   use_kl_loss: False # setting this similar to orig EVDS implementation
-  num_sgd_iter: !quniform [4, 16, 4] #4 #spec.config.train_batch_size / spec.config.sgd_minibatch_size
-  sgd_minibatch_size: !choice [32, 64, 128] #32 #
-  train_batch_size: !choice [128, 256, 512] #128 #80 #
+  num_sgd_iter: 4 #spec.config.train_batch_size / spec.config.sgd_minibatch_size !quniform [4, 16, 4] #
+  sgd_minibatch_size: 32 #!choice [32, 64, 128] #
+  train_batch_size: 128 #80 #!choice [128, 256, 512] #
   batch_mode: complete_episodes
   model:
-    fcnet_hiddens: [128,128,128] # !choice [[256,256], [128,128,128]] #
+    fcnet_hiddens: [128,128,256] # !choice [[256,256], [128,128,128]] #
     fcnet_activation: relu #!choice [relu, tanh] #
+    post_fcnet_hiddens: [256,128]
   _enable_learner_api: False
   
 rl_module:
@@ -63,7 +64,7 @@ environment:
     shuffle_scenarios: True
     env_name: rte_case14_realistic_train
     action_space: masked
-    mask: 3
+    mask: 5
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/
     grid2op_kwargs:
       # general kwargs
@@ -84,7 +85,7 @@ env_config_val: &env_config_val
   prio: False # should always be False
 
 evaluation:
-  evaluation_interval: 2
+  evaluation_interval: 1
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True

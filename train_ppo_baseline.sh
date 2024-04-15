@@ -3,21 +3,23 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=54
-#SBATCH --gpus=3
+#SBATCH --cpus-per-task=72
+#SBATCH --gpus=4
 #SBATCH --partition=gpu
 #SBATCH --time=42:00:00
-#SBATCH --output=FiFo_Case14_ppo_baseline_%j.out
+#SBATCH --output=PostFCN_Case14_ppo_baseline_%j.out
 
 
 ENVNAME=rte_case14_realistic
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR= #$HOME/mahrl/oldruns/${ENVNAME}_train/Case14_TestPars
+RESDIR= Case14_PostFCN
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
-    echo "Caught SIGTERM signal, copying output directory from scratch to home..."
-    srun mkdir -p "$HOME/mahrl/runs" && cp -r $WORKDIR/runs $HOME/mahrl/
+    echo "Caught SIGTERM signal, sync with wandb..."
+#    srun mkdir -p "$HOME/mahrl/runs" && cp -r $WORKDIR/runs $HOME/mahrl/
+    cd $HOME/ray_results/$RESDIR
+    for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
     exit 1
 }
 
@@ -42,6 +44,10 @@ time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseli
 echo "Done"
 
 #Copy output directory from scratch to home
-echo "copy output to home dir"
-srun mkdir -p "$HOME/mahrl/runs" && cp -r $WORKDIR/runs $HOME/mahrl/
+echo "sync with wandb..."
+cd $HOME/ray_results/$RESDIR
+for d in $(ls -t -d */);
+do
+  cd $d; wandb sync --sync-all; cd ..;
+done
 
