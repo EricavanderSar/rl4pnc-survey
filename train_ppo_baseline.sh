@@ -6,12 +6,12 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=rome
 #SBATCH --time=08:00:00
-#SBATCH --output=MaskedAct_Case14_ppo_baseline_%j.out
+#SBATCH --output=Case14_Sandbox_ppo_baseline_%j.out
 
 
-ENVNAME=rte_case14_realistic
+ENVNAME=l2rpn_case14_sandbox
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=Case14_NewActionSpace
+RESDIR=Case14_Sandbox
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
