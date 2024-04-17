@@ -3,10 +3,9 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=72
-#SBATCH --gpus=4
-#SBATCH --partition=gpu
-#SBATCH --time=42:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --partition=rome
+#SBATCH --time=08:00:00
 #SBATCH --output=Case14_NewFCN_ppo_baseline_%j.out
 
 
