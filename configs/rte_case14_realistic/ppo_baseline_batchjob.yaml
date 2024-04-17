@@ -44,7 +44,7 @@ training:
   model:
     fcnet_hiddens: [128,128,128] #!choice [[128,128,128], [256,256,256]]  #
     fcnet_activation: tanh #!choice [relu, tanh] #relu #
-    post_fcnet_hiddens: 256 #!choice [[],[128], [256]]
+    post_fcnet_hiddens: [256] #!choice [[],[128], [256]]
   _enable_learner_api: False
 
 rl_module:
