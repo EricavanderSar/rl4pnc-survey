@@ -10,7 +10,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import grid2op
 import gymnasium
 import numpy as np
+import torch
 from ray.actor import ActorHandle
+from ray.rllib.algorithms.ppo import PPOTorchPolicy
 from ray.rllib.evaluation.episode_v2 import EpisodeV2
 from ray.rllib.evaluation.rollout_worker import RolloutWorker
 from ray.rllib.models.action_dist import ActionDistribution
@@ -55,6 +57,59 @@ def policy_mapping_fn(
     if agent_id.startswith("choose_substation_agent"):
         return "choose_substation_policy"
     raise NotImplementedError
+
+
+class ValueFunctionTorchPolicy(PPOTorchPolicy):
+    def _compute_action_helper(
+        self, input_dict, state_batches, seq_lens, explore, timestep
+    ):
+        """Shared forward pass logic (w/ and w/o trajectory view API).
+        Adjusted to also return the value of the value function.
+
+        Returns:
+            A tuple consisting of a) actions and value functions, b) state_out, c) extra_fetches.
+            The input_dict is modified in-place to include a numpy copy of the computed
+            actions under `SampleBatch.ACTIONS`.
+        """
+        (actions, state_out, extra_fetches) = super()._compute_action_helper(
+            input_dict, state_batches, seq_lens, explore, timestep
+        )
+        value = self.model.value_function()
+        if not isinstance(actions[0], np.int32):
+            print(f"action type: {type(actions[0])}")
+            print("Instance cannot be properly found")
+
+        if len(value) > 1 or value[0] >= 1 or value[0] < 0:
+            print(f"Value={value[0]}")
+            print(f"Value len={len(value)}")
+            print("Value exceeds 1, does not work anymore")
+            return actions, state_out, extra_fetches
+        else:
+            print(f"action output: {np.array(actions[0] + value[0])}")
+            return np.array([actions[0], value[0]]), state_out, extra_fetches
+            # return np.array([actions[0] + value[0]]), state_out, extra_fetches
+
+    # (CustomPPO pid=51757)   File "/Users/barberademol/Documents/GitHub/mahrl_grid2op/2venv_mahrl/lib/python3.11/site-packages/ray/rllib/evaluation/env_runner_v2.py", line 1141, in _process_policy_eval_results
+    # (CustomPPO pid=51757)     env_id: int = eval_data[i].env_id
+    # (CustomPPO pid=51757)                   ~~~~~~~~~^^^
+    # (CustomPPO pid=51757) IndexError: list index out of range
+
+    # ValueError: Expected value argument (Tensor of shape (7,)) to be within the support (IntegerInterval(lower_bound=0, upper_bound=6)) of the distribution Categorical(logits: torch.Size([7, 7])), but found invalid values:
+    # tensor([2.0084, 0.0095, 2.0092, 6.0092, 5.0092, 4.0095, 1.0068])
+
+    def action_sampler_fn(
+        self,
+        model: ModelV2,
+        obs_batch: torch.Tensor,
+        state_batches: torch.Tensor,
+        **kwargs,
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[torch.Tensor]]:
+        print(f"customized sampler")
+        # Sample two actions using the model
+        action_dist, _ = model(obs_batch, state_batches, self.config)
+        actions = action_dist.sample()
+        # Return two actions instead of one
+        return [actions, actions], (), (), []
 
 
 class CapaPolicy(Policy):

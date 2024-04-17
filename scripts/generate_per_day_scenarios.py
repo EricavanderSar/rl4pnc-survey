@@ -141,15 +141,32 @@ def generate_split_points(
     # loop over all scenarios to create a scenario for each day
     for scenario_id in env.chronics_handler.subpaths:
         reduction_in_days[scenario_id] = []
-        # print(f"init timestep: {0 + int(TIME * 60 / 5) - 1}")
         splitting_points[scenario_id] = []
         if check_safe_starting_point(env, scenario_id, 0 + int(TIME * 60 / 5) - 1):
-            _, _, _, _ = env.step(env.action_space())
+            # _, _, _, _ = env.step(env.action_space())
             splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
         else:
-            raise AssertionError(
-                f"Safe starting point not found for {scenario_id} at day 0"
-            )
+            print(f"Day 0 not safe for {scenario_id}, appending anyways.")
+            # _, _, _, _ = env.step(env.action_space())
+            splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
+
+            # # no safe starting point found at day 0, skip day
+            # not_safe = True
+            # counter = 1
+            # while not_safe:
+            #     print(f"Day 0 not safe for {scenario_id}, trying day {counter}")
+            #     reduction_in_days[scenario_id].append(True)
+
+            #     if check_safe_starting_point(
+            #         env, scenario_id, (LENGTH_DAY * counter) + int(TIME * 60 / 5) - 1
+            #     ):
+            #         _, _, _, _ = env.step(env.action_space())
+            #         splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
+            #         not_safe = False
+
+            # raise AssertionError(
+            #     f"Safe starting point not found for {scenario_id} at day 0"
+            # )
 
         for tsteps in range(LENGTH_DAY * delta, episode_duration, LENGTH_DAY * delta):
             number_of_days = int(tsteps / (LENGTH_DAY * delta))
@@ -160,7 +177,7 @@ def generate_split_points(
                 total_tsteps = tsteps
 
             if check_safe_starting_point(env, scenario_id, total_tsteps):
-                _, _, _, _ = env.step(env.action_space())
+                # _, _, _, _ = env.step(env.action_space())
                 splitting_points[scenario_id].append(total_tsteps)
             else:
                 reduction_in_days[scenario_id].append(True)

@@ -149,6 +149,7 @@ def get_medha_action_space(env: BaseEnv) -> list[BaseAction]:
 
         if not meets_condition:
             legal_actions.append(possible_substation_actions[index])
+
     return legal_actions
 
 

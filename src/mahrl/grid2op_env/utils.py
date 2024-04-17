@@ -179,6 +179,7 @@ def rescale_observation_space(
         "rte_case14_realistic",
         "rte_case5_example",
         "l2rpn_icaps_2021_large",
+        "l2rpn_case14_sandbox",
     ]:
         for attr in ["p_ex", "p_or", "load_p"]:
             underestimation_constant = (
@@ -216,7 +217,8 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
         backend=LightSimBackend(),
     )
 
-    env.seed(env_config["seed"])
+    if "seed" in env_config:
+        env.seed(env_config["seed"])
 
     if str(env_config["env_name"]).startswith("rte_case14_realistic"):
         env.set_thermal_limit(

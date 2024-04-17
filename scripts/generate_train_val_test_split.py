@@ -28,7 +28,7 @@ if __name__ == "__main__":
         "-t",
         "--test",
         type=int,
-        default=10,
+        default=20,
         help="Percentage of scenarios to be used for testing. Default = 10%.",
     )
 

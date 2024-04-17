@@ -181,13 +181,13 @@ def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[int, int]:
     """
     Function that returns the number of controllable substations.
     """
-    if action_space == "asymmetry":
+    if action_space.startswith("asymmetry"):
         _, _, list_of_agents = calculate_action_space_asymmetry(env)
         return list_of_agents
-    if action_space == "medha":
+    if action_space.startswith("medha"):
         _, _, list_of_agents = calculate_action_space_medha(env)
         return list_of_agents
-    if action_space == "tennet":
+    if action_space.startswith("tennet"):
         _, _, list_of_agents = calculate_action_space_tennet(env)
         return list_of_agents
     raise ValueError("The action space is not supported.")

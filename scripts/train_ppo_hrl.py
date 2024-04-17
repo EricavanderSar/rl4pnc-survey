@@ -65,7 +65,7 @@ def select_mid_level_policy(
             ),
             "proposed_actions": gymnasium.spaces.Dict(
                 {
-                    str(i): gymnasium.spaces.Discrete(agent_per_substation[i])
+                    str(i): gymnasium.spaces.Discrete(int(agent_per_substation[i]))
                     for i in list_of_agents
                 }
             ),
