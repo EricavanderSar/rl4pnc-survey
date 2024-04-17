@@ -64,17 +64,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.env_g2op.seed(env_config["seed"])
         rename_env(self.env_g2op)
         # 1.a. Setting up custom action space
-        if (
-            env_config["action_space"] == "asymmetry"
-            or env_config["action_space"] == "medha"
-            or env_config["action_space"] == "tennet"
-        ):
-            path = os.path.join(
-                lib_dir,
-                f"data/action_spaces/{self.env_g2op.env_name}/{env_config['action_space']}.json",
-            )
-            self.possible_substation_actions = self.load_action_space(path)
-        elif env_config["action_space"] == "masked":
+        if env_config["action_space"] == "masked":
             mask = env_config.get("mask", 3)
             subs = [i for i, big_enough in enumerate(self.env_g2op.action_space.sub_info > mask) if big_enough]
             self.possible_substation_actions = get_possible_topologies(
@@ -84,12 +74,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         else:
             path = os.path.join(
                 lib_dir,
-                f"data/action_spaces/{self.env_g2op.env_name}/asymmetry.json",
+                f"data/action_spaces/{self.env_g2op.env_name}/{env_config['action_space']}.json",
             )
             self.possible_substation_actions = self.load_action_space(path)
-            logging.warning(
-                "No valid space is defined, using asymmetrical action space."
-            )
         # print('action_space is ', env_config.get("action_space"))
         # print('number possible sub actions: ', len(self.possible_substation_actions))
 
