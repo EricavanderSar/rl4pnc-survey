@@ -4,8 +4,8 @@ setup:
   checkpoint_freq: 10
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Case14_NewActionSpace"
-  experiment_name: "Case14_NewActionSpace"
+  folder_name: "Case14_NoHist"
+  experiment_name: "Case14_NoHist"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -78,7 +78,7 @@ environment:
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.90
-    n_history: 6
+    n_history: 1
     input: [ "p_i", "r", "o", "d" ]
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
@@ -98,7 +98,7 @@ evaluation:
   always_attach_evaluation_results: True
   evaluation_sample_timeout_s: 720
 #  evaluation_parallel_to_training: True #Currently not working
-  evaluation_num_workers: 6
+  evaluation_num_workers: 5
   evaluation_config:
     explore: False,
     env_config: *env_config_val # use the validation environment
@@ -110,7 +110,7 @@ scaling_config:
   num_workers: 4
 
 resources:
-  num_gpus: 1
+#  num_gpus: 1
   num_learner_workers: 4
 
 rollouts:
