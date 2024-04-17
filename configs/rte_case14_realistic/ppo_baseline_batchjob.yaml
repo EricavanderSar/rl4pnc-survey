@@ -4,8 +4,8 @@ setup:
   checkpoint_freq: 10
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Case14_NoHist"
-  experiment_name: "Case14_NoHist"
+  folder_name: "Case14_NewAct"
+  experiment_name: "Case14_NewAct"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -78,7 +78,7 @@ environment:
       reward_class: !LossReward
     seed: *seed
     rho_threshold: 0.90
-    n_history: 1
+    n_history: 6
     input: [ "p_i", "r", "o", "d" ]
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
