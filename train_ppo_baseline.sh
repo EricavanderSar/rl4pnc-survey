@@ -3,16 +3,16 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=36
-#SBATCH --gpus=2
+#SBATCH --cpus-per-task=18
+#SBATCH --gpus=1
 #SBATCH --partition=gpu
-#SBATCH --time=42:00:00
-#SBATCH --output=PostFCN_Case14_ppo_baseline_%j.out
+#SBATCH --time=08:00:00
+#SBATCH --output=NewAct_Case14_ppo_baseline_%j.out
 
 
 ENVNAME=rte_case14_realistic
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR= Case14_PostFCN
+RESDIR=Case14_NewActionSpace
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
@@ -35,8 +35,8 @@ echo "Copy necessary files"
 mkdir $WORKDIR
 srun cp -r $HOME/mahrl_grid2op/configs $WORKDIR/configs
 srun cp -r $HOME/mahrl_grid2op/data $WORKDIR/data
-mkdir $WORKDIR/data_grid2op/
-srun find $HOME/data_grid2op -type d -name "${ENVNAME}*" -print0 | xargs -0 -I {} cp -r {} $WORKDIR/data_grid2op/
+#mkdir $WORKDIR/data_grid2op/
+#srun find $HOME/data_grid2op -type d -name "${ENVNAME}*" -print0 | xargs -0 -I {} cp -r {} $WORKDIR/data_grid2op/
 
 
 echo "Run code:"
