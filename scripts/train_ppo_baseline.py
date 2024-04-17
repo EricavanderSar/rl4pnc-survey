@@ -20,9 +20,8 @@ from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.tune.result_grid import ResultGrid
-# import ray.rllib.models.torch.torch_modelv2
-# from ray.tune.search.optuna import OptunaSearch
 from ray.tune.schedulers import MedianStoppingRule
+from ray.rllib.models import ModelCatalog
 
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
@@ -37,6 +36,7 @@ from mahrl.algorithms.custom_ppo import CustomPPO
 from mahrl.algorithms.optuna_search import MyOptunaSearch
 from mahrl.experiments.callback import Style, TuneCallback
 from mahrl.experiments.utils import delete_nested_key
+from mahrl.models.linear_model import LinFCN
 
 REPORT_END = False
 
@@ -270,6 +270,10 @@ def change_workdir(workdir: str, env_name: str) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process possible variables.")
+    ModelCatalog.register_custom_model(
+        "linfcn",
+        LinFCN
+    )
 
     parser.add_argument(
         "-f",

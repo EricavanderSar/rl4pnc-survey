@@ -5,7 +5,7 @@ setup:
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
   folder_name: "Test14"
-  experiment_name: "TestOptuna"
+  experiment_name: "Testing"
   optimize: False
   num_samples: 3
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -14,7 +14,7 @@ setup:
 #    num_sgd_iter: 16
 #    sgd_minibatch_size: 64
 #    train_batch_size: 512
-  result_dir: /Users/ericavandersar/ray_results/Test14 #"" #
+#  result_dir: /Users/ericavandersar/ray_results/Test14 #"" #
 
 debugging:
   seed: &seed 14
@@ -35,9 +35,10 @@ training:
   train_batch_size: 128 #80 #!choice [128, 256, 512] #
   batch_mode: complete_episodes
   model:
-    fcnet_hiddens: [128,128,256] # !choice [[256,256], [128,128,128]] #
-    fcnet_activation: relu #!choice [relu, tanh] #
-    post_fcnet_hiddens: [256,128]
+    custom_model : linfcn
+    fcnet_hiddens: [128,128,128] # !choice [[256,256], [128,128,128]] #
+#    fcnet_activation: relu #!choice [relu, tanh] #
+#    post_fcnet_hiddens: [256,128]
   _enable_learner_api: False
   
 rl_module:
@@ -63,7 +64,7 @@ environment:
     env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: rte_case14_realistic_train
-    action_space: masked
+    action_space: medha_DN_onechange
     mask: 5
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/
     grid2op_kwargs:
