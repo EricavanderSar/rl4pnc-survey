@@ -6,12 +6,12 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=rome
 #SBATCH --time=08:00:00
-#SBATCH --output=Case14_OldParam_ppo_baseline_%j.out
+#SBATCH --output=Case14_Sandbox_ppo_baseline_%j.out
 
 
 ENVNAME=l2rpn_case14_sandbox
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=Case14_NewFCN
+RESDIR=Case14_MaskedAct
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
@@ -45,8 +45,5 @@ echo "Done"
 #Copy output directory from scratch to home
 echo "sync with wandb..."
 cd $HOME/ray_results/$RESDIR
-for d in $(ls -t -d */);
-do
-  cd $d; wandb sync --sync-all; cd ..;
-done
+for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
 
