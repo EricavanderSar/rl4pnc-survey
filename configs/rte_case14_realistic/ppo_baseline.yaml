@@ -69,7 +69,7 @@ environment:
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/
     grid2op_kwargs:
       # general kwargs
-      reward_class: !LossReward
+      reward_class: !ScaledL2RPNReward
     seed: *seed
     rho_threshold: 0.90
     n_history: 6

@@ -27,7 +27,7 @@ from yaml.nodes import MappingNode, ScalarNode, SequenceNode
 
 from mahrl.experiments.callback import CustomMetricsCallback
 from mahrl.experiments.opponent import ReconnectingOpponentSpace
-from mahrl.experiments.rewards import LossReward
+from mahrl.experiments.rewards import LossReward, ScaledL2RPNReward
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import (
     DoNothingPolicy,
@@ -74,6 +74,13 @@ def loss_reward_constructor(
 ) -> LossReward:
     """Custom constructor for LossReward"""
     return LossReward()
+
+
+def scaled_reward_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> LossReward:
+    """Custom constructor for ScaledL2RPNReward"""
+    return ScaledL2RPNReward()
 
 
 def policy_mapping_fn_constructor(
@@ -224,6 +231,7 @@ def add_constructors() -> None:
         "!CustomizedGrid2OpEnvironment", customized_environment_constructor
     )
     yaml.FullLoader.add_constructor("!LossReward", loss_reward_constructor)
+    yaml.FullLoader.add_constructor("!ScaledL2RPNReward", scaled_reward_constructor)
     yaml.FullLoader.add_constructor("!policy_mapping_fn", policy_mapping_fn_constructor)
     yaml.FullLoader.add_constructor(
         "!CustomMetricsCallback", custom_metrics_callback_constructor
