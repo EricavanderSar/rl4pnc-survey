@@ -106,12 +106,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             converter, self.env_g2op.action_space()
         )
         # customize observation space
-        ob_space = self.env_gym.observation_space
-        ob_space = ob_space.keep_only_attr(
-            ["rho", "gen_p", "load_p", "p_or", "p_ex", "timestep_overflow", "topo_vect"]
-        )
-
-        self.env_gym.observation_space = ob_space
+        self.env_gym.observation_space = self.rescale_observation_space(lib_dir)
 
         # 4. specific to rllib
         self._action_space_in_preferred_format = True
@@ -252,6 +247,53 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         if not isinstance(x, dict):
             return False
         return all(self.observation_space.contains(val) for val in x.values())
+
+    def rescale_observation_space(self, lib_dir: str) -> GymnasiumObservationSpace:
+        """
+        Function that rescales the observation space.
+        """
+        # scale observations
+        gym_obs = self.env_gym.observation_space
+        gym_obs = gym_obs.keep_only_attr(
+            ["rho", "gen_p", "load_p", "p_or", "p_ex", "timestep_overflow", "topo_vect"]
+        )
+
+        gym_obs = gym_obs.reencode_space(
+            "gen_p",
+            ScalerAttrConverter(substract=0.0, divide=self.env_g2op.gen_pmax),
+        )
+        gym_obs = gym_obs.reencode_space(
+            "timestep_overflow",
+            ScalerAttrConverter(
+                substract=0.0,
+                divide=Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED,  # assuming no custom params
+            ),
+        )
+
+        if self.env_g2op.env_name in [
+            "rte_case14_realistic",
+            "rte_case5_example",
+            "l2rpn_icaps_2021_large",
+        ]:
+            underestimation_constant = 1.2  # constant to account that our max/min are underestimated
+            for attr in ["p_ex", "p_or", "load_p"]:
+                path = os.path.join(
+                    lib_dir,
+                    f"data/scaling_arrays/{self.env_g2op.env_name}/{attr}.npy",
+                )
+                max_arr, min_arr = np.load(path)
+
+                gym_obs = gym_obs.reencode_space(
+                    attr,
+                    ScalerAttrConverter(
+                        substract=underestimation_constant * min_arr,
+                        divide=underestimation_constant * (max_arr - min_arr),
+                    ),
+                )
+        else:
+            raise ValueError("This scaling is not yet implemented for this environment.")
+
+        return gym_obs
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)
 
@@ -549,50 +591,6 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
         Not implemented.
         """
         raise NotImplementedError
-
-    def rescale_observation_space(self,
-                                  gym_obs: GymnasiumObservationSpace, lib_dir
-                                  ) -> GymnasiumObservationSpace:
-        """
-        Function that rescales the observation space.
-        """
-        # scale observations
-        gym_obs = gym_obs.reencode_space(
-            "gen_p",
-            ScalerAttrConverter(substract=0.0, divide=self.env_g2op.gen_pmax),
-        )
-        gym_obs = gym_obs.reencode_space(
-            "timestep_overflow",
-            ScalerAttrConverter(
-                substract=0.0,
-                divide=Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED,  # assuming no custom params
-            ),
-        )
-
-        if self.env_g2op.env_name in [
-            "rte_case14_realistic",
-            "rte_case5_example",
-            "l2rpn_icaps_2021_large",
-        ]:
-            underestimation_constant = 1.2 # constant to account that our max/min are underestimated
-            for attr in ["p_ex", "p_or", "load_p"]:
-                path = os.path.join(
-                    lib_dir,
-                    f"data/scaling_arrays/{self.env_g2op.env_name}/{attr}.npy",
-                )
-                max_arr, min_arr = np.load(path)
-
-                gym_obs = gym_obs.reencode_space(
-                    attr,
-                    ScalerAttrConverter(
-                        substract=underestimation_constant * min_arr,
-                        divide=underestimation_constant * (max_arr - min_arr),
-                    ),
-                )
-        else:
-            raise ValueError("This scaling is not yet implemented for this environment.")
-
-        return gym_obs
 
 
 register_env(
