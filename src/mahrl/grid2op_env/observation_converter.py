@@ -50,7 +50,7 @@ class ObsConverter:
         print('loading data from ', os.path.join(load_path, "load_p.npy"))
         self.max[..., self.lp], self.min[..., self.lp] = [vec*c for c, vec in zip(under_const, np.load(os.path.join(load_path, "load_p.npy")))]
         self.max[..., self.op], self.min[..., self.op] = [vec*c for c, vec in zip(under_const, np.load(os.path.join(load_path, "p_or.npy")))]
-        self.max[..., self.ep], self.min[..., self.ep] = [vec*c for c, vec in zip(np.load(os.path.join(load_path, "p_ex.npy")))]
+        self.max[..., self.ep], self.min[..., self.ep] = [vec*c for c, vec in zip(under_const, np.load(os.path.join(load_path, "p_ex.npy")))]
 
     def reset(self):
         self.stacked_obs = []
