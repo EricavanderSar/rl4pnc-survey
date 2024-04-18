@@ -7,6 +7,7 @@ import logging
 import os
 from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, TypeVar
+import numpy as np
 
 import grid2op
 from lightsim2grid import LightSimBackend
@@ -29,6 +30,11 @@ from mahrl.grid2op_env.utils import (
     setup_converter,
     rename_env,
 )
+
+
+from grid2op.gym_compat import ScalerAttrConverter
+from grid2op.Parameters import Parameters
+from grid2op.gym_compat.gym_obs_space import GymnasiumObservationSpace
 
 OBSTYPE = TypeVar("OBSTYPE")
 ACTTYPE = TypeVar("ACTTYPE")
@@ -62,6 +68,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             env_config["env_name"], **env_config["grid2op_kwargs"], backend=LightSimBackend()
         )
         self.env_g2op.seed(env_config["seed"])
+        # *** RENAME THE ENVIRONMENT *** excl _train / _val etc
+        # such that it can gather the action space and normalization/scaling parameters
         rename_env(self.env_g2op)
         # 1.a. Setting up custom action space
         if env_config["action_space"] == "masked":
@@ -541,6 +549,50 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
         Not implemented.
         """
         raise NotImplementedError
+
+    def rescale_observation_space(self,
+                                  gym_obs: GymnasiumObservationSpace, lib_dir
+                                  ) -> GymnasiumObservationSpace:
+        """
+        Function that rescales the observation space.
+        """
+        # scale observations
+        gym_obs = gym_obs.reencode_space(
+            "gen_p",
+            ScalerAttrConverter(substract=0.0, divide=self.env_g2op.gen_pmax),
+        )
+        gym_obs = gym_obs.reencode_space(
+            "timestep_overflow",
+            ScalerAttrConverter(
+                substract=0.0,
+                divide=Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED,  # assuming no custom params
+            ),
+        )
+
+        if self.env_g2op.env_name in [
+            "rte_case14_realistic",
+            "rte_case5_example",
+            "l2rpn_icaps_2021_large",
+        ]:
+            underestimation_constant = 1.2 # constant to account that our max/min are underestimated
+            for attr in ["p_ex", "p_or", "load_p"]:
+                path = os.path.join(
+                    lib_dir,
+                    f"data/scaling_arrays/{self.env_g2op.env_name}/{attr}.npy",
+                )
+                max_arr, min_arr = np.load(path)
+
+                gym_obs = gym_obs.reencode_space(
+                    attr,
+                    ScalerAttrConverter(
+                        substract=underestimation_constant * min_arr,
+                        divide=underestimation_constant * (max_arr - min_arr),
+                    ),
+                )
+        else:
+            raise ValueError("This scaling is not yet implemented for this environment.")
+
+        return gym_obs
 
 
 register_env(

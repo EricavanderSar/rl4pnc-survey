@@ -61,7 +61,7 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_type: old_env #new_env #
+    env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: rte_case14_realistic_train
     action_space: medha_DN_onechange
@@ -77,7 +77,7 @@ environment:
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     prio: True
-    normalize: True
+    normalize: maxmin
 
 env_config_val: &env_config_val
   <<: *env_config_train
@@ -103,6 +103,6 @@ resources:
   num_learner_workers: 1
 
 rollouts:
-  num_rollout_workers: 2
+  num_rollout_workers: 1
 
 my_log_level: 1

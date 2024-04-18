@@ -3,7 +3,7 @@ import torch
 import os
 from grid2op import Observation
 from grid2op import Environment
-
+from grid2op.Parameters import Parameters
 
 class ObsConverter:
     def __init__(self,
@@ -25,6 +25,9 @@ class ObsConverter:
         self.state_mean = None
         self.state_std = None
         self.normalize = False
+        # For different way of normalizing
+        self.max = np.ones(self.obs_space.n)
+        self.min = np.zeros(self.obs_space.n)
 
     def load_mean_std(self, load_path):
         self.normalize = True
@@ -38,6 +41,16 @@ class ObsConverter:
         pos = self.obs_space.attr_list_vect.index(last_attr)
         self.state_mean[sum(self.obs_space.shape[:pos]):] = 0
         self.state_std[sum(self.act_space.shape[:pos]):] = 1
+
+    def load_max_min(self, load_path):
+        self.normalize = True
+        self.max[..., self.pp] = self.obs_space.gen_pmax
+        # self.max[] = Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED # Overflow not needed already taken care of
+        c = 1.2 # constant to account that our max/min are underestimated
+        print('loading data from ', os.path.join(load_path, "load_p.npy"))
+        self.max[..., self.lp], self.min[..., self.lp] = [vec*c for vec in np.load(os.path.join(load_path, "load_p.npy"))]
+        self.max[..., self.op], self.min[..., self.op] = [vec*c for vec in np.load(os.path.join(load_path, "p_or.npy"))]
+        self.max[..., self.ep], self.min[..., self.ep] = [vec*c for vec in np.load(os.path.join(load_path, "p_ex.npy"))]
 
     def reset(self):
         self.stacked_obs = []
@@ -53,7 +66,10 @@ class ObsConverter:
         return all_obs_ranges
 
     def state_normalize(self, s):
-        s = (s - self.state_mean) / self.state_std
+        if self.state_std is not None:
+            s = (s - self.state_mean) / self.state_std
+        else:
+            s = (s - self.min) / (self.max - self.min)
         return s
 
     def init_obs_converter(self):
@@ -116,8 +132,8 @@ class ObsConverter:
         if "o" in self.attr:
             # whether overflow occurs in each powerline
             over_ = np.zeros(length)
-            over_[..., self.obs_space.line_or_pos_topo_vect] = o[..., self.over] / 3
-            over_[..., self.obs_space.line_ex_pos_topo_vect] = o[..., self.over] / 3
+            over_[..., self.obs_space.line_or_pos_topo_vect] = o[..., self.over] / Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED
+            over_[..., self.obs_space.line_ex_pos_topo_vect] = o[..., self.over] / Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED
             attr_list.append(over_)
         if "m" in self.attr:
             # whether each powerline is in maintenance

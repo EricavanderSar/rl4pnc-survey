@@ -49,12 +49,18 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
         self.cur_obs = None
 
         # Normalize state observations:
-        if env_config.get("normalize", True):
+        if env_config.get("normalize", '') == "meanstd":
             load_path = os.path.join(
                 env_config["lib_dir"],
                 f"data/observations_dn/{self.env_g2op.env_name}",
             )
             self.obs_converter.load_mean_std(load_path)
+        elif env_config.get("normalize", '') == "maxmin":
+            path = os.path.join(
+                env_config["lib_dir"],
+                f"data/scaling_arrays/{self.env_g2op.env_name}",
+            )
+            self.obs_converter.load_max_min(load_path=path)
 
         # initialize training chronic sampling weights
         self.chron_prios = ChronPrioMatrix(self.env_g2op)
