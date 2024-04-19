@@ -6,6 +6,7 @@ import json
 import os
 from typing import Any
 import numpy as np
+import torch
 
 import grid2op
 import gymnasium
@@ -162,3 +163,33 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
             ])
         )
     return env
+
+
+class ChronPrioMatrix:
+    def __init__(self, env: grid2op.Environment):
+        self.max_ep_dur = env.max_episode_duration()
+        # initialize training chronic sampling weights
+        self.ffw_size = 288
+        self.max_ffw = self.max_ep_dur // self.ffw_size
+        avail_chron = env.chronics_handler.real_data.available_chronics()
+        self.chron_scores = torch.ones(len(avail_chron), self.max_ffw) * 2.0
+
+        self.cur_ffw = 0
+        self.chronic_idx = None
+
+    def sample_chron(self):
+        # sample training chronic
+        dist = torch.distributions.categorical.Categorical(logits=torch.Tensor(self.chron_scores.flatten()))
+        record_idx = dist.sample().item()
+        self.chronic_idx = record_idx // self.max_ffw
+        self.cur_ffw = record_idx % self.max_ffw
+        return self.chronic_idx
+
+    def update_prios(self, steps_surv):
+        pieces_played = int(np.ceil(steps_surv / self.ffw_size))
+        max_steps = self.max_ep_dur - self.cur_ffw * self.ffw_size
+        scores = torch.ones(pieces_played) * 2.0  # scale = 2.0
+        for p in range(pieces_played):
+            scores[p] *= 1 - np.sqrt((steps_surv - self.ffw_size * p) / (max_steps - self.ffw_size * p))
+        self.chron_scores[self.chronic_idx][self.cur_ffw: (self.cur_ffw + pieces_played)] = scores
+

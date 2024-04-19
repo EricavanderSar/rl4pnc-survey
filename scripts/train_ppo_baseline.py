@@ -209,7 +209,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     # ppo_config["env_config"]["lib_dir"] = os.path.join(workdir_path, ppo_config["env_config"]["lib_dir"])
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
-            policy_class=env_type_config["hl_policy"],
+            policy_class=SelectAgentPolicy2,
             # observation_space=env_type_config["hl_obs_space"],
             # action_space=gym.spaces.Discrete(2),  # choose one of agents
             config=(
@@ -235,7 +235,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
             config=None,
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
-            policy_class=env_type_config["dn_policy"],
+            policy_class=DoNothingPolicy2,
             # observation_space=env_type_config["dn_obs_space"],
             # action_space=gym.spaces.Discrete(1),  # only perform do-nothing
             config=(

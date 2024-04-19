@@ -77,7 +77,7 @@ environment:
       # general kwargs
       reward_class: !ScaledL2RPNReward
     seed: *seed
-    rho_threshold: 0.90
+    rho_threshold: 0.95
     # Params below only used for new_env
     n_history: 6
     input: [ "p_i", "r", "o", "d" ]

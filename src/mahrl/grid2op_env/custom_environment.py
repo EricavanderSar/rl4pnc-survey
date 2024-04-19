@@ -28,7 +28,8 @@ from mahrl.grid2op_env.utils import (
     CustomDiscreteActions,
     get_possible_topologies,
     setup_converter,
-    make_g2op_env
+    make_g2op_env,
+    ChronPrioMatrix,
 )
 
 
@@ -111,11 +112,24 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 "do_nothing_agent": gym.spaces.Discrete(1),
             }
         )
+
+        self._obs_space_in_preferred_format = True
         self.observation_space = gym.spaces.Dict(
-            dict(self.env_gym.observation_space.spaces.items())
+            {
+                "high_level_agent": gym.spaces.Discrete(2),
+                "reinforcement_learning_agent":
+                    gym.spaces.Dict(
+                        dict(self.env_gym.observation_space.spaces.items())
+                    ),
+                "do_nothing_agent": gym.spaces.Discrete(1),
+            }
         )
 
         self.previous_obs: OrderedDict[str, Any] = OrderedDict()
+
+        # initialize training chronic sampling weights
+        self.chron_prios = ChronPrioMatrix(self.env_g2op)
+        self.step_surv = 0
 
     def reset(
         self,
@@ -127,7 +141,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         This function resets the environment.
         """
         self.previous_obs, infos = self.env_gym.reset()
-        observations = {"high_level_agent": self.previous_obs}
+        observations = {"high_level_agent": self.previous_obs['rho'].max().flatten()}
         return observations, infos
 
     def step(
@@ -150,6 +164,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         rewards: Dict[str, Any] = {}
         infos: Dict[str, Any] = {}
+        observations = {}
 
         logging.info(f"ACTION_DICT = {action_dict}")
 
@@ -160,57 +175,40 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 observations = {"reinforcement_learning_agent": self.previous_obs}
             elif action == 1:
                 # do nothing
-                observations = {"do_nothing_agent": self.previous_obs}
+                observations = {"do_nothing_agent": 0}
             else:
                 raise ValueError(
                     "An invalid action is selected by the high_level_agent in step()."
                 )
+            return observations, rewards, terminateds, truncateds, infos
         elif "do_nothing_agent" in action_dict.keys():
             logging.info("do_nothing_agent IS CALLED: DO NOTHING")
 
             # overwrite action in action_dict to nothing
             action = action_dict["do_nothing_agent"]
-            (
-                self.previous_obs,
-                reward,
-                terminated,
-                truncated,
-                infos,
-            ) = self.env_gym.step(action)
-
-            # still give reward to RL agent
-            rewards = {"reinforcement_learning_agent": reward}
-            observations = {"high_level_agent": self.previous_obs}
-            terminateds = {"__all__": terminated}
-            truncateds = {"__all__": truncated}
-            infos = {}
         elif "reinforcement_learning_agent" in action_dict.keys():
             logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
             action = action_dict["reinforcement_learning_agent"]
-
-            (
-                self.previous_obs,
-                reward,
-                terminated,
-                truncated,
-                infos,
-            ) = self.env_gym.step(action)
-
-            # give reward to RL agent
-            rewards = {"reinforcement_learning_agent": reward}
-            observations = {"high_level_agent": self.previous_obs}
-            terminateds = {"__all__": terminated}
-            truncateds = {"__all__": truncated}
-            infos = {}
         elif bool(action_dict) is False:
             logging.info("Caution: Empty action dictionary!")
-            rewards = {}
-            observations = {}
-            infos = {}
+            return observations, rewards, terminateds, truncateds, infos
         else:
             logging.info(f"ACTION_DICT={action_dict}")
             raise ValueError("No agent found in action dictionary in step().")
 
+        (
+            self.previous_obs,
+            reward,
+            terminated,
+            truncated,
+            infos,
+        ) = self.env_gym.step(action)
+        # still give reward to RL agent
+        rewards = {"reinforcement_learning_agent": reward}
+        observations = {"high_level_agent": self.previous_obs['rho'].max().flatten()}
+        terminateds = {"__all__": terminated}
+        truncateds = {"__all__": truncated}
+        infos = {}
         return observations, rewards, terminateds, truncateds, infos
 
     def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
