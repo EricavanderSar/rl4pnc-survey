@@ -85,14 +85,14 @@ class CustomMetricsCallback(DefaultCallbacks):
 
         episode.custom_metrics["corrected_ep_len"] = agents_steps["high_level_agent"]
         envs = base_env.get_sub_environments()
-        if type(envs[0]) == RlGrid2OpEnv:
-            grid2op_end = np.array([env.env_g2op.current_obs.current_step for env in envs]).mean()
-            # print('chron ID:', envs[0].env_glop.chronics_handler.get_id())
-            chron_id = envs[0].env_g2op.chronics_handler.get_name()
-        else:
-            grid2op_end = np.array([env.env_gym.init_env.current_obs.current_step for env in envs]).mean()
-            # print('chron ID:', envs[0].env_glop.chronics_handler.get_id())
-            chron_id = envs[0].env_gym.init_env.chronics_handler.get_name()
+        # if type(envs[0]) == RlGrid2OpEnv:
+        grid2op_end = np.array([env.env_g2op.current_obs.current_step for env in envs]).mean()
+        # print('chron ID:', envs[0].env_glop.chronics_handler.get_id())
+        chron_id = envs[0].env_g2op.chronics_handler.get_name()
+        # else:
+        #     grid2op_end = np.array([env.env_gym.init_env.current_obs.current_step for env in envs]).mean()
+        #     # print('chron ID:', envs[0].env_glop.chronics_handler.get_id())
+        #     chron_id = envs[0].env_gym.init_env.chronics_handler.get_name()
 
         episode.custom_metrics["grid2op_end"] = grid2op_end
         episode.media["chronic_id"] = chron_id

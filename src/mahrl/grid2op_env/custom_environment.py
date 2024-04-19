@@ -129,6 +129,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         # initialize training chronic sampling weights
         self.prio = env_config.get("prio", True)
+        print('prio is ', self.prio)
         self.chron_prios = ChronPrioMatrix(self.env_g2op)
         self.step_surv = 0
 
@@ -159,7 +160,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 ) = self.env_g2op.step(self.env_g2op.action_space())
             self.step_surv = 0
 
-        self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
         observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
         # reconnect lines if needed.
         if not terminated:
@@ -168,7 +168,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         chron_id = self.env_g2op.chronics_handler.get_name()
         infos = {"time serie id": chron_id}
 
-        self.previous_obs = self.env_gym.obsservation_space.to_gym(g2op_obs)
+        self.previous_obs = self.env_gym.observation_space.to_gym(g2op_obs)
         # self.previous_obs, infos = self.env_gym.reset()
         # observations = {"high_level_agent": self.previous_obs['rho'].max().flatten()}
 
@@ -226,19 +226,30 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             logging.info(f"ACTION_DICT={action_dict}")
             raise ValueError("No agent found in action dictionary in step().")
 
+        # Execute action given by DN or RL agent:
+        g2op_act = self.env_gym.action_space.from_gym(action)
         (
-            self.previous_obs,
+            g2op_obs,
             reward,
             terminated,
-            truncated,
             infos,
-        ) = self.env_gym.step(action)
-        # still give reward to RL agent
+        ) = self.env_g2op.step(g2op_act)
+        # reconnect lines if needed.
+        if not terminated:
+            rw, terminated = self.reconnect_lines(g2op_obs)
+            reward += rw
+        if self.prio:
+            self.step_surv += 1
+            if terminated:
+                self.chron_prios.update_prios(self.step_surv)
+        # Give reward to RL agent
         rewards = {"reinforcement_learning_agent": reward}
-        observations = {"high_level_agent": self.previous_obs['rho'].max().flatten()}
+        # Let high-level agent decide to act or not
+        observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
         terminateds = {"__all__": terminated}
-        truncateds = {"__all__": truncated}
+        truncateds = {"__all__": g2op_obs.current_step == g2op_obs.max_step}
         infos = {}
+        self.previous_obs = self.env_gym.observation_space.to_gym(g2op_obs)
         return observations, rewards, terminateds, truncateds, infos
 
     def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
