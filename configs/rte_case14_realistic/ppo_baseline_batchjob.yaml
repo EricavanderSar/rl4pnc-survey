@@ -102,7 +102,7 @@ evaluation:
 #  evaluation_parallel_to_training: True #Currently not working
   evaluation_num_workers: 5
   evaluation_config:
-    explore: True,
+    explore: False,
     env_config: *env_config_val # use the validation environment
 
 reporting:

@@ -128,6 +128,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.previous_obs: OrderedDict[str, Any] = OrderedDict()
 
         # initialize training chronic sampling weights
+        self.prio = env_config.get("prio", True)
         self.chron_prios = ChronPrioMatrix(self.env_g2op)
         self.step_surv = 0
 
@@ -140,8 +141,37 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         This function resets the environment.
         """
-        self.previous_obs, infos = self.env_gym.reset()
-        observations = {"high_level_agent": self.previous_obs['rho'].max().flatten()}
+        if self.prio:
+            # use chronic priority
+            self.env_g2op.set_id(
+                self.chron_prios.sample_chron()
+            )  # NOTE: this will take the previous chronic since with env_glop.reset() you will get the next
+        g2op_obs = self.env_g2op.reset()
+        terminated = False
+        if self.prio:
+            if self.chron_prios.cur_ffw > 0:
+                self.env_g2op.fast_forward_chronics(self.chron_prios.cur_ffw * self.chron_prios.ffw_size)
+                (
+                    g2op_obs,
+                    reward,
+                    terminated,
+                    infos,
+                ) = self.env_g2op.step(self.env_g2op.action_space())
+            self.step_surv = 0
+
+        self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
+        observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
+        # reconnect lines if needed.
+        if not terminated:
+            _, _ = self.reconnect_lines(g2op_obs)
+
+        chron_id = self.env_g2op.chronics_handler.get_name()
+        infos = {"time serie id": chron_id}
+
+        self.previous_obs = self.env_gym.obsservation_space.to_gym(g2op_obs)
+        # self.previous_obs, infos = self.env_gym.reset()
+        # observations = {"high_level_agent": self.previous_obs['rho'].max().flatten()}
+
         return observations, infos
 
     def step(
@@ -229,12 +259,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 )
             )
 
-    # def observation_space_sample(self, agent_ids: list = None):
-    #     return {}
-
-    # def action_space_sample(self, agent_ids: list = None):
-    #     return {}
-
     def observation_space_contains(self, x: MultiAgentDict) -> bool:
         if not isinstance(x, dict):
             return False
@@ -286,6 +310,32 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             raise ValueError("This scaling is not yet implemented for this environment.")
 
         return gym_obs
+
+    def reconnect_lines(self, g2op_obs: grid2op.Observation):
+        if False in g2op_obs.line_status:
+            disc_lines = np.where(g2op_obs.line_status == False)[0]
+            for i in disc_lines:
+                act = None
+                # Reconnecting the line when cooldown and maintenance is over:
+                if (g2op_obs.time_next_maintenance[i] != 0) & (g2op_obs.time_before_cooldown_line[i] == 0):
+                    status = self.env_g2op.action_space.get_change_line_status_vect()
+                    status[i] = True
+                    act = self.env_g2op.action_space({"change_line_status": status})
+                    if act is not None:
+                        if self.prio:
+                            self.step_surv += 1
+                        # Execute reconnection action
+                        (
+                            g2op_obs,
+                            rw,
+                            terminated,
+                            infos,
+                        ) = self.env_g2op.step(act)
+                        # Save current observation
+                        self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
+                        return rw, terminated
+        return 0, False
+
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)
 

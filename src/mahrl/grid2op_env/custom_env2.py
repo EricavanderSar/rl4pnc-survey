@@ -19,8 +19,6 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
     def __init__(self, env_config: dict[str, Any]):
         super().__init__(env_config)
 
-        self.prio = env_config.get("prio", True)
-
         obs_features = env_config.get("input", ["p_i", "p_l", "r", "o", "d"])
         n_power_attr = len([i for i in obs_features if i.startswith("p")])
         n_feature = len(obs_features) - (n_power_attr > 1) * (n_power_attr - 1)
@@ -177,31 +175,6 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
         truncateds = {"__all__": g2op_obs.current_step == g2op_obs.max_step}
         infos = {}
         return observations, rewards, terminateds, truncateds, infos
-
-    def reconnect_lines(self, g2op_obs: grid2op.Observation):
-        if False in g2op_obs.line_status:
-            disc_lines = np.where(g2op_obs.line_status == False)[0]
-            for i in disc_lines:
-                act = None
-                # Reconnecting the line when cooldown and maintenance is over:
-                if (g2op_obs.time_next_maintenance[i] != 0) & (g2op_obs.time_before_cooldown_line[i] == 0):
-                    status = self.env_g2op.action_space.get_change_line_status_vect()
-                    status[i] = True
-                    act = self.env_g2op.action_space({"change_line_status": status})
-                    if act is not None:
-                        if self.prio:
-                            self.step_surv += 1
-                        # Execute reconnection action
-                        (
-                            g2op_obs,
-                            rw,
-                            terminated,
-                            infos,
-                        ) = self.env_g2op.step(act)
-                        # Save current observation
-                        self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
-                        return rw, terminated
-        return 0, False
 
 
 register_env("RlGrid2OpEnv", RlGrid2OpEnv)

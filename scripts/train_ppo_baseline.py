@@ -41,20 +41,8 @@ from mahrl.models.linear_model import LinFCN
 REPORT_END = False
 
 ENV_TYPE = {
-    "old_env": {
-        'env': CustomizedGrid2OpEnvironment,
-        'hl_policy': SelectAgentPolicy,
-        'hl_obs_space': None, # infer automatically from env
-        'dn_policy': DoNothingPolicy,
-        'dn_obs_space': None, # infer automatically from env
-    },
-    "new_env": {
-        'env': RlGrid2OpEnv,
-        'hl_policy': SelectAgentPolicy2,
-        'hl_obs_space': gym.spaces.Box(-1, 2), # Only give max rho as obs
-        'dn_policy': DoNothingPolicy2,
-        'dn_obs_space': gym.spaces.Discrete(1), # Do Nothing observation is irrelevant
-    }
+    "old_env": CustomizedGrid2OpEnvironment,
+    "new_env": RlGrid2OpEnv,
 }
 
 
@@ -203,15 +191,11 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
         ppo_config.update(custom_config["scaling_config"])
     ppo_config.update(custom_config["evaluation"])
     ppo_config.update(custom_config["reporting"])
-    env_type_config = ENV_TYPE[custom_config["environment"]["env_config"]["env_type"]]
-
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
     # ppo_config["env_config"]["lib_dir"] = os.path.join(workdir_path, ppo_config["env_config"]["lib_dir"])
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy2,
-            # observation_space=env_type_config["hl_obs_space"],
-            # action_space=gym.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -230,14 +214,10 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
         ),
         "reinforcement_learning_policy": PolicySpec(  # performs RL topology
             policy_class=None,  # use default policy of PPO
-            # observation_space=None,  # infer automatically from env
-            # action_space=None,  # infer automatically from env
             config=None,
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy2,
-            # observation_space=env_type_config["dn_obs_space"],
-            # action_space=gym.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
                 # .training(_enable_learner_api=False)
@@ -248,7 +228,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})
-    ppo_config.update({"env": env_type_config["env"]})
+    ppo_config.update({"env": ENV_TYPE[custom_config["environment"]["env_config"]["env_type"]]})
     ppo_config.update({"trial_info": "trial_id"})
     ppo_config.update({"my_log_level": custom_config["my_log_level"]})
 
