@@ -78,7 +78,7 @@ environment:
       reward_class: !ScaledL2RPNReward
     seed: *seed
     rho_threshold: 0.95
-    prio: True
+    prio: False
     # Params below only used for new_env
     n_history: 6
     input: [ "p_i", "r", "o", "d" ]
@@ -94,7 +94,7 @@ env_config_val: &env_config_val
   rho_threshold: 0.95
 
 evaluation:
-  evaluation_interval: 10
+  evaluation_interval: 5
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
@@ -102,7 +102,7 @@ evaluation:
 #  evaluation_parallel_to_training: True #Currently not working
   evaluation_num_workers: 5
   evaluation_config:
-    explore: False,
+    explore: True,
     env_config: *env_config_val # use the validation environment
 
 reporting:

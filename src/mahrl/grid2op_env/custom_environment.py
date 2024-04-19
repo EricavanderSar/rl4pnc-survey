@@ -129,7 +129,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         # initialize training chronic sampling weights
         self.prio = env_config.get("prio", True)
-        print('prio is ', self.prio)
         self.chron_prios = ChronPrioMatrix(self.env_g2op)
         self.step_surv = 0
 
