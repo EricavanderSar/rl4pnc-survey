@@ -28,7 +28,7 @@ from mahrl.grid2op_env.utils import (
     CustomDiscreteActions,
     get_possible_topologies,
     setup_converter,
-    rename_env,
+    make_g2op_env
 )
 
 
@@ -64,13 +64,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             )
         lib_dir = env_config["lib_dir"]
 
-        self.env_g2op = grid2op.make(
-            env_config["env_name"], **env_config["grid2op_kwargs"], backend=LightSimBackend()
-        )
-        self.env_g2op.seed(env_config["seed"])
-        # *** RENAME THE ENVIRONMENT *** excl _train / _val etc
-        # such that it can gather the action space and normalization/scaling parameters
-        rename_env(self.env_g2op)
+        self.env_g2op = make_g2op_env(env_config)
         # 1.a. Setting up custom action space
         if env_config["action_space"] == "masked":
             mask = env_config.get("mask", 3)

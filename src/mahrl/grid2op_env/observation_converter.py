@@ -47,7 +47,6 @@ class ObsConverter:
         self.max[..., self.pp] = self.obs_space.gen_pmax
         # self.max[] = Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED # Overflow not needed already taken care of
         under_const = [1.2, 0.8] # constant to account that our max/min are underestimated
-        print('loading data from ', os.path.join(load_path, "load_p.npy"))
         self.max[..., self.lp], self.min[..., self.lp] = [vec*c for c, vec in zip(under_const, np.load(os.path.join(load_path, "load_p.npy")))]
         self.max[..., self.op], self.min[..., self.op] = [vec*c for c, vec in zip(under_const, np.load(os.path.join(load_path, "p_or.npy")))]
         self.max[..., self.ep], self.min[..., self.ep] = [vec*c for c, vec in zip(under_const, np.load(os.path.join(load_path, "p_ex.npy")))]

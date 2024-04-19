@@ -5,6 +5,7 @@ Utilities in the grid2op and gym convertion.
 import json
 import os
 from typing import Any
+import numpy as np
 
 import grid2op
 import gymnasium
@@ -12,6 +13,7 @@ from grid2op.Action import BaseAction
 from grid2op.Converter import IdToAct
 from grid2op.Converter.Converters import Converter
 from grid2op.Environment import BaseEnv
+from lightsim2grid import LightSimBackend
 
 
 class CustomDiscreteActions(gymnasium.spaces.Discrete):
@@ -118,3 +120,45 @@ def rename_env(env: BaseEnv):
     if "_val" in env_name:
         env_name = env_name.replace("_val", "")
     env.set_env_name(env_name)
+
+
+def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
+    """
+    Function that makes a grid2op environment.
+    """
+    env = grid2op.make(
+        env_config["env_name"],
+        **env_config["grid2op_kwargs"],
+        backend=LightSimBackend(),
+    )
+    env.seed(env_config["seed"])
+    # *** RENAME THE ENVIRONMENT *** excl _train / _val etc
+    # such that it can gather the action space and normalization/scaling parameters
+    rename_env(env)
+
+    if env.env_name == "rte_case14_realistic":
+        env.set_thermal_limit(np.array(
+            [
+                1000,
+                1000,
+                1000,
+                1000,
+                1000,
+                1000,
+                1000,
+                760,
+                450,
+                760,
+                380,
+                380,
+                760,
+                380,
+                760,
+                380,
+                380,
+                380,
+                2000,
+                2000,
+            ])
+        )
+    return env
