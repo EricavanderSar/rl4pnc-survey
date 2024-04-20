@@ -85,11 +85,12 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
                 ) = self.env_g2op.step(self.env_g2op.action_space())
             self.step_surv = 0
 
-        self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
-        observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
         # reconnect lines if needed.
         if not terminated:
-            _, _ = self.reconnect_lines(g2op_obs)
+            g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
+
+        self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
+        observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
 
         chron_id = self.env_g2op.chronics_handler.get_name()
         info = {"time serie id": chron_id}
@@ -156,12 +157,12 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
             terminated,
             infos,
         ) = self.env_g2op.step(g2op_act)
-        # Save current observation
-        self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
         # reconnect lines if needed.
         if not terminated:
-            rw, terminated = self.reconnect_lines(g2op_obs)
+            g2op_obs, rw, terminated = self.reconnect_lines(g2op_obs)
             reward += rw
+        # Save current observation
+        self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
         if self.prio:
             self.step_surv += 1
             if terminated:

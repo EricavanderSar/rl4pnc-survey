@@ -94,7 +94,7 @@ env_config_val: &env_config_val
   rho_threshold: 0.95
 
 evaluation:
-  evaluation_interval: 5
+  evaluation_interval: 10
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
