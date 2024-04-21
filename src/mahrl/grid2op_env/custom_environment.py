@@ -141,30 +141,18 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         This function resets the environment.
         """
-        if self.prio:
-            # use chronic priority
-            self.env_g2op.set_id(
-                self.chron_prios.sample_chron()
-            )  # NOTE: this will take the previous chronic since with env_glop.reset() you will get the next
+        # if self.prio:
+        #     # use chronic priority
+        #     g2op_obs, terminated = self.prio_reset()
+        # else:
         g2op_obs = self.env_g2op.reset()
         terminated = False
-        if self.prio:
-            if self.chron_prios.cur_ffw > 0:
-                self.env_g2op.fast_forward_chronics(self.chron_prios.cur_ffw * self.chron_prios.ffw_size)
-                (
-                    g2op_obs,
-                    reward,
-                    terminated,
-                    infos,
-                ) = self.env_g2op.step(self.env_g2op.action_space())
-            self.step_surv = 0
 
-        # reconnect lines if needed.
-        if not terminated:
-           g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
+        # # reconnect lines if needed.
+        # if not terminated:
+        #    g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
 
         observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
-
         chron_id = self.env_g2op.chronics_handler.get_name()
         infos = {"time serie id": chron_id}
 
@@ -173,6 +161,24 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         # observations = {"high_level_agent": self.previous_obs['rho'].max().flatten()}
 
         return observations, infos
+
+    def prio_reset(self):
+        # use chronic priority
+        self.env_g2op.set_id(
+            self.chron_prios.sample_chron()
+        )  # NOTE: this will take the previous chronic since with env_glop.reset() you will get the next
+        g2op_obs = self.env_g2op.reset()
+        terminated = False
+        if self.chron_prios.cur_ffw > 0:
+            self.env_g2op.fast_forward_chronics(self.chron_prios.cur_ffw * self.chron_prios.ffw_size)
+            (
+                g2op_obs,
+                reward,
+                terminated,
+                infos,
+            ) = self.env_g2op.step(self.env_g2op.action_space())
+        self.step_surv = 0
+        return g2op_obs, terminated
 
     def step(
         self, action_dict: MultiAgentDict
@@ -234,14 +240,14 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             terminated,
             infos,
         ) = self.env_g2op.step(g2op_act)
-        # reconnect lines if needed.
-        if not terminated:
-            g2op_obs, rw, terminated = self.reconnect_lines(g2op_obs)
-            reward += rw
-        if self.prio:
-            self.step_surv += 1
-            if terminated:
-                self.chron_prios.update_prios(self.step_surv)
+        # # reconnect lines if needed.
+        # if not terminated:
+        #     g2op_obs, rw, terminated = self.reconnect_lines(g2op_obs)
+        #     reward += rw
+        # if self.prio:
+        #     self.step_surv += 1
+        #     if terminated:
+        #         self.chron_prios.update_prios(self.step_surv)
         # Give reward to RL agent
         rewards = {"reinforcement_learning_agent": reward}
         # Let high-level agent decide to act or not
