@@ -29,6 +29,7 @@ from mahrl.multi_agent.policy import (
     DoNothingPolicy,
     RandomPolicy,
     SelectAgentPolicy,
+    ValueFunctionTorchPolicy,
 )
 
 
@@ -36,6 +37,7 @@ def select_mid_level_policy(
     middle_agent_type: str,
     agent_per_substation: dict[int, int],
     line_info: dict[int, list[int]],
+    env_info: dict[str, int],
     custom_config: dict[str, Any],
 ) -> PolicySpec:
     """
@@ -48,19 +50,29 @@ def select_mid_level_policy(
             "previous_obs": gymnasium.spaces.Dict(
                 {
                     "gen_p": gymnasium.spaces.Box(
-                        -12.01,
-                        np.array([22.01, 42.010002]),
-                        (2,),
+                        -np.inf,
+                        np.inf,
+                        (env_info["num_gen"],),
                         np.float32,
                     ),
-                    "load_p": gymnasium.spaces.Box(-np.inf, np.inf, (3,), np.float32),
-                    "p_ex": gymnasium.spaces.Box(-np.inf, np.inf, (8,), np.float32),
-                    "p_or": gymnasium.spaces.Box(-np.inf, np.inf, (8,), np.float32),
-                    "rho": gymnasium.spaces.Box(0.0, np.inf, (8,), np.float32),
-                    "timestep_overflow": gymnasium.spaces.Box(
-                        -2147483648, 2147483647, (8,), np.int32
+                    "load_p": gymnasium.spaces.Box(
+                        -np.inf, np.inf, (env_info["num_load"],), np.float32
                     ),
-                    "topo_vect": gymnasium.spaces.Box(-1, 2, (21,), np.int32),
+                    "p_ex": gymnasium.spaces.Box(
+                        -np.inf, np.inf, (env_info["num_line"],), np.float32
+                    ),
+                    "p_or": gymnasium.spaces.Box(
+                        -np.inf, np.inf, (env_info["num_line"],), np.float32
+                    ),
+                    "rho": gymnasium.spaces.Box(
+                        0.0, np.inf, (env_info["num_line"],), np.float32
+                    ),
+                    "timestep_overflow": gymnasium.spaces.Box(
+                        -2147483648, 2147483647, (env_info["num_line"],), np.int32
+                    ),
+                    "topo_vect": gymnasium.spaces.Box(
+                        -1, 2, (env_info["dim_topo"],), np.int32
+                    ),
                 }
             ),
             "proposed_actions": gymnasium.spaces.Dict(
@@ -137,6 +149,49 @@ def select_mid_level_policy(
     return mid_level_policy
 
 
+def select_low_level_policy(
+    policies: dict[str, Any],
+    lower_agent_type: str,
+    agent_per_substation: dict[int, int],
+) -> dict[str, Any]:
+    """
+    Defines the policy for the lower level agents.
+    """
+
+    if lower_agent_type == "rl":  # add a rl agent for each substation
+        # Add reinforcement learning policies to the dictionary
+        for sub_idx, num_actions in agent_per_substation.items():
+            policies[
+                f"reinforcement_learning_policy_{sub_idx}"
+            ] = PolicySpec(  # rule based substation selection
+                policy_class=None,  # infer automatically from env (PPO)
+                observation_space=None,  # infer automatically from env
+                action_space=gymnasium.spaces.Discrete(int(num_actions)),
+                config=None,
+            )
+    if (
+        lower_agent_type == "rl_v"
+    ):  # add a rl agent that outputs also the value function for each substation
+        # Add reinforcement learning policies to the dictionary
+        for sub_idx, num_actions in agent_per_substation.items():
+            policies[
+                f"reinforcement_learning_policy_{sub_idx}"
+            ] = PolicySpec(  # rule based substation selection
+                policy_class=ValueFunctionTorchPolicy,
+                observation_space=None,  # infer automatically from env
+                action_space=gymnasium.spaces.Dict(
+                    {
+                        "action": gymnasium.spaces.Discrete(int(num_actions)),
+                        "value": gymnasium.spaces.Box(
+                            float(-np.inf), float(np.inf), tuple(), np.float32
+                        ),
+                    }
+                ),
+                config=None,
+            )
+    return policies
+
+
 def setup_config(
     config_path: str, middle_agent_type: str, lower_agent_type: str
 ) -> None:
@@ -151,7 +206,15 @@ def setup_config(
         if key != "setup":
             ppo_config.update(custom_config[key])
 
+    # load in information about the environment
     setup_env = grid2op.make(custom_config["environment"]["env_config"]["env_name"])
+
+    env_info = {
+        "num_load": setup_env.n_load,
+        "num_gen": setup_env.n_gen,
+        "num_line": setup_env.n_line,
+        "dim_topo": setup_env.dim_topo,
+    }
 
     # Make as number additional policies as controllable substations
     agent_per_substation = find_list_of_agents(
@@ -163,10 +226,12 @@ def setup_config(
 
     line_info = find_substation_per_lines(setup_env, list_of_substations)
 
+    # set-up the mid level policy
     mid_level_policy = select_mid_level_policy(
-        middle_agent_type, agent_per_substation, line_info, custom_config
+        middle_agent_type, agent_per_substation, line_info, env_info, custom_config
     )
 
+    # define all level policies
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy,
@@ -201,20 +266,10 @@ def setup_config(
         ),
     }
 
-    if lower_agent_type == "rl":  # add a rl agent for each substation
-        # Add reinforcement learning policies to the dictionary
-        for sub_idx, num_actions in agent_per_substation.items():
-            policies[
-                f"reinforcement_learning_policy_{sub_idx}"
-            ] = PolicySpec(  # rule based substation selection
-                policy_class=None,  # infer automatically from env (PPO)
-                observation_space=None,  # infer automatically from env
-                action_space=gymnasium.spaces.Discrete(int(num_actions)),
-                config=None,
-            )
+    policies = select_low_level_policy(policies, lower_agent_type, agent_per_substation)
 
     # if policy is rl, set an agent to train
-    if middle_agent_type == "rl":
+    if middle_agent_type in ("rl", "rl_v"):
         ppo_config["policies_to_train"] = ["choose_substation_policy"]
     elif middle_agent_type == "capa":
         ppo_config["policies_to_train"] = []

@@ -1,0 +1,87 @@
+setup:
+  nb_timesteps: &nb_timesteps 100000
+  checkpoint_freq: 10
+  checkpoint_at_end: True
+  keep_checkpoints_num: 5
+  checkpoint_score_attr: evaluation/episode_reward_mean
+  verbose: 1
+  storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
+  experiment_name: replicate_ppo_baseline
+  save_artifact: True
+  num_samples: 1
+
+debugging:
+  seed: &seed 20
+
+training:
+  # tunable parameters
+  gamma: 0.99 # !grid_search [0.95, 0.99]
+  lr: 0.0001 # !grid_search [0.00005, 0.0005, 0.005]
+  # vf_loss_coeff: 0.5
+  kl_coeff: 0.2
+  entropy_coeff: 0
+  clip_param: 0.3
+  # lambda_: 0.95
+  num_sgd_iter: 5
+  sgd_minibatch_size: 256 # !grid_search [32, 64, 128]
+  train_batch_size: 1024
+  model:
+    fcnet_hiddens: 
+    - 256
+    - 256
+    - 256
+    fcnet_activation: relu
+  _enable_learner_api: False
+  batch_mode: complete_episodes
+
+rl_module:
+  _enable_rl_module_api: False
+
+explore:
+  exploration_config:
+    type: StochasticSampling
+
+callbacks:
+  callbacks: !CustomMetricsCallback
+
+framework:
+  framework: torch
+
+multi_agent:
+  policy_mapping_fn: !policy_mapping_fn
+  policies_to_train: ["reinforcement_learning_policy"]
+  count_steps_by: agent_steps
+
+environment:
+  env_config: &env_config_train
+    env_name: l2rpn_icaps_2021_large_train
+    num_agents: 3
+    action_space: tennet
+    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ #  /home3/s3374610/mahrl_grid2op/ 
+    max_tsteps: *nb_timesteps
+    grid2op_kwargs:
+      # general kwargs
+      reward_class: !ScaledL2RPNReward
+    seed: *seed
+    rho_threshold: 0.95
+    shuffle_scenarios: True
+
+env_config_val: &env_config_val
+  <<: *env_config_train
+  env_name: l2rpn_icaps_2021_large_val
+  shuffle_scenarios: False
+
+evaluation:
+  evaluation_interval: 2
+  evaluation_duration: 100 # as many as there are validation episodes
+  evaluation_duration_unit: episodes
+  evaluation_config: 
+    env_config: *env_config_val # use the validation environment
+    explore: True
+
+# resources:
+#   num_gpus: 0
+#   num_learner_workers: 6
+
+# rollouts:
+#   num_rollout_workers: 4

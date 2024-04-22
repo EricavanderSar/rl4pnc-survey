@@ -159,8 +159,11 @@ def tune_search_grid_search_constructor(
     """
     vals = []
     for scalar_node in node.value:
-        val = float_to_integer(float(scalar_node.value))
-        vals.append(val)
+        # check if val is a float
+        value = scalar_node.value
+        if isinstance(value, str):
+            value = float_to_integer(float(value))
+        vals.append(value)
     return tune.grid_search(vals)
 
 

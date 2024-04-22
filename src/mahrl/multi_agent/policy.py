@@ -10,7 +10,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import grid2op
 import gymnasium
 import numpy as np
-import torch
 from ray.actor import ActorHandle
 from ray.rllib.algorithms.ppo import PPOTorchPolicy
 from ray.rllib.evaluation.episode_v2 import EpisodeV2
@@ -58,11 +57,59 @@ def policy_mapping_fn(
         return "choose_substation_policy"
     raise NotImplementedError
 
+    # class ValueFunctionTorchPolicy(PPOTorchPolicy, TorchRLModule):
+    # """
+    # Custom Torch Policy that outputs the output of the value function
+    # besides the action.
+    # """
+
 
 class ValueFunctionTorchPolicy(PPOTorchPolicy):
-    def _compute_action_helper(
-        self, input_dict, state_batches, seq_lens, explore, timestep
+    """
+    Custom Torch Policy that outputs the output of the value function
+    besides the action.
+    """
+
+    def __init__(
+        self,
+        observation_space: gymnasium.Space,
+        action_space: gymnasium.Space,
+        config: AlgorithmConfigDict,
     ):
+        # action space is dict
+        assert isinstance(action_space, gymnasium.spaces.Dict)
+
+        # action and value in dict
+        assert "action" in action_space.spaces
+        assert "value" in action_space.spaces
+
+        self._policy = PPOTorchPolicy(
+            observation_space, action_space.spaces["action"], config
+        )
+
+        super().__init__(observation_space, action_space, config)
+
+    # TODO: overwrite __call__ from ModelV2 (self.policy.__call__) with means as value function and stdev of 0
+
+    # def __call__(
+    #     self,
+    #     input_dict: Union[SampleBatch, ModelInputDict],
+    #     state: Union[List[Any], None] = None,
+    #     seq_lens: TensorType = None,
+    # ) -> tuple[TensorType, List[TensorType]]:
+    #     # append value as mean and stdev as 0
+    #     # print(f"CALL: {self._policy.__call__(input_dict, state, seq_lens)}")
+
+    #     return self._policy.__call__(input_dict, state, seq_lens)
+
+    def _compute_action_helper(
+        self,
+        input_dict: Dict[str, Any],
+        state_batches: List[TensorType],
+        seq_lens: TensorType,
+        explore: bool,
+        timestep: Optional[int],
+    ) -> Tuple[Dict[str, TensorType], List[TensorType], Dict[str, TensorType]]:
         """Shared forward pass logic (w/ and w/o trajectory view API).
         Adjusted to also return the value of the value function.
 
@@ -71,45 +118,29 @@ class ValueFunctionTorchPolicy(PPOTorchPolicy):
             The input_dict is modified in-place to include a numpy copy of the computed
             actions under `SampleBatch.ACTIONS`.
         """
-        (actions, state_out, extra_fetches) = super()._compute_action_helper(
+        (actions, state_out, extra_fetches) = self._policy._compute_action_helper(
             input_dict, state_batches, seq_lens, explore, timestep
         )
-        value = self.model.value_function()
-        if not isinstance(actions[0], np.int32):
-            print(f"action type: {type(actions[0])}")
-            print("Instance cannot be properly found")
 
-        if len(value) > 1 or value[0] >= 1 or value[0] < 0:
-            print(f"Value={value[0]}")
-            print(f"Value len={len(value)}")
-            print("Value exceeds 1, does not work anymore")
-            return actions, state_out, extra_fetches
-        else:
-            print(f"action output: {np.array(actions[0] + value[0])}")
-            return np.array([actions[0], value[0]]), state_out, extra_fetches
-            # return np.array([actions[0] + value[0]]), state_out, extra_fetches
+        try:
+            value = self.model.value_function().cpu().detach().numpy()
+        except AssertionError:
+            # during initialization
+            value = np.zeros_like(actions).astype(np.float32)
 
-    # (CustomPPO pid=51757)   File "/Users/barberademol/Documents/GitHub/mahrl_grid2op/2venv_mahrl/lib/python3.11/site-packages/ray/rllib/evaluation/env_runner_v2.py", line 1141, in _process_policy_eval_results
-    # (CustomPPO pid=51757)     env_id: int = eval_data[i].env_id
-    # (CustomPPO pid=51757)                   ~~~~~~~~~^^^
-    # (CustomPPO pid=51757) IndexError: list index out of range
+        if len(value.shape) < 2:
+            value = value[:, None]
+        dict_act = {"action": actions, "value": value}
 
-    # ValueError: Expected value argument (Tensor of shape (7,)) to be within the support (IntegerInterval(lower_bound=0, upper_bound=6)) of the distribution Categorical(logits: torch.Size([7, 7])), but found invalid values:
-    # tensor([2.0084, 0.0095, 2.0092, 6.0092, 5.0092, 4.0095, 1.0068])
+        # Create an empty array with the same number of rows to account for the missing mean and stdev of value
+        empty_columns = np.empty((extra_fetches["action_dist_inputs"].shape[0], 2))
 
-    def action_sampler_fn(
-        self,
-        model: ModelV2,
-        obs_batch: torch.Tensor,
-        state_batches: torch.Tensor,
-        **kwargs,
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, List[torch.Tensor]]:
-        print(f"customized sampler")
-        # Sample two actions using the model
-        action_dist, _ = model(obs_batch, state_batches, self.config)
-        actions = action_dist.sample()
-        # Return two actions instead of one
-        return [actions, actions], (), (), []
+        # Add the empty columns to the array
+        extra_fetches["action_dist_inputs"] = np.hstack(
+            (extra_fetches["action_dist_inputs"], empty_columns)
+        )
+
+        return dict_act, state_out, extra_fetches
 
 
 class CapaPolicy(Policy):

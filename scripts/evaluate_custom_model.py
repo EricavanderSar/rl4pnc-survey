@@ -120,7 +120,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
     """
     Perform runner on the implemented networks.
     """
-    results_folder = f"{env_config['lib_dir']}/results/{env_config['env_name']}"
+    results_folder = f"{env_config['lib_dir']}/results/{env_config['env_name']}/{env_config['action_space']}"
     # check if the folder exists
     if not os.path.exists(results_folder):
         # if not, create the folder
@@ -200,7 +200,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             agentInstance=agent_instance,
         ).run(
             path_save=os.path.abspath(
-                f"{store_trajectories_folder}/{env_config['env_name']}"
+                f"{store_trajectories_folder}/{env_config['env_name']}/{env_config['action_space']}"
             ),
             # nb_episode=1,
             nb_episode=len(env.chronics_handler.subpaths),

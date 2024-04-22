@@ -48,11 +48,9 @@ class ReconnectingGymEnv(GymEnv):
 
     def __init__(self, env: BaseEnv, shuffle_chronics: bool = True):
         super().__init__(env, shuffle_chronics=shuffle_chronics)
-        self.reconnect_line = []
+        self.reconnect_line: list[BaseAction] = []
 
-    def step(
-        self, gym_action: int
-    ) -> Tuple[OBSTYPE, float, bool, bool, dict[str, Any]]:
+    def step(self, action: int) -> Tuple[OBSTYPE, float, bool, bool, dict[str, Any]]:
         """
         Perform a step in the environment.
 
@@ -63,7 +61,7 @@ class ReconnectingGymEnv(GymEnv):
             Tuple[OBSTYPE, float, bool, dict[str, Any]]: The observation, reward, done, truncated flag and info dictionary.
         """
 
-        g2op_act = self.action_space.from_gym(gym_action)
+        g2op_act = self.action_space.from_gym(action)
 
         if self.reconnect_line:
             for line in self.reconnect_line:
@@ -431,8 +429,6 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         else:
             raise ValueError("No action valid space is defined.")
 
-        print(f"controllable_substations: {controllable_substations}")
-
         actions_per_substations = get_actions_per_substation(
             controllable_substations=controllable_substations,
             possible_substation_actions=self.possible_substation_actions,
@@ -463,7 +459,6 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
 
         self.is_capa = env_config["capa"]
         self.reset_capa_idx = 1
-        self.g2op_obs = None
         self.proposed_actions: dict[int, int] = {}
         self.proposed_confidences: dict[int, float] = {}
 
@@ -536,11 +531,11 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         elif any(
             key.startswith("reinforcement_learning_agent") for key in action_dict.keys()
         ):
-            print(f"RL action dict: {action_dict}")
-            (
-                self.proposed_actions,
-                self.proposed_confidences,
-            ) = self.extract_proposed_actions(action_dict)
+            # (
+            # self.proposed_actions,
+            # self.proposed_confidences,
+            # ) = self.extract_proposed_actions_values(action_dict)
+            self.proposed_actions = self.extract_proposed_actions(action_dict)
 
             observations = {
                 "choose_substation_agent": OrderedDict(
@@ -610,21 +605,33 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             action = self.local_to_global_action_map[substation_id][local_action]
         return action
 
-    def extract_proposed_actions(
+    def extract_proposed_actions_values(
         self, action_dict: MultiAgentDict
     ) -> tuple[dict[int, int], dict[int, float]]:
         """
-        Extract all proposed actions from the action_dict.
+        Extract all proposed actions and vluesfrom the action_dict.
         """
         proposed_actions: dict[int, int] = {}
         proposed_confidences: dict[int, float] = {}
         for key, action in action_dict.items():
             # extract integer at end of key
             agent_id = int(key.split("_")[-1])
-            proposed_actions[agent_id] = int(action)
-            proposed_confidences[agent_id] = action - int(action)
+            proposed_actions[agent_id] = int(action["action"])
+            proposed_confidences[agent_id] = float(action["value"])
 
         return proposed_actions, proposed_confidences
+
+    def extract_proposed_actions(self, action_dict: MultiAgentDict) -> dict[int, int]:
+        """
+        Extract all proposed actions from the action_dict.
+        """
+        proposed_actions: dict[int, int] = {}
+        for key, action in action_dict.items():
+            # extract integer at end of key
+            agent_id = int(key.split("_")[-1])
+            proposed_actions[agent_id] = int(action)
+
+        return proposed_actions
 
     def perform_high_level_action(self, action_dict: MultiAgentDict) -> MultiAgentDict:
         """
@@ -743,11 +750,12 @@ class SingleAgentGrid2OpEnvironment(gymnasium.Env):
     def step(
         self,
         action: int,
-    ) -> tuple[OBSTYPE | None, float, bool, bool, dict[str, Any]]:
+    ) -> tuple[dict[str, Any] | None, float, bool, bool, dict[str, Any]]:
         """
         This function performs a single step in the environment.
         """
         cum_reward: float = 0.0
+        obs: dict[str, Any]
         # obs, reward, done, truncated, info = self.env_gym.step(action)
         obs, reward, done, truncated, info = self.env_gym.step(action)
         self.steps += 1

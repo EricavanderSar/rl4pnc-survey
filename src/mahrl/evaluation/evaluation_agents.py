@@ -586,14 +586,11 @@ def get_actions_per_substation(
         substation: [] for substation in list(controllable_substations.keys())
     }
 
-    print(f"empty actions_per_substation {actions_per_substation}")
-
     # get possible actions related to that substation actions_per_substation
     for action in possible_substation_actions[1:]:  # exclude the DoNothing action
         sub_id = int(action.as_dict()["set_bus_vect"]["modif_subs_id"][-1])
         actions_per_substation[sub_id].append(action)
 
-    print(f"action per substations")
     return actions_per_substation
 
 
