@@ -4,8 +4,8 @@ setup:
   checkpoint_freq: 10
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Case14_Blz_oldenv"
-  experiment_name: "Case14_Blz_oldenv"
+  folder_name: "Case14_Real"
+  experiment_name: "Case14_Real"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -94,7 +94,7 @@ env_config_val: &env_config_val
   rho_threshold: 0.95
 
 evaluation:
-  evaluation_interval: 10
+  evaluation_interval: 1
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
