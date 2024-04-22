@@ -3,6 +3,7 @@ Implements the codes to configure the three kinds of action spaces.
 """
 
 import json
+import os.path
 from collections import Counter
 from typing import List
 
@@ -83,7 +84,7 @@ def get_medha_action_space(env: BaseEnv) -> list[BaseAction]:
 
     # look at all substations (since all substations have more than one element)
     possible_substation_actions = get_possible_topologies(
-        env, list(range(len(env.sub_info)))
+        env, list(range(env.n_sub))
     )
 
     legal_actions = []
@@ -96,7 +97,7 @@ def get_medha_action_space(env: BaseEnv) -> list[BaseAction]:
     )
 
     for action in possible_substation_actions:
-        topo_vect = action.to_json()["_set_topo_vect"]
+        topo_vect = action.set_bus
         # Isolate this substation
         non_zero_elements = [num for num in topo_vect if num != 0]
 
@@ -112,19 +113,14 @@ def get_medha_action_space(env: BaseEnv) -> list[BaseAction]:
         if at_least_two_occurrences:
             dataframe.loc[len(dataframe.index)] = topo_vect
         else:  # add dummy to keep index intact
-            dataframe.loc[len(dataframe.index)] = [0] * len(
-                list(
-                    range(
-                        len(possible_substation_actions[0].to_json()["_set_topo_vect"])
-                    )
-                )
-            )
+            dataframe.loc[len(dataframe.index)] = [0] * env.dim_topo
 
     for index, row in dataframe.iterrows():
         # Identify positive entries in the current row
         positive_entries = row[row > 0].index.tolist()
 
         # Check if the positive entries in the current row have corresponding empty columns in other rows
+        # in other words check if there exists another action next to this one (otherwise it is the DN action)
         meets_condition = all(
             dataframe.loc[dataframe.index != index, positive_entries].eq(0).all(axis=1)
         )
@@ -133,6 +129,35 @@ def get_medha_action_space(env: BaseEnv) -> list[BaseAction]:
             legal_actions.append(possible_substation_actions[index])
     return legal_actions
 
+
+def get_medha_dn_action_space(env):
+    """
+        Generate allowed actions based on the proposed action space by Subramanian et al. (2021).
+        """
+
+    # look at all substations (since all substations have more than one element)
+    legal_actions = []
+    possible_substation_actions = get_possible_topologies(
+        env, list(range(env.n_sub))
+    )
+
+    for action in possible_substation_actions:
+        topo_vect = action.set_bus
+        # Isolate this substation
+        non_zero_elements = [num for num in topo_vect if num != 0]
+
+        # Count occurrences of each non-zero element
+        element_counts = Counter(non_zero_elements)
+
+        # Check if there are at least two occurrences of each non-zero element
+        at_least_two_occurrences = all(count >= 2 for count in element_counts.values())
+
+        # get_possible_topologies already takes into account that a generator connected to no
+        # substation-substation lines does not work, so the constraint to check if one
+        # substation-substation line is connected to each busbar does not need to be tested
+        if at_least_two_occurrences:
+            legal_actions.append(action)
+    return legal_actions
 
 def get_tennet_action_space(env: BaseEnv) -> list[BaseAction]:
     """

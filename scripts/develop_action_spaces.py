@@ -7,12 +7,12 @@ import argparse
 import os
 
 import grid2op
-from lightsim2grid import LightSimBackend
 
 from mahrl.experiments.action_spaces import (
     get_asymmetrical_action_space,
     get_medha_action_space,
     get_tennet_action_space,
+    get_medha_dn_action_space,
     save_to_json,
 )
 from mahrl.experiments.utils import (
@@ -50,6 +50,10 @@ def create_action_spaces(
 
         file_path = os.path.join(save_path, f"{env_name}/medha.json")
         save_to_json(possible_actions, file_path)
+    if "medha_dn" in action_spaces_to_create:
+        possible_actions = get_medha_dn_action_space(env)
+        file_path = os.path.join(save_path, f"{env_name}/medha_DN.json")
+        save_to_json(possible_actions, file_path)
     if "tennet" in action_spaces_to_create:
         mathematically_possible_actions, _, _ = calculate_action_space_tennet(env)
         possible_actions = get_tennet_action_space(env)
@@ -58,7 +62,7 @@ def create_action_spaces(
                 "The number of possible actions does not match the mathematically calculated number of actions."
             )
 
-        file_path = os.path.join(save_path, f"{env_name}/medha.json")
+        file_path = os.path.join(save_path, f"{env_name}/tennet.json")
         save_to_json(possible_actions, file_path)
 
 
@@ -68,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-e",
         "--environment",
-        default="rte_case5_example",
+        default="l2rpn_case14_sandbox",
         type=str,
         help="Name of the environment to be used.",
     )
@@ -77,12 +81,13 @@ if __name__ == "__main__":
         "--action_space",
         type=str,
         help="Action space to be used.",
-        default="all",
+        default="medha_dn",
     )
     parser.add_argument(
         "-s",
         "--save_path",
         type=str,
+        default="../data/action_spaces/",
         help="Path the action spaces must be saved.",
     )
 
@@ -98,6 +103,8 @@ if __name__ == "__main__":
         input_action_space = ["asymmetry"]
     elif input_action_space == "medha":
         input_action_space = ["medha"]
+    elif input_action_space == "medha_dn":
+        input_action_space = ["medha_dn"]
     elif input_action_space == "tennet":
         input_action_space = ["tennet"]
     else:

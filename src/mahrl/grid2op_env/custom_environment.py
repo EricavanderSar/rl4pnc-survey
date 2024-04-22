@@ -308,23 +308,23 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             "rte_case5_example",
             "l2rpn_icaps_2021_large",
         ]:
-            underestimation_constant = 1.2  # constant to account that our max/min are underestimated
+            # underestimation_constant = 1.2  # constant to account that our max/min are underestimated
             for attr in ["p_ex", "p_or", "load_p"]:
                 path = os.path.join(
                     lib_dir,
                     f"data/scaling_arrays/{self.env_g2op.env_name}/{attr}.npy",
                 )
                 max_arr, min_arr = np.load(path)
-
+                # values are multiplied with a constant to account that our max/min are underestimated
                 gym_obs = gym_obs.reencode_space(
                     attr,
                     ScalerAttrConverter(
-                        substract=underestimation_constant * min_arr,
-                        divide=underestimation_constant * (max_arr - min_arr),
+                        substract=0.8 * min_arr,
+                        divide=(1.2 * max_arr - 0.8 * min_arr),
                     ),
                 )
-        else:
-            raise ValueError("This scaling is not yet implemented for this environment.")
+        # else:
+        #     raise ValueError("This scaling is not yet implemented for this environment.")
 
         return gym_obs
 
