@@ -99,7 +99,7 @@ evaluation:
   always_attach_evaluation_results: True
   evaluation_sample_timeout_s: 720
 #  evaluation_parallel_to_training: True #Currently not working
-  evaluation_num_workers: 5
+  evaluation_num_workers: 10
   evaluation_config:
     explore: True,
     env_config: *env_config_val # use the validation environment
@@ -115,6 +115,6 @@ resources:
   num_learner_workers: 4
 
 rollouts:
-  num_rollout_workers: 10
+  num_rollout_workers: 20
 
 my_log_level: 1
