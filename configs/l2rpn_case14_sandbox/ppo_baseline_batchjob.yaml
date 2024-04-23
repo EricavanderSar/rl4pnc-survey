@@ -70,7 +70,7 @@ environment:
     env_type: old_env #new_env #
     shuffle_scenarios: True
     env_name: l2rpn_case14_sandbox_train
-    action_space: masked
+    action_space: medha_DN
     mask: 3
     lib_dir: !workdir
     grid2op_kwargs:
@@ -79,9 +79,9 @@ environment:
     seed: *seed
     rho_threshold: 0.95
     prio: False
+    input: [ "p_i", "r", "o", "d" ]
     # Params below only used for new_env
     n_history: 6
-    input: [ "p_i", "r", "o", "d" ]
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: True
@@ -99,7 +99,7 @@ evaluation:
   always_attach_evaluation_results: True
   evaluation_sample_timeout_s: 720
 #  evaluation_parallel_to_training: True #Currently not working
-#  evaluation_num_workers: 7
+  evaluation_num_workers: 5
   evaluation_config:
     explore: True,
     env_config: *env_config_val # use the validation environment
@@ -107,14 +107,14 @@ evaluation:
 reporting:
   keep_per_episode_custom_metrics: True
 
-#scaling_config:
-#  num_workers: 4
-#
-#resources:
+scaling_config:
+  num_workers: 4
+
+resources:
 #  num_gpus: 1
-#  num_learner_workers: 4
-#
-#rollouts:
-#  num_rollout_workers: 10
+  num_learner_workers: 4
+
+rollouts:
+  num_rollout_workers: 10
 
 my_log_level: 1
