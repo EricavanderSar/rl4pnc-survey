@@ -1,52 +1,46 @@
 setup:
   max_ep_len: 8064
-  nb_timesteps: &nb_timesteps 100_000
-  checkpoint_freq: 10
+  nb_timesteps: &nb_timesteps 1_000
+  checkpoint_freq: 2
   verbose: 0
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Case14_Blz_Sandbox"
-  experiment_name: "Case14_Blz_Sandbox"
+  folder_name: "TestSandbox14"
+  experiment_name: "TestSb14"
   optimize: False
-  num_samples: 25
+  num_samples: 3
   score_metric: evaluation/custom_metrics/grid2op_end_mean
-  grace_period: 10_000 # First 10_000 steps of training before stopping
-#  result_dir: "/home/evandersar/ray_results/Case14_FiFo"
+  grace_period: 500
 #  points_to_evaluate:
-#    gamma: 0.985
-#    lr: 0.001
-#    num_sgd_iter: 4
+#    num_sgd_iter: 16
 #    sgd_minibatch_size: 64
-#    train_batch_size: 256
-#    model/fcnet_hiddens: [128,128,128]
-#    model/fcnet_activation: relu
-#    post_fcnet_hiddens: []
-
+#    train_batch_size: 512
+#  result_dir: /Users/ericavandersar/ray_results/Test14 #"" #
 
 debugging:
   seed: &seed 14
 
 training:
   checkpoint_trainable_policies_only: True
-  gamma: 0.99 #!quniform [0.975, 0.995, 0.001] #
-  lr: 0.0001 #!qloguniform [0.0001, 0.005, 0.0001] #
+  # tunable parameters
+  gamma: 0.99 #!quniform [0.95, 0.99, 0.01] #
+  lr: 0.0001 # !qloguniform [0.0005, 0.005, 0.0001] #
   vf_loss_coeff: 0.5
-  kl_coeff: 0.2
-  entropy_coeff: 0
-  clip_param: 0.3 # epsilon
-  lambda: 0.95
+  entropy_coeff: 0.05
+  clip_param: 0.18 # epsilon
+  lambda: 0.91
   vf_clip_param: 10
-#  use_kl_loss: False # setting this similar to orig EVDS implementation
-  num_sgd_iter: 5 #!quniform [4, 16, 4] #
-  sgd_minibatch_size:  256 #64 #!choice [32, 64, 128] #
-  train_batch_size: 1024 # 128 #!choice [128, 256, 512] #
+  use_kl_loss: False # setting this similar to orig EVDS implementation
+  num_sgd_iter: 4 #spec.config.train_batch_size / spec.config.sgd_minibatch_size !quniform [4, 16, 4] #
+  sgd_minibatch_size: 32 #!choice [32, 64, 128] #
+  train_batch_size: 128 #80 #!choice [128, 256, 512] #
   batch_mode: complete_episodes
   model:
-    #    custom_model : linfcn
-    fcnet_hiddens: [256,256,256] #!choice [[128,128,128], [256,256,256]]  #[128,128,128]
-    fcnet_activation: relu #!choice [relu, tanh] #relu #
-#    post_fcnet_hiddens: [256] #!choice [[],
+#    custom_model : linfcn
+    fcnet_hiddens: [256,256,256] # !choice [[256,256,256], [128,128,128]] #
+    fcnet_activation: relu #!choice [relu, tanh] #
+#    post_fcnet_hiddens: [256,128]
   _enable_learner_api: False
-
+  
 rl_module:
   _enable_rl_module_api: False
 
@@ -70,21 +64,20 @@ environment:
     env_type: old_env #new_env #
     shuffle_scenarios: True
     env_name: l2rpn_case14_sandbox_train
-    action_space: masked
-    mask: 3
-    lib_dir: !workdir
+    action_space: medha_DN
+    mask: 5
+    lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/
     grid2op_kwargs:
       # general kwargs
-      reward_class: !LossReward
+      reward_class: !ScaledL2RPNReward
     seed: *seed
-    rho_threshold: 0.95
-    prio: False
-    # Params below only used for new_env
+    rho_threshold: 0.90
     n_history: 6
     input: [ "p_i", "r", "o", "d" ]
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
-    normalize: True
+    prio: False
+    normalize: maxmin
 
 env_config_val: &env_config_val
   <<: *env_config_train
@@ -93,28 +86,23 @@ env_config_val: &env_config_val
   prio: False # should always be False
 
 evaluation:
-  evaluation_interval: 10
+  evaluation_interval: 1
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
-  evaluation_sample_timeout_s: 720
 #  evaluation_parallel_to_training: True #Currently not working
-  evaluation_num_workers: 5
+  evaluation_num_workers: 1
   evaluation_config:
-    explore: True,
+    explore: False,
     env_config: *env_config_val # use the validation environment
 
 reporting:
   keep_per_episode_custom_metrics: True
 
-scaling_config:
-  num_workers: 4
-
 resources:
-#  num_gpus: 1
-  num_learner_workers: 4
+  num_learner_workers: 1
 
 rollouts:
-  num_rollout_workers: 10
+  num_rollout_workers: 1
 
 my_log_level: 1

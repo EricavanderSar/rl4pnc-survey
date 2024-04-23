@@ -302,19 +302,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 divide=Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED,  # assuming no custom params
             ),
         )
-
-        if self.env_g2op.env_name in [
-            "rte_case14_realistic",
-            "rte_case5_example",
-            "l2rpn_icaps_2021_large",
-        ]:
+        path = os.path.join(lib_dir, f"data/scaling_arrays")
+        if self.env_g2op.env_name in os.listdir(path):
             # underestimation_constant = 1.2  # constant to account that our max/min are underestimated
             for attr in ["p_ex", "p_or", "load_p"]:
-                path = os.path.join(
-                    lib_dir,
-                    f"data/scaling_arrays/{self.env_g2op.env_name}/{attr}.npy",
-                )
-                max_arr, min_arr = np.load(path)
+                max_arr, min_arr = np.load(os.path.join(path, f"{self.env_g2op.env_name}/{attr}.npy"))
                 # values are multiplied with a constant to account that our max/min are underestimated
                 gym_obs = gym_obs.reencode_space(
                     attr,

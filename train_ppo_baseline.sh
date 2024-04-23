@@ -3,9 +3,9 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
+#SBATCH --cpus-per-task=32
 #SBATCH --partition=rome
-#SBATCH --time=08:00:00
+#SBATCH --time=12:00:00
 #SBATCH --output=Case14_BlzSandbox_ppo_baseline_%j.out
 
 
