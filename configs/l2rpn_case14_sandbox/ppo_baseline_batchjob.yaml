@@ -79,7 +79,7 @@ environment:
     seed: *seed
     rho_threshold: 0.95
     prio: False
-    input: [ "p_i", "r", "o", "d" ]
+    input: [ "p_i", "r", "o"]
     # Params below only used for new_env
     n_history: 6
     danger: 0.9

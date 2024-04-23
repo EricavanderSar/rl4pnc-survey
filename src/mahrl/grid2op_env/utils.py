@@ -193,3 +193,18 @@ class ChronPrioMatrix:
             scores[p] *= 1 - np.sqrt((steps_surv - self.ffw_size * p) / (max_steps - self.ffw_size * p))
         self.chron_scores[self.chronic_idx][self.cur_ffw: (self.cur_ffw + pieces_played)] = scores
 
+
+def get_attr_list(attr_abbreviated: list):
+    # always include the topology vector
+    attr = ["topo_vect"]
+    if "p_i" in attr_abbreviated:
+        attr.extend(["load_p", "gen_p"])
+    if "p_l" in attr_abbreviated:
+        attr.extend(["p_ex", "p_or"])
+    if "r" in attr_abbreviated:
+        attr.append("rho")
+    if "o" in attr_abbreviated:
+        attr.append("timestep_overflow")
+    if "m" in attr_abbreviated:
+        attr.append("time_next_maintenance")
+    return attr

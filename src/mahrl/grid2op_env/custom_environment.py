@@ -30,6 +30,7 @@ from mahrl.grid2op_env.utils import (
     setup_converter,
     make_g2op_env,
     ChronPrioMatrix,
+    get_attr_list
 )
 
 
@@ -101,7 +102,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             converter, self.env_g2op.action_space()
         )
         # customize observation space
-        self.env_gym.observation_space = self.rescale_observation_space(lib_dir)
+        self.env_gym.observation_space = self.rescale_observation_space(
+            lib_dir,
+            env_config.get("input", ["p_i", "p_l", "r", "o"])
+        )
 
         # 4. specific to rllib
         self._action_space_in_preferred_format = True
@@ -281,42 +285,45 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             return False
         return all(self.observation_space.contains(val) for val in x.values())
 
-    def rescale_observation_space(self, lib_dir: str) -> GymnasiumObservationSpace:
+    def rescale_observation_space(self, lib_dir: str, input_attr: list = ["p_i", "p_l", "r", "o"]) -> GymnasiumObservationSpace:
         """
         Function that rescales the observation space.
         """
         # scale observations
+        attr_list = get_attr_list(input_attr)
+        print("Observation attributes used are: ", attr_list)
         gym_obs = self.env_gym.observation_space
-        gym_obs = gym_obs.keep_only_attr(
-            ["rho", "gen_p", "load_p", "p_or", "p_ex", "timestep_overflow", "topo_vect"]
-        )
+        gym_obs = gym_obs.keep_only_attr(attr_list)
 
-        gym_obs = gym_obs.reencode_space(
-            "gen_p",
-            ScalerAttrConverter(substract=0.0, divide=self.env_g2op.gen_pmax),
-        )
-        gym_obs = gym_obs.reencode_space(
-            "timestep_overflow",
-            ScalerAttrConverter(
-                substract=0.0,
-                divide=Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED,  # assuming no custom params
-            ),
-        )
+        if "gen_p" in attr_list:
+            gym_obs = gym_obs.reencode_space(
+                "gen_p",
+                ScalerAttrConverter(substract=0.0, divide=self.env_g2op.gen_pmax),
+            )
+        if "timestep_overflow" in attr_list:
+            gym_obs = gym_obs.reencode_space(
+                "timestep_overflow",
+                ScalerAttrConverter(
+                    substract=0.0,
+                    divide=Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED,  # assuming no custom params
+                ),
+            )
         path = os.path.join(lib_dir, f"data/scaling_arrays")
         if self.env_g2op.env_name in os.listdir(path):
             # underestimation_constant = 1.2  # constant to account that our max/min are underestimated
             for attr in ["p_ex", "p_or", "load_p"]:
-                max_arr, min_arr = np.load(os.path.join(path, f"{self.env_g2op.env_name}/{attr}.npy"))
-                # values are multiplied with a constant to account that our max/min are underestimated
-                gym_obs = gym_obs.reencode_space(
-                    attr,
-                    ScalerAttrConverter(
-                        substract=0.8 * min_arr,
-                        divide=(1.2 * max_arr - 0.8 * min_arr),
-                    ),
-                )
-        # else:
-        #     raise ValueError("This scaling is not yet implemented for this environment.")
+                if attr in attr_list:
+                    max_arr, min_arr = np.load(os.path.join(path, f"{self.env_g2op.env_name}/{attr}.npy"))
+                    # values are multiplied with a constant to account that our max/min are underestimated
+                    gym_obs = gym_obs.reencode_space(
+                        attr,
+                        ScalerAttrConverter(
+                            substract=0.8 * min_arr,
+                            divide=(1.2 * max_arr - 0.8 * min_arr),
+                        ),
+                    )
+        else:
+            raise ValueError("This scaling is not yet implemented for this environment.")
 
         return gym_obs
 
