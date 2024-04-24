@@ -123,8 +123,8 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, dict[int, int
         ) / 2  # remove symmetries
 
         action_space += int(combined) if combined > 1 else 0
-        # if combined > 1:  # without do nothings for single substations
-        if combined > 0:
+        if combined > 1:  # without do nothings for single substations
+            # if combined > 0:
             controllable_substations[sub] = combined
         possible_topologies *= max(combined, 1)
 

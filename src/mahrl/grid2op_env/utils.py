@@ -155,7 +155,9 @@ def load_action_space(path: str, env: BaseEnv) -> List[BaseAction]:
 
 
 def rescale_observation_space(
-    gym_observation_space: GymnasiumObservationSpace, g2op_env: BaseEnv
+    gym_observation_space: GymnasiumObservationSpace,
+    g2op_env: BaseEnv,
+    env_config: dict[str, Any],
 ) -> GymnasiumObservationSpace:
     """
     Function that rescales the observation space.
@@ -187,7 +189,7 @@ def rescale_observation_space(
             )
             max_arr, min_arr = np.load(
                 os.path.join(
-                    "/Users/barberademol/Documents/GitHub/mahrl_grid2op/",
+                    env_config["lib_dir"],
                     "data/scaling_arrays",
                     grid_name,
                     f"{attr}.npy",

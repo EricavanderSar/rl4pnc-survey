@@ -130,7 +130,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         # rescale observation space
         self.env_gym.observation_space = rescale_observation_space(
-            self.env_gym.observation_space, self.grid2op_env
+            self.env_gym.observation_space, self.grid2op_env, env_config
         )
 
         # specific to rllib
@@ -457,7 +457,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             "do_nothing_agent",
         ]
 
-        self.is_capa = env_config["capa"]
+        self.is_capa = "capa" in env_config["action_space"]
         self.reset_capa_idx = 1
         self.proposed_actions: dict[int, int] = {}
         self.proposed_confidences: dict[int, float] = {}
@@ -531,27 +531,46 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         elif any(
             key.startswith("reinforcement_learning_agent") for key in action_dict.keys()
         ):
-            # (
-            # self.proposed_actions,
-            # self.proposed_confidences,
-            # ) = self.extract_proposed_actions_values(action_dict)
             self.proposed_actions = self.extract_proposed_actions(action_dict)
-
             observations = {
                 "choose_substation_agent": OrderedDict(
                     {
-                        "previous_obs": self.previous_obs,
+                        # "previous_obs": self.previous_obs,
                         "proposed_actions": {
                             str(sub_id): action
                             for sub_id, action in self.proposed_actions.items()
                         },
-                        "reset_capa_idx": self.reset_capa_idx,
+                        # "reset_capa_idx": self.reset_capa_idx,
                     }
                 )
             }
 
             self.reset_capa_idx = 0
-
+        elif any(
+            key.startswith("value_reinforcement_learning_agent")
+            for key in action_dict.keys()
+        ):
+            (
+                self.proposed_actions,
+                self.proposed_confidences,
+            ) = self.extract_proposed_actions_values(action_dict)
+            observations = {
+                "choose_substation_agent": OrderedDict(
+                    {
+                        # "previous_obs": self.previous_obs,
+                        "proposed_actions": {
+                            str(sub_id): action
+                            for sub_id, action in self.proposed_actions.items()
+                        },
+                        "proposed_confidences": {
+                            str(sub_id): confidence
+                            for sub_id, confidence in self.proposed_confidences.items()
+                        },
+                        # "reset_capa_idx": self.reset_capa_idx,
+                    }
+                )
+            }
+            self.reset_capa_idx = 0
         elif bool(action_dict) is False:
             # print("Caution: Empty action dictionary!")
             pass
@@ -708,7 +727,7 @@ class SingleAgentGrid2OpEnvironment(gymnasium.Env):
 
         # rescale observation space
         self.env_gym.observation_space = rescale_observation_space(
-            self.env_gym.observation_space, self.grid2op_env
+            self.env_gym.observation_space, self.grid2op_env, env_config
         )
 
         # specific to rllib
@@ -725,7 +744,7 @@ class SingleAgentGrid2OpEnvironment(gymnasium.Env):
         *,
         seed: int | None = None,
         options: dict[str, Any] | None = None,
-    ) -> tuple[OBSTYPE, dict[str, Any]]:  # type: ignore
+    ) -> tuple[dict[str, Any], dict[str, Any]]:  # type: ignore
         """
         This function resets the environment.
         """
