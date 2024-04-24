@@ -3,13 +3,14 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=16
-#SBATCH --partition=rome
+#SBATCH --cpus-per-task=54
+#SBATCH --gpus=3
+#SBATCH --partition=gpu
 #SBATCH --time=24:00:00
-#SBATCH --output=Case14_Real_ppo_baseline_%j.out
+#SBATCH --output=Case14_Sanbox_ppo_baseline_%j.out
 
 
-ENVNAME=rte_case14_realistic #l2rpn_case14_sandbox
+ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #
 WORKDIR=$TMPDIR/evds_output_dir
 RESDIR=Case14_Sandbox
 
