@@ -6,12 +6,12 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=rome
 #SBATCH --time=24:00:00
-#SBATCH --output=Case14_BlzSandboxMedha_ppo_baseline_%j.out
+#SBATCH --output=Case14_SandboxMedha_ppo_baseline_%j.out
 
 
 ENVNAME=l2rpn_case14_sandbox
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=Case14_Blz_Sandbox
+RESDIR=Case14_Sandbox
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
