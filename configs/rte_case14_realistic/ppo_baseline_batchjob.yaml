@@ -30,12 +30,12 @@ training:
   # tunable parameters
   gamma: 0.99 #!quniform [0.975, 0.995, 0.001] #
   lr: 0.0001 #!qloguniform [0.0001, 0.005, 0.0001] #
-  vf_loss_coeff: 0.5
   kl_coeff: 0.2
   entropy_coeff: 0
   clip_param: 0.3 # epsilon
   lambda: 0.95
-  vf_clip_param: 10
+  vf_loss_coeff: 0.9
+  vf_clip_param: 1500
 #  use_kl_loss: False # setting this similar to orig EVDS implementation
   num_sgd_iter: 5 #!quniform [4, 16, 4] #
   sgd_minibatch_size:  256 #64 #!choice [32, 64, 128] #
@@ -94,7 +94,7 @@ env_config_val: &env_config_val
   rho_threshold: 0.95
 
 evaluation:
-  evaluation_interval: 1
+  evaluation_interval: 3
   evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
