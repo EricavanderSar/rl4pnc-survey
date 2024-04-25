@@ -15,7 +15,7 @@ def lin_block(dim_in, dim_out, *args, **kwargs):
     return nn.Sequential(nn.Linear(dim_in, dim_out, *args, **kwargs), nn.ReLU())
 
 
-class LinFCN(TorchModelV2,nn.Module):
+class LinFCN(TorchModelV2, nn.Module):
     """
     This is a simple fully connected linear neural network.
     It is similar to the one in EVDS code base marl4powergrid

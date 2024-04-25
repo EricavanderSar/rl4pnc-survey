@@ -85,16 +85,16 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
                     delete_nested_key(config, key)
                 else:
                     del config[key]
-        # Scheduler determines if we should prematurely stop a certain experiment
-        scheduler = MedianStoppingRule(
-            time_attr="timesteps_total", #Default = "time_total_s"
-            metric=setup["score_metric"],
-            mode="max",
-            grace_period=setup["grace_period"], # First exploration before stopping
-            min_samples_required=5, # Default = 3
-            min_time_slice=10_000,
-            hard_stop=False,
-        )
+        # # Scheduler determines if we should prematurely stop a certain experiment - NOTE: DOES NOT WORK AS EXPECTED!!!
+        # scheduler = MedianStoppingRule(
+        #     time_attr="timesteps_total", #Default = "time_total_s"
+        #     metric=setup["score_metric"],
+        #     mode="max",
+        #     grace_period=setup["grace_period"], # First exploration before stopping
+        #     min_samples_required=5, # Default = 3
+        #     min_time_slice=10_000,
+        #     hard_stop=False,
+        # )
 
     # Create tuner
     tuner = tune.Tuner(
@@ -127,7 +127,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
         tune_config=tune.TuneConfig(
             search_alg=algo,
             num_samples=setup["num_samples"],
-            scheduler=scheduler,
+            # scheduler=scheduler,
         ) if setup["optimize"] else None
         ,
     )

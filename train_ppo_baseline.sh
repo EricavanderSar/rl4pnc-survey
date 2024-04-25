@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --partition=rome
 #SBATCH --time=24:00:00
-#SBATCH --output=Case14_SandboxTunedPar_ppo_baseline_%j.out
+#SBATCH --output=Case14_SandboxNewFCN_ppo_baseline_%j.out
 
 
 ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #
