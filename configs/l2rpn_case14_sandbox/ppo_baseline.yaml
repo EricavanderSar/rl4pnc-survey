@@ -35,10 +35,10 @@ training:
   train_batch_size: 128 #80 #!choice [128, 256, 512] #
   batch_mode: complete_episodes
   model:
-    custom_model : linfcn
+#    custom_model : linfcn
     fcnet_hiddens: [256,256,256] # !choice [[256,256,256], [128,128,128]] #
-#    fcnet_activation: relu #!choice [relu, tanh] #
-#    post_fcnet_hiddens: [256,128]
+    fcnet_activation: relu #!choice [relu, tanh] #
+    post_fcnet_hiddens: [256,128]
   _enable_learner_api: False
   
 rl_module:
@@ -61,7 +61,7 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_type: new_env #old_env #
+    env_type: old_env #new_env #
     shuffle_scenarios: True
     env_name: l2rpn_case14_sandbox_train
     action_space: medha_DN

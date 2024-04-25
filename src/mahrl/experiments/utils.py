@@ -3,13 +3,21 @@ Utilities in the grid2op experiments.
 """
 
 import logging
+import os
 from typing import Any, Dict, List, OrderedDict, Union
 
 import numpy as np
+import ray
 from grid2op.Environment import BaseEnv
+from ray import air, tune
+from ray.air.integrations.mlflow import MLflowLoggerCallback
+from ray.rllib.algorithms import Algorithm
+from ray.rllib.models import ModelCatalog
+
+from mahrl.models.mlp import SimpleMlp
 
 
-def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, list[int]]:
+def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies without symmetries.
     """
@@ -18,7 +26,7 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, list[int]]
 
     logging.info("no symmetries")
     action_space = 0
-    controllable_substations = []
+    controllable_substations = {}
     possible_topologies = 1
     for sub in range(nr_substations):
         nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
@@ -30,8 +38,9 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, list[int]]
 
         alpha = 2 ** (nr_elements - 1) - (2**nr_non_lines - 1)
         action_space += alpha if alpha > 1 else 0
-        if alpha > 1:
-            controllable_substations.append(sub)
+        # if alpha > 1:  # without do nothings for single substations
+        if alpha > 0:
+            controllable_substations[sub] = alpha
         possible_topologies *= max(alpha, 1)
 
     logging.info(f"actions {action_space}")
@@ -40,7 +49,7 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, list[int]]
     return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, list[int]]:
+def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies following Subrahamian (2021).
     """
@@ -48,7 +57,7 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, list[int]]:
 
     logging.info("medha")
     action_space = 0
-    controllable_substations = []
+    controllable_substations = {}
     possible_topologies = 1
     for sub in range(nr_substations):
         nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
@@ -62,8 +71,9 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, list[int]]:
         gamma = 2**nr_non_lines - 1 - nr_non_lines
         combined = alpha - beta - gamma
         action_space += combined if combined > 1 else 0
-        if combined > 1:
-            controllable_substations.append(sub)
+        # if combined > 1:  # without do nothings for single substations
+        if combined > 0:
+            controllable_substations[sub] = combined
         possible_topologies *= max(combined, 1)
 
     logging.info(f"actions {action_space}")
@@ -72,7 +82,7 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, list[int]]:
     return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
+def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies following the proposed action space.
     """
@@ -80,7 +90,7 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
 
     logging.info("TenneT")
     action_space = 0
-    controllable_substations = []
+    controllable_substations = {}
     possible_topologies = 1
     for sub in range(nr_substations):
         nr_elements = len(env.observation_space.get_obj_substations(substation_id=sub))
@@ -113,8 +123,9 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
         ) / 2  # remove symmetries
 
         action_space += int(combined) if combined > 1 else 0
-        if combined > 1:
-            controllable_substations.append(sub)
+        if combined > 1:  # without do nothings for single substations
+            # if combined > 0:
+            controllable_substations[sub] = combined
         possible_topologies *= max(combined, 1)
 
     logging.info(f"actions {action_space}")
@@ -126,7 +137,7 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, list[int]]:
 def get_capa_substation_id(
     line_info: dict[int, list[int]],
     obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
-    controllable_substations: list[int],
+    controllable_substations: dict[int, int],
 ) -> list[int]:
     """
     Returns the substation id of the substation to act on according to CAPA.
@@ -136,17 +147,23 @@ def get_capa_substation_id(
     for sub_idx in line_info:
         for line_idx in line_info[sub_idx]:
             if isinstance(obs_batch, OrderedDict):
-                connected_rhos[sub_idx].append(obs_batch["rho"][0][line_idx])
+                connected_rhos[sub_idx].append(
+                    obs_batch["previous_obs"]["rho"][0][line_idx]
+                    # obs_batch["original_obs"]["rho"][0][line_idx]
+                )
             elif isinstance(obs_batch, dict):
-                connected_rhos[sub_idx].append(obs_batch["rho"][line_idx])
+                connected_rhos[sub_idx].append(
+                    obs_batch["previous_obs"]["rho"][line_idx]
+                    # obs_batch["original_obs"]["rho"][line_idx]
+                )
             else:
                 raise ValueError("The observation batch is not supported.")
     for sub_idx in connected_rhos:
-        connected_rhos[sub_idx] = np.mean(connected_rhos[sub_idx])
+        connected_rhos[sub_idx] = [float(np.mean(connected_rhos[sub_idx]))]
 
     # set non-controllable substations to 0
     for sub_idx in connected_rhos:
-        if sub_idx not in controllable_substations:
+        if sub_idx not in list(controllable_substations.keys()):
             connected_rhos[sub_idx] = [0.0]
 
     # order the substations by the mean rho, maximum first
@@ -163,17 +180,17 @@ def get_capa_substation_id(
     return list(connected_rhos.keys())
 
 
-def find_list_of_agents(env: BaseEnv, action_space: str) -> list[int]:
+def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[int, int]:
     """
     Function that returns the number of controllable substations.
     """
-    if action_space == "asymmetry":
+    if action_space.startswith("asymmetry"):
         _, _, list_of_agents = calculate_action_space_asymmetry(env)
         return list_of_agents
-    if action_space == "medha":
+    if action_space.startswith("medha"):
         _, _, list_of_agents = calculate_action_space_medha(env)
         return list_of_agents
-    if action_space == "tennet":
+    if action_space.startswith("tennet"):
         _, _, list_of_agents = calculate_action_space_tennet(env)
         return list_of_agents
     raise ValueError("The action space is not supported.")
@@ -214,3 +231,62 @@ def delete_nested_key(d, path):
     last_key = keys[-1]
     if last_key in current:
         del current[last_key]
+
+
+def run_training(
+    config: dict[str, Any], setup: dict[str, Any], algorithm: Algorithm
+) -> None:
+    """
+    Function that runs the training script.
+    """
+    # init ray
+    # ray.shutdown()
+    ray.init(ignore_reinit_error=False)
+
+    ModelCatalog.register_custom_model("fcn", SimpleMlp)
+
+    # Create tuner
+    tuner = tune.Tuner(
+        algorithm,
+        param_space=config,
+        tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
+        run_config=air.RunConfig(
+            name="mlflow",
+            callbacks=[
+                MLflowLoggerCallback(
+                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+                    experiment_name=setup["experiment_name"],
+                    save_artifact=setup["save_artifact"],
+                )
+            ],
+            stop={"timesteps_total": setup["nb_timesteps"]},
+            storage_path=os.path.abspath(setup["storage_path"]),
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=setup["checkpoint_freq"],
+                checkpoint_at_end=setup["checkpoint_at_end"],
+                checkpoint_score_attribute=setup["checkpoint_score_attr"],
+                num_to_keep=setup["keep_checkpoints_num"],
+            ),
+            verbose=setup["verbose"],
+        ),
+    )
+
+    # Launch tuning
+    try:
+        tuner.fit()
+    finally:
+        # Close ray instance
+        ray.shutdown()
+
+    # save config to params.json in the runs file that is created
+    with open(
+        os.path.join(
+            setup["storage_path"],
+            # "mlruns",
+            # "configs",
+            "params.json",
+        ),
+        "w",
+        encoding="utf-8",
+    ) as config_file:
+        config_file.write(str(config))

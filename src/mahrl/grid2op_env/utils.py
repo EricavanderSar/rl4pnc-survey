@@ -14,7 +14,22 @@ from grid2op.Action import BaseAction
 from grid2op.Converter import IdToAct
 from grid2op.Converter.Converters import Converter
 from grid2op.Environment import BaseEnv
+from grid2op.gym_compat import ScalerAttrConverter
+from grid2op.gym_compat.gym_obs_space import GymnasiumObservationSpace
+from grid2op.Parameters import Parameters
 from lightsim2grid import LightSimBackend
+
+
+class CustomIdToAct(IdToAct):
+    """
+    Defines also to_gym from actions.
+    """
+
+    def revert_act(self, action: BaseAction) -> int:
+        """
+        Do the opposite of convert_act. Given an action, return the id of this action in the list of all actions.
+        """
+        return int(np.where(self.all_actions == action)[0][0])
 
 
 class CustomDiscreteActions(gymnasium.spaces.Discrete):
@@ -38,12 +53,18 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
 
     """
 
-    def __init__(self, converter: Converter, do_nothing: BaseAction):
+    def __init__(self, converter: CustomIdToAct):
         self.converter = converter
-        self.do_nothing = do_nothing
         super().__init__(n=converter.n)
 
-    def from_gym(self, gym_action: dict[str, Any]) -> BaseAction:
+    # # NOTE: Implementation before fixing single agent
+    # def from_gym(self, gym_action: dict[str, Any]) -> BaseAction:
+    #     """
+    #     Function that converts a gym action into a grid2op action.
+    #     """
+    #     return self.converter.convert_act(gym_action)
+
+    def from_gym(self, gym_action: int) -> BaseAction:
         """
         Function that converts a gym action into a grid2op action.
         """
@@ -85,11 +106,11 @@ def get_possible_topologies(
 
 def setup_converter(
     env: BaseEnv, possible_substation_actions: list[BaseAction]
-) -> Converter:
+) -> CustomIdToAct:
     """
     Function that initializes and returns converter for gym to grid2op actions.
     """
-    converter = IdToAct(env.action_space)
+    converter = CustomIdToAct(env.action_space)
     converter.init_converter(all_actions=possible_substation_actions)
     return converter
 
@@ -132,7 +153,10 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
         **env_config["grid2op_kwargs"],
         backend=LightSimBackend(),
     )
-    env.seed(env_config["seed"])
+
+    if "seed" in env_config:
+        env.seed(env_config["seed"])
+
     # *** RENAME THE ENVIRONMENT *** excl _train / _val etc
     # such that it can gather the action space and normalization/scaling parameters
     rename_env(env)
