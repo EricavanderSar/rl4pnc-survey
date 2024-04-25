@@ -185,11 +185,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         This function resets the environment.
         """
-        # if self.prio:
-        #     # use chronic priority
-        #     g2op_obs, terminated = self.prio_reset()
-        # else:
-        g2op_obs = self.env_g2op.reset()
+        if self.prio:
+            # use chronic priority
+            g2op_obs, terminated = self.prio_reset()
+        else:
+            g2op_obs = self.env_g2op.reset()
         terminated = False
 
         # # reconnect lines if needed.
@@ -281,10 +281,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         # if not terminated:
         #     g2op_obs, rw, terminated = self.reconnect_lines(g2op_obs)
         #     reward += rw
-        # if self.prio:
-        #     self.step_surv += 1
-        #     if terminated:
-        #         self.chron_prios.update_prios(self.step_surv)
+        if self.prio:
+            self.step_surv += 1
+            if terminated:
+                self.chron_prios.update_prios(self.step_surv)
         # Give reward to RL agent
         rewards = {"reinforcement_learning_agent": reward}
         # Let high-level agent decide to act or not
