@@ -27,24 +27,24 @@ debugging:
 
 training:
   checkpoint_trainable_policies_only: True
-  gamma: !quniform [0.975, 0.995, 0.001] #0.99 #
-  lr: !qloguniform [0.0001, 0.005, 0.0001] #0.0001 #
+  gamma: 0.975 #!quniform [0.975, 0.995, 0.001] #
+  lr: 0.0001 #!qloguniform [0.0001, 0.005, 0.0001] #
 #  use_kl_loss: False # setting this similar to orig EVDS implementation
   kl_coeff: 0.2
   entropy_coeff: 0.0
-  clip_param: !choice [0.2, 0.3] #0.3 # epsilon
+  clip_param: 0.3 #!choice [0.2, 0.3] # epsilon
   lambda: 0.95
-  vf_loss_coeff: 0.9
+  vf_loss_coeff: 0.5
   vf_clip_param: 100
-  num_sgd_iter: !quniform [4, 16, 4] #5 #
-  sgd_minibatch_size:  !choice [32, 64, 128] #256 #64 #
-  train_batch_size: !choice [128, 256, 512] #1024 # 128 #
+  num_sgd_iter: 4 #!quniform [4, 16, 4] #
+  sgd_minibatch_size:  128 #64 #!choice [32, 64, 128] #
+  train_batch_size: 256 # 128 #!choice [128, 256, 512] #
   batch_mode: complete_episodes
   model:
     #    custom_model : linfcn
-    fcnet_hiddens: !choice [[128,128,128], [256,256,256]]  #[128,128,128]
-    fcnet_activation: !choice [relu, tanh] #relu #
-    post_fcnet_hiddens: !choice [[],[128], [256]] #[256] #
+    fcnet_hiddens: [256,256,256] # !choice [[128,128,128], [256,256,256]]  # [128,128,128]
+    fcnet_activation: relu #!choice [relu, tanh] #
+    post_fcnet_hiddens: [256] #!choice [[],[128], [256]] #
   _enable_learner_api: False
 
 rl_module:
@@ -79,9 +79,9 @@ environment:
     seed: *seed
     rho_threshold: 0.95
     prio: False
-    input: [ "p_i", "r", "o", "d"]
+    input: [ "p_i", "p_l", "r", "o", "d"]
     # Params below only used for new_env
-    n_history: 6
+    n_history: 3
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: True
