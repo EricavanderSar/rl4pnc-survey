@@ -9,6 +9,7 @@ from typing import Any, List
 import grid2op
 import gymnasium
 import numpy as np
+import torch
 from grid2op.Action import BaseAction
 from grid2op.Converter import IdToAct
 from grid2op.Environment import BaseEnv
@@ -20,12 +21,26 @@ from lightsim2grid import LightSimBackend
 
 class CustomIdToAct(IdToAct):
     """
-    Defines also to_gym from actions.
+    This class extends the functionality of the base class `IdToAct` by providing a method `revert_act`
+    to convert an action back to its corresponding ID in the list of all actions.
+
+    Attributes:
+        all_actions (list): A list of all possible actions.
+
+    Methods:
+        revert_act(action: BaseAction) -> int:
+            Do the opposite of convert_act. Given an action, return the ID of this action in the list of all actions.
     """
 
     def revert_act(self, action: BaseAction) -> int:
         """
-        Do the opposite of convert_act. Given an action, return the id of this action in the list of all actions.
+        Do the opposite of convert_act. Given an action, return the ID of this action in the list of all actions.
+
+        Args:
+            action (BaseAction): The action to be reverted.
+
+        Returns:
+            int: The ID of the given action in the list of all actions.
         """
         return int(np.where(self.all_actions == action)[0][0])
 
@@ -47,29 +62,37 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
 
 
     env.action_space = ChooseDiscreteActions(converter=converter)
-
-
     """
 
     def __init__(self, converter: CustomIdToAct):
+        """
+        Initializes a CustomDiscreteActions object.
+
+        Parameters:
+        - converter (CustomIdToAct): The converter object used to convert actions.
+
+        """
         self.converter = converter
         super().__init__(n=converter.n)
 
-    # # NOTE: Implementation before fixing single agent
-    # def from_gym(self, gym_action: dict[str, Any]) -> BaseAction:
-    #     """
-    #     Function that converts a gym action into a grid2op action.
-    #     """
-    #     return self.converter.convert_act(gym_action)
-
     def from_gym(self, gym_action: int) -> BaseAction:
         """
-        Function that converts a gym action into a grid2op action.
+        Converts a gym action into a grid2op action.
+
+        Parameters:
+        - gym_action (int): The gym action to be converted.
+
+        Returns:
+        - BaseAction: The converted grid2op action.
         """
         return self.converter.convert_act(gym_action)
 
     def close(self) -> None:
-        """Not implemented."""
+        """
+        Closes the CustomDiscreteActions object.
+
+        """
+        # Not implemented.
 
 
 def make_train_test_val_split(
@@ -80,6 +103,15 @@ def make_train_test_val_split(
 ) -> None:
     """
     Function that splits an environment into a train, test and validation set.
+
+    Parameters:
+    - library_directory (str): The directory where the environment library is located.
+    - env_name (str): The name of the environment to split.
+    - pct_val (float): The percentage of data to allocate for the validation set.
+    - pct_test (float): The percentage of data to allocate for the test set.
+
+    Returns:
+    None
     """
     if not os.path.exists(os.path.join(library_directory, env_name, "_train")):
         env = grid2op.make(os.path.join(library_directory, env_name))
@@ -93,6 +125,13 @@ def get_possible_topologies(
 ) -> list[BaseAction]:
     """
     Function that returns all possible topologies when only keeping in mind a certain number of substations.
+
+    Parameters:
+        env (BaseEnv): The grid2op environment.
+        substations_list (list[int]): A list of indices representing the substations to consider.
+
+    Returns:
+        list[BaseAction]: A list of possible topologies as BaseAction objects.
     """
     possible_substation_actions = []
     for idx in substations_list:
@@ -107,6 +146,13 @@ def setup_converter(
 ) -> CustomIdToAct:
     """
     Function that initializes and returns converter for gym to grid2op actions.
+
+    Parameters:
+        env (BaseEnv): The grid2op environment.
+        possible_substation_actions (list[BaseAction]): List of possible substation actions.
+
+    Returns:
+        CustomIdToAct: The initialized converter for gym to grid2op actions.
     """
     converter = CustomIdToAct(env.action_space)
     converter.init_converter(all_actions=possible_substation_actions)
@@ -116,6 +162,13 @@ def setup_converter(
 def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
     """
     Loads the .json with specified topology actions.
+
+    Args:
+        path (str): The path to the .json file containing the topology actions.
+        env (BaseEnv): The environment object.
+
+    Returns:
+        list[BaseAction]: A list of BaseAction objects representing the loaded actions.
     """
     with open(path, "rt", encoding="utf-8") as action_set_file:
         return list(
@@ -128,7 +181,13 @@ def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
 
 def get_original_env_name(path: str) -> str:
     """
-    If the path contains _per_day or _train or _test or _val, then ignore this part of the string
+    Returns the original environment name by removing specific parts from the given path.
+
+    Args:
+        path (str): The path containing the environment name.
+
+    Returns:
+        str: The original environment name without specific parts.
     """
 
     if "_blazej" in path:
@@ -148,6 +207,13 @@ def get_original_env_name(path: str) -> str:
 def load_action_space(path: str, env: BaseEnv) -> List[BaseAction]:
     """
     Loads the action space from a specified folder.
+
+    Args:
+        path (str): The path to the folder containing the action space.
+        env (BaseEnv): The environment object.
+
+    Returns:
+        List[BaseAction]: The loaded action space.
     """
     path = get_original_env_name(path)
 
@@ -160,7 +226,15 @@ def rescale_observation_space(
     env_config: dict[str, Any],
 ) -> GymnasiumObservationSpace:
     """
-    Function that rescales the observation space.
+    Rescales the observation space to better fit between 0 and 1.
+
+    Args:
+        gym_observation_space (GymnasiumObservationSpace): The original observation space.
+        g2op_env (BaseEnv): The Grid2Op environment.
+        env_config (dict[str, Any]): The environment configuration.
+
+    Returns:
+        GymnasiumObservationSpace: The rescaled observation space.
     """
     # scale observations
     gym_observation_space = gym_observation_space.reencode_space(
@@ -211,7 +285,14 @@ def rescale_observation_space(
 
 def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
     """
-    Function that makes a grid2op environment.
+    Function that makes a grid2op environment and when needed sets thermal limits.
+
+    Parameters:
+        env_config (dict[str, Any]): A dictionary containing the configuration for the environment.
+
+    Returns:
+        BaseEnv: The created grid2op environment.
+
     """
     env = grid2op.make(
         env_config["env_name"],
@@ -248,3 +329,82 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
             ]
         )
     return env
+
+
+class ChronPrioMatrix:
+    """
+    A class representing the ChronPrioMatrix.
+
+    This class is responsible for managing the priority scores of training chronics in the Grid2Op environment.
+
+    Attributes:
+        chronic_lengths (dict[str, int]): A dictionary mapping chronic names to their respective lengths.
+        name_len (int): The length of the chronic name.
+        chron_scores (torch.Tensor): The training chronic sampling weights.
+        chronic_idx (int): The index of the sampled chronic.
+
+    """
+
+    def __init__(self, env: BaseEnv):
+        """
+        Initializes a new instance of the ChronPrioMatrix class.
+
+        self.chron_scores is set to 2 when the chronic has not yet happend and to -1 when it was fully solved.
+        The higher the score, the more likely it is to be sampled.
+
+        Args:
+            env (BaseEnv): The Grid2Op environment.
+
+        """
+        # Get the list of available chronics
+        avail_chron = env.chronics_handler.real_data.available_chronics()
+
+        # Get the length of each chronic, as it can vary per piece
+        self.chronic_lengths: dict[str, int] = {}
+        for chronic in avail_chron:
+            env.set_id(chronic)
+            env.reset()
+            self.chronic_lengths[chronic.split("/")[-1]] = env.max_episode_duration()
+
+        self.name_len = len(avail_chron[0].split("/")[-1])
+
+        # initialize training chronic sampling weights
+        self.chron_scores = torch.ones(len(avail_chron)) * 2.0  # NOTE: Why *2?
+        self.chronic_idx = 0
+
+    def sample_chron(self) -> int:
+        """
+        Samples a training chronic based on the chronic scores.
+
+        Returns:
+            int: The index of the sampled chronic.
+
+        """
+        dist = torch.distributions.categorical.Categorical(
+            logits=torch.Tensor(self.chron_scores)
+        )
+        self.chronic_idx = dist.sample().item()
+        return self.chronic_idx
+
+    def update_prios(self, steps_surv: int) -> None:
+        """
+        Updates the priority scores based on the number of steps survived.
+
+        Args:
+            steps_surv (int): The number of steps survived.
+
+        """
+        scores = (
+            1
+            - np.sqrt(
+                steps_surv
+                / self.chronic_lengths[str(self.chronic_idx).zfill(self.name_len)]
+            )
+            * 2.0
+        )
+
+        chronic_idx_str = str(self.chronic_idx).lstrip("0")
+        if chronic_idx_str == "":  # if chronic_idx_str is empty
+            chronic_idx_str = "0"
+
+        self.chron_scores[int(chronic_idx_str)] = scores
