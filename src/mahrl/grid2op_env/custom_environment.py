@@ -457,7 +457,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             "do_nothing_agent",
         ]
 
-        self.is_capa = "capa" in env_config["action_space"]
+        self.is_capa = "capa" in env_config.keys()
         self.reset_capa_idx = 1
         self.proposed_actions: dict[int, int] = {}
         self.proposed_confidences: dict[int, float] = {}
@@ -535,15 +535,25 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             observations = {
                 "choose_substation_agent": OrderedDict(
                     {
-                        # "previous_obs": self.previous_obs,
                         "proposed_actions": {
                             str(sub_id): action
                             for sub_id, action in self.proposed_actions.items()
                         },
-                        # "reset_capa_idx": self.reset_capa_idx,
                     }
                 )
             }
+
+            if self.is_capa:
+                if isinstance(observations["choose_substation_agent"], OrderedDict):
+                    # add reset_capa_idx to observations
+                    observations["choose_substation_agent"][
+                        "reset_capa_idx"
+                    ] = self.reset_capa_idx
+                    observations["choose_substation_agent"][
+                        "previous_obs"
+                    ] = self.previous_obs
+                else:
+                    raise ValueError("Capa observations is not an OrderedDict.")
 
             self.reset_capa_idx = 0
         elif any(

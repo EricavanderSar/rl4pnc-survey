@@ -124,9 +124,9 @@ def select_mid_level_policy(
     if middle_agent_type in ("capa"):
         mid_level_observation = gymnasium.spaces.Dict(
             {
-                "previous_obs": gym_previous_obs,
                 "proposed_actions": gym_proposed_actions,
                 "reset_capa_idx": gymnasium.spaces.Discrete(2),
+                "previous_obs": gym_previous_obs,
             }
         )
     elif middle_agent_type in ("rl", "random"):

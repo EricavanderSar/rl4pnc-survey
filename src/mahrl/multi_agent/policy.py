@@ -44,7 +44,9 @@ def policy_mapping_fn(
     worker: Optional[RolloutWorker] = None,
 ) -> str:
     """Maps each agent to a policy."""
-    if agent_id.startswith("reinforcement_learning_agent"):
+    if agent_id.startswith("reinforcement_learning_agent") or agent_id.startswith(
+        "value_reinforcement_learning_agent"
+    ):
         # from agent_id, use re to extract the integer at the end
         id_number = re.search(r"\d+$", agent_id)
         if id_number:
@@ -57,7 +59,7 @@ def policy_mapping_fn(
         return "do_nothing_policy"
     if agent_id.startswith("choose_substation_agent"):
         return "choose_substation_policy"
-    raise NotImplementedError
+    raise NotImplementedError(f"Given AgentID is {agent_id}")
 
 
 # class CustomTorchModelV2(FullyConnectedNetwork):
@@ -292,6 +294,8 @@ class ValueFunctionTorchPolicy(PPOTorchPolicy):
 
         # Create an empty array with the same number of rows to account for the missing mean and stdev of value
         empty_columns = np.empty((extra_fetches["action_dist_inputs"].shape[0], 2))
+
+        # TODO: Check if numerical stability breaks here with extra fetches
 
         # Add the empty columns to the array
         extra_fetches["action_dist_inputs"] = np.hstack(
