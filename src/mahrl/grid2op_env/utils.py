@@ -141,6 +141,10 @@ def rename_env(env: BaseEnv):
         env_name = env_name.replace("_test", "")
     if "_val" in env_name:
         env_name = env_name.replace("_val", "")
+    if "_small" in env_name:
+        env_name = env_name.replace("_small", "")
+    if "_large" in env_name:
+        env_name = env_name.replace("_large", "")
     env.set_env_name(env_name)
 
 
@@ -194,7 +198,7 @@ class ChronPrioMatrix:
         self.max_ep_dur = env.max_episode_duration()
         # initialize training chronic sampling weights
         self.ffw_size = 288
-        self.max_ffw = self.max_ep_dur // self.ffw_size
+        self.max_ffw = int(np.ceil(self.max_ep_dur / self.ffw_size))
         avail_chron = env.chronics_handler.real_data.available_chronics()
         self.chron_scores = torch.ones(len(avail_chron), self.max_ffw) * 2.0
 

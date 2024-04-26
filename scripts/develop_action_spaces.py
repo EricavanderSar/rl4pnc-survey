@@ -29,7 +29,8 @@ def create_action_spaces(
     Creates action spaces for a specified grid2op environment.
     """
     env = grid2op.make(env_name)
-
+    save_path = os.path.join(save_path, env_name)
+    os.makedirs(save_path, exist_ok=True)
     if "asymmetry" in action_spaces_to_create:
         mathematically_possible_actions, _, _ = calculate_action_space_asymmetry(env)
         possible_actions = get_asymmetrical_action_space(env)
@@ -38,7 +39,7 @@ def create_action_spaces(
                 "The number of possible actions does not match the mathematically calculated number of actions."
             )
 
-        file_path = os.path.join(save_path, f"{env_name}/asymmetry.json")
+        file_path = os.path.join(save_path, "asymmetry.json")
         save_to_json(possible_actions, file_path)
     if "medha" in action_spaces_to_create:
         mathematically_possible_actions, _, _ = calculate_action_space_medha(env)
@@ -48,11 +49,11 @@ def create_action_spaces(
                 "The number of possible actions does not match the mathematically calculated number of actions."
             )
 
-        file_path = os.path.join(save_path, f"{env_name}/medha.json")
+        file_path = os.path.join(save_path, "medha.json")
         save_to_json(possible_actions, file_path)
     if "medha_dn" in action_spaces_to_create:
         possible_actions = get_medha_dn_action_space(env)
-        file_path = os.path.join(save_path, f"{env_name}/medha_DN.json")
+        file_path = os.path.join(save_path, "medha_DN.json")
         save_to_json(possible_actions, file_path)
     if "tennet" in action_spaces_to_create:
         mathematically_possible_actions, _, _ = calculate_action_space_tennet(env)
@@ -62,7 +63,7 @@ def create_action_spaces(
                 "The number of possible actions does not match the mathematically calculated number of actions."
             )
 
-        file_path = os.path.join(save_path, f"{env_name}/tennet.json")
+        file_path = os.path.join(save_path, "tennet.json")
         save_to_json(possible_actions, file_path)
 
 
@@ -72,7 +73,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-e",
         "--environment",
-        default="l2rpn_case14_sandbox",
+        default="l2rpn_icaps_2021_small",
         type=str,
         help="Name of the environment to be used.",
     )

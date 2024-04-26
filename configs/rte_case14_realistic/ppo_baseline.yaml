@@ -25,9 +25,9 @@ training:
   gamma: 0.99 #!quniform [0.95, 0.99, 0.01] #
   lr: 0.0001 # !qloguniform [0.0005, 0.005, 0.0001] #
   vf_loss_coeff: 0.5
-  entropy_coeff: 0.05
-  clip_param: 0.18 # epsilon
-  lambda: 0.91
+  entropy_coeff: 0.0
+  clip_param: 0.3 # epsilon
+  lambda: 0.95
   vf_clip_param: 10
   use_kl_loss: False # setting this similar to orig EVDS implementation
   num_sgd_iter: 4 #spec.config.train_batch_size / spec.config.sgd_minibatch_size !quniform [4, 16, 4] #

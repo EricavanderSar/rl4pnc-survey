@@ -103,8 +103,8 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
         run_config=air.RunConfig(
             name=setup["folder_name"],
             # storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
-            stop={"timesteps_total": setup["nb_timesteps"],
-                  "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
+            stop={"timesteps_total": setup["nb_timesteps"]},
+            # "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
             callbacks=[
                 WandbLoggerCallback(
                     project=setup["experiment_name"],
@@ -189,6 +189,13 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
         ppo_config.update(custom_config["rollouts"])
     if "scaling_config" in custom_config.keys():
         ppo_config.update(custom_config["scaling_config"])
+
+    custom_config["evaluation"]["evaluation_duration"] = len(
+        os.listdir(os.path.join(
+            f"{grid2op.get_current_local_dir()}",
+            f"{custom_config['env_config_val']['env_name']}",
+            "chronics")
+        ))
     ppo_config.update(custom_config["evaluation"])
     ppo_config.update(custom_config["reporting"])
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
@@ -259,7 +266,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default="./configs/l2rpn_case14_sandbox/ppo_baseline.yaml",  #"./configs/rte_case5_example/ppo_baseline.yaml", #
+        default="./configs/l2rpn_icaps_2021_small/ppo_baseline.yaml",  #"./configs/rte_case5_example/ppo_baseline.yaml", #
         help="Path to the config file.",
     )
     parser.add_argument(
