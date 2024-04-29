@@ -84,7 +84,7 @@ environment:
     n_history: 3
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
-    normalize: True
+    normalize: maxmin
 
 env_config_val: &env_config_val
   <<: *env_config_train

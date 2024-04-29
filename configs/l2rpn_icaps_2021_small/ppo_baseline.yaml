@@ -61,7 +61,7 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_type: old_env #new_env #
+    env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: l2rpn_icaps_2021_small_train
     action_space: medha_DN
@@ -73,7 +73,7 @@ environment:
     seed: *seed
     rho_threshold: 0.90
     n_history: 6
-    input: [ "p_i", "r", "o", "d" ]
+    input: [ "p_i", "r", "o", "d", "m"]
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     prio: True

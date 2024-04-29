@@ -5,6 +5,7 @@ from grid2op import Observation
 from grid2op import Environment
 from grid2op.Parameters import Parameters
 
+
 class ObsConverter:
     def __init__(self,
                  env: Environment,
@@ -120,7 +121,7 @@ class ObsConverter:
             rho_[..., self.obs_space.line_ex_pos_topo_vect] = o[..., self.rho]
             attr_list.append(rho_)
         if "d" in self.attr:
-            # whether each line is in danger
+            # lines in danger
             danger_ = np.zeros(length)
             danger = ((o[..., self.rho] >= self.danger - 0.05) & self.thermal_limit_under400) | (
                     o[..., self.rho] >= self.danger
@@ -129,13 +130,13 @@ class ObsConverter:
             danger_[..., self.obs_space.line_ex_pos_topo_vect] = danger.astype(float)
             attr_list.append(danger_)
         if "o" in self.attr:
-            # whether overflow occurs in each powerline
+            # overflow in a powerline
             over_ = np.zeros(length)
             over_[..., self.obs_space.line_or_pos_topo_vect] = o[..., self.over] / Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED
             over_[..., self.obs_space.line_ex_pos_topo_vect] = o[..., self.over] / Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED
             attr_list.append(over_)
         if "m" in self.attr:
-            # whether each powerline is in maintenance
+            # powerline in maintenance
             main_ = np.zeros(length)
             temp = np.zeros_like(o[..., self.main])
             temp[o[..., self.main] == 0] = 1
