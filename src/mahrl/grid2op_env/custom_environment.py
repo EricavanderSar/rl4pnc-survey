@@ -213,7 +213,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 terminated,
                 truncated,
                 info,
-            ) = self.env_gym.step(action_dict["reinforcement_learning_agent"])
+            ) = self.env_gym.step(action_dict["reinforcement_learning_agent"]["action"])
             # reward the RL agent for this step, go back to HL agent
             rewards = {"reinforcement_learning_agent": reward}
             observations = {"high_level_agent": max(self.previous_obs["rho"])}

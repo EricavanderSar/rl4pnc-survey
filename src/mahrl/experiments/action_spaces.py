@@ -12,7 +12,20 @@ import pandas as pd
 from grid2op.Action import BaseAction
 from grid2op.Environment import BaseEnv
 
-from mahrl.grid2op_env.utils import get_possible_topologies
+from grid2op.Converter import IdToAct
+
+def get_possible_topologies(
+    env: BaseEnv, substations_list: list[int]
+) -> list[BaseAction]:
+    """
+    Function that returns all possible topologies when only keeping in mind a certain number of substations.
+    """
+    possible_substation_actions = []
+    for idx in substations_list:
+        possible_substation_actions += IdToAct.get_all_unitary_topologies_set(
+            env.action_space, idx
+        )
+    return possible_substation_actions
 
 
 def get_changeable_substations_tennet(env: BaseEnv) -> list[int]:
@@ -243,17 +256,17 @@ def save_to_json(
         json.dump(actions_to_json, file)
 
 
-if __name__ == "__main__":
-    # envs = ["rte_case5_example", "rte_case14_realistic", "l2rpn_wcci_2022"]
-    envs = ["rte_case5_example", "rte_case14_realistic"]
-    for env_name in envs:
-        environment = grid2op.make(env_name, test=True)
+# if __name__ == "__main__":
+#     # envs = ["rte_case5_example", "rte_case14_realistic", "l2rpn_wcci_2022"]
+#     envs = ["rte_case5_example", "rte_case14_realistic"]
+#     for env_name in envs:
+#         environment = grid2op.make(env_name, test=True)
 
-        file_path = f"/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/action_spaces/{env_name}/asymmetry.json"
-        save_to_json(get_asymmetrical_action_space(environment), file_path)
+#         file_path = f"/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/action_spaces/{env_name}/asymmetry.json"
+#         save_to_json(get_asymmetrical_action_space(environment), file_path)
 
-        file_path = f"/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/action_spaces/{env_name}/medha.json"
-        save_to_json(get_medha_action_space(environment), file_path)
+#         file_path = f"/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/action_spaces/{env_name}/medha.json"
+#         save_to_json(get_medha_action_space(environment), file_path)
 
-        file_path = f"/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/action_spaces/{env_name}/tennet.json"
-        save_to_json(get_tennet_action_space(environment), file_path)
+#         file_path = f"/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/action_spaces/{env_name}/tennet.json"
+#         save_to_json(get_tennet_action_space(environment), file_path)
