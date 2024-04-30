@@ -448,7 +448,8 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
 
         for sub_idx in list_of_substations:
             # add agent
-            self.rl_agent_ids.append(f"reinforcement_learning_agent_{sub_idx}")
+            self.rl_agent_ids.append(f"value_reinforcement_learning_agent_{sub_idx}")
+            # self.rl_agent_ids.append(f"reinforcement_learning_agent_{sub_idx}") #TODO: Make it work for both from config
 
         # determine the acting agents
         self._agent_ids = self.rl_agent_ids + [
@@ -564,6 +565,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                 self.proposed_actions,
                 self.proposed_confidences,
             ) = self.extract_proposed_actions_values(action_dict)
+            # print(f"Proposed confidences: {self.proposed_confidences}")
             observations = {
                 "choose_substation_agent": OrderedDict(
                     {

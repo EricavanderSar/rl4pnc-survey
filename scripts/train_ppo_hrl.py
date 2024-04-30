@@ -181,6 +181,7 @@ def select_mid_level_policy(
                 .rollouts(preprocessor_pref=None)
             ),
         )
+
     elif middle_agent_type == "argmax":
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=ArgMaxPolicy,
@@ -258,7 +259,7 @@ def select_low_level_policy(
     ):  # add a rl agent that outputs also the value function for each substation
         # Add reinforcement learning policies to the dictionary
         for sub_idx, num_actions in agent_per_substation.items():
-            policies[f"reinforcement_learning_policy_{sub_idx}"] = PolicySpec(
+            policies[f"value_reinforcement_learning_policy_{sub_idx}"] = PolicySpec(
                 policy_class=ValueFunctionTorchPolicy,
                 observation_space=None,  # infer automatically from env
                 action_space=gymnasium.spaces.Dict(

@@ -146,7 +146,7 @@ def generate_split_points(
             # _, _, _, _ = env.step(env.action_space())
             splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
         else:
-            print(f"Day 0 not safe for {scenario_id}, appending anyways.")
+            # print(f"Day 0 not safe for {scenario_id}, appending anyways.")
             # _, _, _, _ = env.step(env.action_space())
             splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
 
@@ -310,7 +310,7 @@ if __name__ == "__main__":
             **custom_config["environment"]["env_config"]["grid2op_kwargs"],
             backend=LightSimBackend(),
         )
-        setup_env.seed(custom_config["environment"]["env_config"]["seed"])
+        # setup_env.seed(custom_config["environment"]["env_config"]["seed"])
         # generate_split_points(setup_env, input_days)
 
         split_chronics_into_days(setup_env, input_save_path, input_days)
