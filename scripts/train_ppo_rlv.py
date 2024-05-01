@@ -112,24 +112,27 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
             policy_class=ActionFunctionTorchPolicy,  # use default policy of PPO
             observation_space=None,  # infer automatically from env
             action_space=None,  # infer automatically from env
-            config=None,
+            config={
+                "model": {
+                    #"custom_model": shared_model,
+                    "custom_model_config": {
+                        "model": shared_model
+                    },
+                },
+            },
         ),
         "vf_policy": PolicySpec(  # performs RL topology
             policy_class=OnlyValueFunctionTorchPolicy,  # use default policy of PPO
             observation_space=None,  # infer automatically from env
             action_space=gymnasium.spaces.Box(-np.inf, np.inf, tuple(), np.float32),
-            config=(
-                AlgorithmConfig()
-                .training(
-                    _enable_learner_api=False,
-                    model={
-                        "custom_model": shared_model,
-                        "custom_model_config": custom_config,
+            config={
+                "model": {
+                    #"custom_model": shared_model,
+                    "custom_model_config": {
+                        "model": shared_model
                     },
-                )
-                .rl_module(_enable_rl_module_api=False)
-                .rollouts(preprocessor_pref=None)
-            ),
+                },
+            },
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,
@@ -146,9 +149,9 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     # load environment and agents manually
     ppo_config.update({"policies": policies})
     ppo_config.update({"env": CustomizedGrid2OpEnvironment})
-    ppo_config.update(
-        {"model": {"custom_model": shared_model, "custom_model_config": ppo_config}}
-    )
+    # ppo_config.update(
+    #     {"model": {"custom_model": shared_model, "custom_model_config": ppo_config}}
+    # )
 
     run_training(ppo_config, custom_config["setup"], CustomPPO)
 
