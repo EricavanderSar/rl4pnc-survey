@@ -674,7 +674,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         if action == 0:  # do something
             # add an observation key for all agents in self.rl_agent_ids
             for agent_id in self.rl_agent_ids:
-                observations[agent_id] = self.previous_obs
+                observations[agent_id] = gymnasium.spaces.Dict(self.previous_obs)
         elif action == 1:  # do nothing
             observations = {"do_nothing_agent": 0}
         else:

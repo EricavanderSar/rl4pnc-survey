@@ -31,6 +31,7 @@ from mahrl.multi_agent.policy import (
     RandomPolicy,
     SelectAgentPolicy,
     ValueFunctionTorchPolicy,
+    NewValueFunctionTorchPolicy,
 )
 
 
@@ -260,7 +261,7 @@ def select_low_level_policy(
         # Add reinforcement learning policies to the dictionary
         for sub_idx, num_actions in agent_per_substation.items():
             policies[f"value_reinforcement_learning_policy_{sub_idx}"] = PolicySpec(
-                policy_class=ValueFunctionTorchPolicy,
+                policy_class=NewValueFunctionTorchPolicy,
                 observation_space=None,  # infer automatically from env
                 action_space=gymnasium.spaces.Dict(
                     {

@@ -37,6 +37,81 @@ from mahrl.experiments.utils import (
     get_capa_substation_id,
 )
 from mahrl.grid2op_env.utils import load_action_space, setup_converter
+from mahrl.multi_agent.value_policy import YetAnotherTorchCentralizedCriticModel
+
+
+class ActionFunctionTorchPolicy(PPOTorchPolicy):
+    def __init__(
+        self,
+        observation_space: gymnasium.Space,
+        action_space: gymnasium.Space,
+        config: AlgorithmConfigDict,
+    ):
+        self.model = config["model"]["custom_model"]
+        config = config["model"]["custom_model_config"]
+
+        assert isinstance(self.model, ModelV2)
+
+        print(f"Action space: {action_space}")
+        print(f"Observation space: {observation_space}")
+
+        super().__init__(observation_space, action_space, config)
+
+    def make_model(self) -> ModelV2:
+        """Creates a new model for this policy."""
+        return self.model
+
+
+class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
+    def __init__(
+        self,
+        observation_space: gymnasium.Space,
+        action_space: gymnasium.Space,
+        config: AlgorithmConfigDict,
+    ):
+        self.model = config["model"]["custom_model"]
+        config = config["model"]["custom_model_config"]
+
+        assert isinstance(self.model, ModelV2)
+
+        print(f"Action space: {action_space}")
+        print(f"Observation space: {observation_space}")
+
+        super().__init__(observation_space, action_space, config)
+
+    def make_model(self) -> ModelV2:
+        """Creates a new model for this policy."""
+        return self.model
+
+    def _compute_action_helper(
+        self,
+        input_dict: Dict[str, Any],
+        state_batches: List[TensorType],
+        seq_lens: TensorType,
+        explore: bool,
+        timestep: Optional[int],
+    ) -> Tuple[Dict[str, TensorType], List[TensorType], Dict[str, TensorType]]:
+        """Shared forward pass logic (w/ and w/o trajectory view API).
+        Adjusted to also return the value of the value function.
+
+        Returns:
+            A tuple consisting of a) actions and value functions, b) state_out, c) extra_fetches.
+            The input_dict is modified in-place to include a numpy copy of the computed
+            actions under `SampleBatch.ACTIONS`.
+        """
+        # seq_lens = [1, 4]
+        # print(f"Input dict: {input_dict[SampleBatch.ACTION_DIST_INPUTS]}")
+
+        (actions, state_out, extra_fetches) = self._compute_action_helper(
+            input_dict, state_batches, seq_lens, explore, timestep
+        )
+
+        print(f"Actions={actions}")
+
+        actions[0] = self.model.value_function().cpu().detach().numpy()
+        actions[1] = 0.0
+
+        return actions, state_out, extra_fetches
 
 
 # pylint: disable=too-many-return-statements
@@ -211,7 +286,9 @@ class CustomTorchModelV2(FullyConnectedNetwork):
         )
 
         # replace last two values of each row with +- 0
-        outputs[:, -2:] = 0
+        outputs[:, -2:] = (self.value_function(),)
+
+        self.value_function()
 
         return outputs, state_out
 
@@ -247,9 +324,9 @@ class ValueFunctionTorchPolicy(PPOTorchPolicy):
         assert "action" in action_space.spaces
         assert "value" in action_space.spaces
 
-        self._policy = PPOTorchPolicy(
-            observation_space, action_space.spaces["action"], config
-        )
+        # self._policy = PPOTorchPolicy(
+        #     observation_space, action_space.spaces["action"], config
+        # )
         super().__init__(observation_space, action_space, config)
 
         # self.dist_class = CustomActionDistribution
@@ -260,8 +337,8 @@ class ValueFunctionTorchPolicy(PPOTorchPolicy):
             self.action_space, self.config["model"], framework=self.framework
         )
         return CustomTorchModelV2(
-            obs_space=self._policy.observation_space,
-            action_space=self._policy.action_space,
+            obs_space=self.observation_space,
+            action_space=self.action_space,
             num_outputs=logit_dim,
             model_config=self.config,
             name="CustomModelV2",
@@ -286,7 +363,7 @@ class ValueFunctionTorchPolicy(PPOTorchPolicy):
         # seq_lens = [1, 4]
         # print(f"Input dict: {input_dict[SampleBatch.ACTION_DIST_INPUTS]}")
 
-        (actions, state_out, extra_fetches) = self._policy._compute_action_helper(
+        (actions, state_out, extra_fetches) = self._compute_action_helper(
             input_dict, state_batches, seq_lens, explore, timestep
         )
 
@@ -316,6 +393,8 @@ class ValueFunctionTorchPolicy(PPOTorchPolicy):
         extra_fetches["action_dist_inputs"] = np.hstack(
             (extra_fetches["action_dist_inputs"], empty_columns)
         )
+
+        print(extra_fetches)
 
         return dict_act, state_out, extra_fetches
 
