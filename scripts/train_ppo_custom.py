@@ -17,15 +17,6 @@ from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
 
-from mahrl.multi_agent.policy import (
-    ArgMaxPolicy,
-    CapaPolicy,
-    DoNothingPolicy,
-    RandomPolicy,
-    SelectAgentPolicy,
-    ValueFunctionTorchPolicy,
-)
-
 
 def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     """
@@ -63,16 +54,9 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
             ),
         ),
         "reinforcement_learning_policy": PolicySpec(  # performs RL topology
-            policy_class=ValueFunctionTorchPolicy,
+            policy_class=None,
             observation_space=None,  # infer automatically from env
-            action_space=gymnasium.spaces.Dict(
-                {
-                    "action": gymnasium.spaces.Discrete(int(24)),
-                    "value": gymnasium.spaces.Box(
-                        float(-np.inf), float(np.inf), tuple(), np.float32
-                    ),
-                }
-            ),
+            action_space=None,
             config=None,
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action

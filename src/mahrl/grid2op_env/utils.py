@@ -55,13 +55,6 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
         self.converter = converter
         super().__init__(n=converter.n)
 
-    # # NOTE: Implementation before fixing single agent
-    # def from_gym(self, gym_action: dict[str, Any]) -> BaseAction:
-    #     """
-    #     Function that converts a gym action into a grid2op action.
-    #     """
-    #     return self.converter.convert_act(gym_action)
-
     def from_gym(self, gym_action: int) -> BaseAction:
         """
         Function that converts a gym action into a grid2op action.

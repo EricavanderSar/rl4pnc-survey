@@ -30,8 +30,6 @@ from mahrl.multi_agent.policy import (
     DoNothingPolicy,
     RandomPolicy,
     SelectAgentPolicy,
-    ValueFunctionTorchPolicy,
-    NewValueFunctionTorchPolicy,
 )
 
 
@@ -215,13 +213,15 @@ def select_mid_level_policy(
             config=None,
         )
     elif middle_agent_type == "rl_v":
+        env_config = custom_config["environment"]["env_config"]
+        env_config["vf_rl"] = True
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=None,  # use default policy of PPO
             observation_space=mid_level_observation,
             action_space=gymnasium.spaces.Discrete(
                 len(list(agent_per_substation.keys()))
             ),  # choose one of agents
-            config=None,
+            config={"env_config": env_config},
         )
     else:
         raise ValueError(
@@ -261,7 +261,7 @@ def select_low_level_policy(
         # Add reinforcement learning policies to the dictionary
         for sub_idx, num_actions in agent_per_substation.items():
             policies[f"value_reinforcement_learning_policy_{sub_idx}"] = PolicySpec(
-                policy_class=NewValueFunctionTorchPolicy,
+                policy_class=None,
                 observation_space=None,  # infer automatically from env
                 action_space=gymnasium.spaces.Dict(
                     {
@@ -401,7 +401,7 @@ if __name__ == "__main__":
         "-m",
         "--middle",
         type=str,
-        default="capa",
+        default="rl",
         help="The type of middle level agent (capa or rl).",
     )
 
@@ -409,7 +409,7 @@ if __name__ == "__main__":
         "-l",
         "--lower",
         type=str,
-        default="greedy",
+        default="rl",
         help="The type of middle level agent (greedy or rl).",
     )
 

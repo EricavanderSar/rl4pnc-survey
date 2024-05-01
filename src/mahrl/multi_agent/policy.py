@@ -9,7 +9,6 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import grid2op
 import gymnasium
-import gymnasium as gym
 import numpy as np
 import torch
 from ray.actor import ActorHandle
@@ -17,15 +16,12 @@ from ray.rllib.algorithms.ppo import PPOTorchPolicy
 from ray.rllib.evaluation.episode_v2 import EpisodeV2
 from ray.rllib.evaluation.rollout_worker import RolloutWorker
 from ray.rllib.models.action_dist import ActionDistribution
-from ray.rllib.models.catalog import ModelCatalog
 from ray.rllib.models.modelv2 import ModelV2
 from ray.rllib.models.torch.fcnet import FullyConnectedNetwork
 from ray.rllib.policy.policy import Policy
 from ray.rllib.policy.sample_batch import SampleBatch
 from ray.rllib.utils.typing import (
     AlgorithmConfigDict,
-    Dict,
-    List,
     ModelConfigDict,
     ModelGradients,
     ModelInputDict,
@@ -42,90 +38,6 @@ from mahrl.experiments.utils import (
     get_capa_substation_id,
 )
 from mahrl.grid2op_env.utils import load_action_space, setup_converter
-
-
-class ActionFunctionTorchPolicy(PPOTorchPolicy):
-    def __init__(
-        self,
-        observation_space: gymnasium.Space,
-        action_space: gymnasium.Space,
-        config: AlgorithmConfigDict,
-    ):
-        self.model = config["model"]["custom_model_config"]["model"]
-        # config = config["model"]["custom_model_config"]
-
-        assert isinstance(self.model, ModelV2)
-
-        print(f"Action space: {action_space}")
-        print(f"Observation space: {observation_space}")
-
-        super().__init__(observation_space, action_space, config)
-
-    def make_model(self) -> ModelV2:
-        """Creates a new model for this policy."""
-        return self.model
-
-
-class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
-    def __init__(
-        self,
-        observation_space: gymnasium.Space,
-        action_space: gymnasium.Space,
-        config: AlgorithmConfigDict,
-    ):
-        self.model = config["model"]["custom_model_config"]["model"]
-        # config = config["model"]["custom_model_config"]
-
-        assert isinstance(self.model, ModelV2)
-
-        print(f"Action space: {action_space}")
-        print(f"Observation space: {observation_space}")
-
-        super().__init__(observation_space, action_space, config)
-
-    def make_model(self) -> ModelV2:
-        """Creates a new model for this policy."""
-        _, logit_dim = ModelCatalog.get_action_dist(
-            self.action_space, self.config["model"], framework=self.framework
-        )
-        return ValueOnlyModel(
-            obs_space=self.observation_space,
-            action_space=self.action_space,
-            num_outputs=logit_dim,
-            model_config=self.config,
-            name="CustomModelV2",
-            _sub_model=self.model,
-        )
-
-    # def _compute_action_helper(
-    #     self,
-    #     input_dict: Dict[str, Any],
-    #     state_batches: List[TensorType],
-    #     seq_lens: TensorType,
-    #     explore: bool,
-    #     timestep: Optional[int],
-    # ) -> Tuple[Dict[str, TensorType], List[TensorType], Dict[str, TensorType]]:
-    #     """Shared forward pass logic (w/ and w/o trajectory view API).
-    #     Adjusted to also return the value of the value function.
-
-    #     Returns:
-    #         A tuple consisting of a) actions and value functions, b) state_out, c) extra_fetches.
-    #         The input_dict is modified in-place to include a numpy copy of the computed
-    #         actions under `SampleBatch.ACTIONS`.
-    #     """
-    #     # seq_lens = [1, 4]
-    #     # print(f"Input dict: {input_dict[SampleBatch.ACTION_DIST_INPUTS]}")
-
-    #     (actions, state_out, extra_fetches) = self._compute_action_helper(
-    #         input_dict, state_batches, seq_lens, explore, timestep
-    #     )
-
-    #     print(f"Actions={actions}")
-
-    #     actions[0] = self.model.value_function().cpu().detach().numpy()
-    #     actions[1] = 0.0
-
-    #     return actions, state_out, extra_fetches
 
 
 # pylint: disable=too-many-return-statements
@@ -149,6 +61,13 @@ def policy_mapping_fn(
             agent_number = int(id_number.group(0))
             return f"value_reinforcement_learning_policy_{agent_number}"
         return "value_reinforcement_learning_policy"
+    if agent_id.startswith("value_function_agent"):
+        # from agent_id, use re to extract the integer at the end
+        id_number = re.search(r"\d+$", agent_id)
+        if id_number:
+            agent_number = int(id_number.group(0))
+            return f"value_function_policy_{agent_number}"
+        return "value_function_policy"
     if agent_id.startswith("high_level_agent"):
         return "high_level_policy"
     if agent_id.startswith("do_nothing_agent"):
@@ -158,125 +77,180 @@ def policy_mapping_fn(
     raise NotImplementedError(f"Given AgentID is {agent_id}")
 
 
-# class CustomTorchModelV2(FullyConnectedNetwork):
-#     """
-#     Implements a custom FCN model that appends the mean and stdev for the value function.
-#     """
+class ActionFunctionTorchPolicy(PPOTorchPolicy):
+    """
+    A custom policy class that extends the PPOTorchPolicy class.
+    This policy is used for action function torch models.
+    """
 
-#     def __call__(
-#         self,
-#         input_dict: Union[SampleBatch, ModelInputDict],
-#         state: Union[List[Any], None] = None,
-#         seq_lens: TensorType = None,
-#     ) -> tuple[TensorType, List[TensorType]]:
+    def __init__(
+        self,
+        observation_space: gymnasium.Space,
+        action_space: gymnasium.Space,
+        config: AlgorithmConfigDict,
+    ):
+        self.sub_modelaldkfj = config["model"]["custom_model_config"]["model"]
 
-#         # get the logits and state for the actions
-#         outputs, state_out = super().__call__(
-#             input_dict=input_dict, state=state, seq_lens=seq_lens
-#         )
+        super().__init__(observation_space, action_space, config)
 
-#         # add two columns of zeroes to the logit output to represent the value
-#         outputs = torch.cat(
-#             (
-#                 outputs,
-#                 torch.zeros(
-#                     (outputs.shape[0], 2),
-#                     dtype=torch.float32,
-#                 ),
-#             ),
-#             dim=1,
-#         )
+        # print(f"Action proposed model: {self.model}")
 
-#         print(f"Final outputs: {outputs}")
+        self.model = config["model"]["custom_model_config"]["model"]
 
-#         return outputs, state_out
+        # print(f"Action my model: {self.model}")
+
+        assert isinstance(self.model, ModelV2)
+
+    def make_model(self) -> ModelV2:
+        """Creates a new model for this policy."""
+        return self.sub_modelaldkfj
+
+    def _compute_action_helper(
+        self,
+        input_dict: Union[SampleBatch, ModelInputDict],
+        state_batches: List[TensorType],
+        seq_lens: List[int],
+        explore: bool,
+        timestep: int,
+    ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+        """
+        Helper function to compute the action based on the input.
+
+        Args:
+            input_dict (dict): Input dictionary containing the input data.
+            state_batches (List): List of state batches.
+            seq_lens (List): List of sequence lengths.
+            explore (bool): Whether to explore or not.
+            timestep (int): The current timestep.
+
+        Returns:
+            Tuple: A tuple containing the logits, state outputs, and extra fetches.
+        """
+        # print(f"Model in actionpolicy: {id(self.model)}")
+        logits, state_out, extra_fetches = super()._compute_action_helper(
+            input_dict, state_batches, seq_lens, explore, timestep
+        )
+        return logits, state_out, extra_fetches
 
 
-# ModelCatalog.register_custom_model("CustomModelV2", CustomTorchModelV2)
+class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
+    """
+    A custom policy class that extends the PPOTorchPolicy class and implements a value-only function policy.
+
+    Args:
+        observation_space (gymnasium.Space): The observation space of the environment.
+        action_space (gymnasium.Space): The action space of the environment.
+        config (AlgorithmConfigDict): The configuration dictionary for the algorithm.
+
+    Attributes:
+        sub_modelaldkf: The sub-model used for the policy.
+    """
+
+    def __init__(
+        self,
+        observation_space: gymnasium.Space,
+        action_space: gymnasium.Space,
+        config: AlgorithmConfigDict,
+    ):
+        self.sub_modelaldkf = config["model"]["custom_model_config"]["model"]
+
+        super().__init__(observation_space, action_space, config)
+
+        # print(f"Value proposed model: {self.model}")
+
+        # self.model = config["model"]["custom_model_config"]["model"]
+
+        # print(f"Value my model: {self.model}")
+
+        assert isinstance(self.model, ModelV2)
+
+    def make_model(self) -> ModelV2:
+        """Creates a new model for this policy."""
+        # _, logit_dim = ModelCatalog.get_action_dist(
+        #     self.sub_model.action_space, self.sub_model.config["model"], framework=self.framework
+        # )
+        return ValueOnlyModel(
+            obs_space=self.observation_space,
+            action_space=self.action_space,
+            num_outputs=2,  # mean and std
+            model_config=self.config,
+            name="CustomModelV2",
+            _sub_model=self.sub_modelaldkf,
+        )
+
+    def _compute_action_helper(
+        self,
+        input_dict: Union[SampleBatch, ModelInputDict],
+        state_batches: List[TensorType],
+        seq_lens: List[int],
+        explore: bool,
+        timestep: int,
+    ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+        # print(f"Model in valuepolicy: {id(self.model)}")
+        logits, state_out, extra_fetches = super()._compute_action_helper(
+            input_dict, state_batches, seq_lens, explore, timestep
+        )
+        # print(f"Value logits (from _compute_action_helper): {logits}")
+        return logits, state_out, extra_fetches
 
 
-# class ValueFunctionTorchPolicy(PPOTorchPolicy):
-#     """
-#     Custom Torch Policy that outputs the output of the value function
-#     besides the action.
-#     """
+class CustomFCN(FullyConnectedNetwork):
+    """
+    Implements a custom FCN model that appends the mean and stdev for the value function.
+    """
 
-#     def __init__(
-#         self,
-#         observation_space: gymnasium.Space,
-#         action_space: gymnasium.Space,
-#         config: AlgorithmConfigDict,
-#     ):
-#         # action space is dict
-#         assert isinstance(action_space, gymnasium.spaces.Dict)
+    def __init__(
+        self,
+        obs_space: gymnasium.spaces.Space,
+        action_space: gymnasium.spaces.Space,
+        num_outputs: int,
+        model_config: ModelConfigDict,
+        name: str,
+    ):
+        super().__init__(
+            obs_space=obs_space,
+            action_space=action_space,
+            num_outputs=num_outputs,
+            model_config=model_config,
+            name=name,
+        )
 
-#         # action and value in dict
-#         assert "action" in action_space.spaces
-#         assert "value" in action_space.spaces
+    def __call__(
+        self,
+        input_dict: Union[SampleBatch, ModelInputDict],
+        state: Union[List[Any], None] = None,
+        seq_lens: TensorType = None,
+    ) -> tuple[TensorType, List[TensorType]]:
+        """
+        Executes the policy for a given input.
 
-#         self._policy = PPOTorchPolicy(
-#             observation_space, action_space.spaces["action"], config
-#         )
-#         super().__init__(observation_space, action_space, config)
+        Args:
+            input_dict (Union[SampleBatch, ModelInputDict]): The input data for the policy.
+            state (Union[List[Any], None], optional): The state of the policy. Defaults to None.
+            seq_lens (TensorType, optional): The sequence lengths. Defaults to None.
 
-#     def make_model(self) -> ModelV2:
-#         """
-#         Creates a new model for this policy with two less dimensions
-#         to account for not learning the value function.
-#         """
-#         _, logit_dim = ModelCatalog.get_action_dist(
-#             self._policy.action_space,
-#             self._policy.config["model"],
-#             framework=self.framework,
-#         )
+        Returns:
+            tuple[TensorType, List[TensorType]]: The outputs of the policy and the updated state.
+        """
+        outputs, state_out = super().__call__(input_dict, state, seq_lens)
 
-#         return CustomTorchModelV2(
-#             obs_space=self._policy.observation_space,
-#             action_space=self._policy.action_space,
-#             num_outputs=logit_dim,
-#             model_config=self._policy.config,
-#             name="CustomModelV2",
-#         )
+        # print(
+        #     f"Value in Action Agent (from __call__): {self.value_function().cpu().detach()}"
+        # )
 
-#     def _compute_action_helper(
-#         self,
-#         input_dict: Dict[str, Any],
-#         state_batches: List[TensorType],
-#         seq_lens: TensorType,
-#         explore: bool,
-#         timestep: Optional[int],
-#     ) -> Tuple[Dict[str, TensorType], List[TensorType], Dict[str, TensorType]]:
-#         """Shared forward pass logic (w/ and w/o trajectory view API).
-#         Adjusted to also return the value of the value function.
+        return outputs, state_out
 
-#         Returns:
-#             A tuple consisting of a) actions and value functions, b) state_out, c) extra_fetches.
-#             The input_dict is modified in-place to include a numpy copy of the computed
-#             actions under `SampleBatch.ACTIONS`.
-#         """
+    def import_from_h5(self, h5_file: str) -> None:
+        """
+        Import model weights from an HDF5 file.
 
-#         (actions, state_out, extra_fetches) = self._policy._compute_action_helper(
-#             input_dict, state_batches, seq_lens, explore, timestep
-#         )
+        This method should be overridden by subclasses to provide actual
+        functionality.
 
-#         try:
-#             value = self.model.value_function().cpu().detach().numpy()
-#             value = value[:, None]
-#         except AssertionError:
-#             # during initialization
-#             value = np.zeros_like(actions).astype(np.float32)
-
-#         dict_act = {"action": actions, "value": value}
-
-#         # Create an empty array with the same number of rows to account for the missing mean and stdev of value
-#         empty_columns = np.empty((extra_fetches["action_dist_inputs"].shape[0], 2))
-
-#         # Add the empty columns to the array
-#         extra_fetches["action_dist_inputs"] = np.hstack(
-#             (extra_fetches["action_dist_inputs"], empty_columns)
-#         )
-
-#         return dict_act, state_out, extra_fetches
+        Args:
+            h5_file (str): The path to the HDF5 file.
+        """
+        raise NotImplementedError("This model cannot import weights from HDF5 files.")
 
 
 class ValueOnlyModel(FullyConnectedNetwork):
@@ -286,8 +260,8 @@ class ValueOnlyModel(FullyConnectedNetwork):
 
     def __init__(
         self,
-        obs_space: gym.spaces.Space,
-        action_space: gym.spaces.Space,
+        obs_space: gymnasium.spaces.Space,
+        action_space: gymnasium.spaces.Space,
         num_outputs: int,
         model_config: ModelConfigDict,
         name: str,
@@ -310,34 +284,38 @@ class ValueOnlyModel(FullyConnectedNetwork):
         state: Union[List[Any], None] = None,
         seq_lens: TensorType = None,
     ) -> tuple[TensorType, List[TensorType]]:
-        # if "action_dist_inputs" in input_dict:
-        #     # print(f"Input dict: {input_dict['action_dist_inputs']}")
-        #     # replace last two digits with 0
-        #     input_dict["action_dist_inputs"][:, -2:] = 0.0
-        #     # print(f"New input dict: {input_dict['action_dist_inputs']}")
-        # outputs, state_out = super().__call__(
-        #     input_dict=input_dict, state=state, seq_lens=seq_lens
-        # )
-
         logits_act, state_out = self._sub_model(
             input_dict=input_dict, state=state, seq_lens=seq_lens
         )
 
-        # Create empty shell for gaussians of Value Function
+        # create empty shell for gaussians of Value Function
         outputs = torch.empty((logits_act.shape[0], 2))
 
-        # Store values
+        # store values
         self._values = self._sub_model.value_function().cpu().detach()
 
-        # replace last two values of each row with +- 0
-        outputs[:, -2:-1] = self._values[:, None]
-        outputs[:, -1:] = 1e-10
+        # replace last two values of with the mean (vf) and stdev (symbolic stdev)
+        assert self._values is not None
+
+        outputs[:, -2:-1] = self._values.reshape(-1, 1)
+        outputs[:, -1:] = -1e2
+
+        # print(f"Value in Value Agent (from __call__): {self._values[:, None]}")
 
         # TODO detach the states
+
         return outputs, state_out
 
-    def value_function(self):
+    def value_function(self) -> TensorType:
+        """
+        Returns the value function.
 
+        Raises:
+            RuntimeError: If `forward` method has not been called before.
+
+        Returns:
+            The value function as a TensorType object.
+        """
         if self._values is None:
             raise RuntimeError("Need to call forward first")
 
@@ -354,133 +332,6 @@ class ValueOnlyModel(FullyConnectedNetwork):
             h5_file (str): The path to the HDF5 file.
         """
         raise NotImplementedError("This model cannot import weights from HDF5 files.")
-
-
-class CustomTorchModelV2(FullyConnectedNetwork):
-    """
-    Implements a custom FCN model that appends the mean and stdev for the value function.
-    """
-
-    def __call__(
-        self,
-        input_dict: Union[SampleBatch, ModelInputDict],
-        state: Union[List[Any], None] = None,
-        seq_lens: TensorType = None,
-    ) -> tuple[TensorType, List[TensorType]]:
-        # if "action_dist_inputs" in input_dict:
-        #     # print(f"Input dict: {input_dict['action_dist_inputs']}")
-        #     # replace last two digits with 0
-        #     input_dict["action_dist_inputs"][:, -2:] = 0.0
-        #     # print(f"New input dict: {input_dict['action_dist_inputs']}")
-        outputs, state_out = super().__call__(
-            input_dict=input_dict, state=state, seq_lens=seq_lens
-        )
-
-        # replace last two values of each row with +- 0
-        outputs[:, -2:-1] = self.value_function()[:, None]
-        outputs[:, -1:] = 0.00000001
-
-        return outputs, state_out
-
-    def import_from_h5(self, h5_file: str) -> None:
-        """
-        Import model weights from an HDF5 file.
-
-        This method should be overridden by subclasses to provide actual
-        functionality.
-
-        Args:
-            h5_file (str): The path to the HDF5 file.
-        """
-        raise NotImplementedError("This model cannot import weights from HDF5 files.")
-
-
-class ValueFunctionTorchPolicy(PPOTorchPolicy):
-    """
-    Custom Torch Policy that outputs the output of the value function
-    besides the action.
-    """
-
-    def __init__(
-        self,
-        observation_space: gymnasium.Space,
-        action_space: gymnasium.Space,
-        config: AlgorithmConfigDict,
-    ):
-        # action space is dict
-        assert isinstance(action_space, gymnasium.spaces.Dict)
-
-        # action and value in dict
-        assert "action" in action_space.spaces
-        assert "value" in action_space.spaces
-
-        # self._policy = PPOTorchPolicy(
-        #     observation_space, action_space.spaces["action"], config
-        # )
-        super().__init__(observation_space, action_space, config)
-
-        # self.dist_class = CustomActionDistribution
-
-    def make_model(self) -> ModelV2:
-        """Creates a new model for this policy."""
-        _, logit_dim = ModelCatalog.get_action_dist(
-            self.action_space, self.config["model"], framework=self.framework
-        )
-        return CustomTorchModelV2(
-            obs_space=self.observation_space,
-            action_space=self.action_space,
-            num_outputs=logit_dim,
-            model_config=self.config,
-            name="CustomModelV2",
-        )
-
-    def _compute_action_helper(
-        self,
-        input_dict: Dict[str, Any],
-        state_batches: List[TensorType],
-        seq_lens: TensorType,
-        explore: bool,
-        timestep: Optional[int],
-    ) -> Tuple[Dict[str, TensorType], List[TensorType], Dict[str, TensorType]]:
-        """Shared forward pass logic (w/ and w/o trajectory view API).
-        Adjusted to also return the value of the value function.
-
-        Returns:
-            A tuple consisting of a) actions and value functions, b) state_out, c) extra_fetches.
-            The input_dict is modified in-place to include a numpy copy of the computed
-            actions under `SampleBatch.ACTIONS`.
-        """
-        # seq_lens = [1, 4]
-        # print(f"Input dict: {input_dict[SampleBatch.ACTION_DIST_INPUTS]}")
-
-        (actions, state_out, extra_fetches) = self._compute_action_helper(
-            input_dict, state_batches, seq_lens, explore, timestep
-        )
-
-        actions = actions_tmp_val["action"]
-
-        # breakpoint()
-
-        try:
-            value = self.model.value_function().cpu().detach().numpy()
-            value = value[:, None]
-            # print(f"Value: {value}")
-        except AssertionError:
-            # during initialization
-            value = np.zeros_like(actions).astype(np.float32)
-
-            # add a small value to each item of the array for numerical stability TODO does this matter
-        # value += 1e-3
-        # value += 1
-
-        # if len(value.shape) < 2:
-        #     print("In this if-statemet")
-        #     value = value[:, None]
-        dict_act = {"action": actions, "value": value}
-
-        print(extra_fetches)
-
-        return dict_act, state_out, extra_fetches
 
 
 class CapaPolicy(Policy):

@@ -5,24 +5,24 @@ Trains PPO baseline agent.
 import argparse
 import logging
 
+import grid2op
 import gymnasium
 import numpy as np
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
-from ray.rllib.models.torch.fcnet import FullyConnectedNetwork
 
 from mahrl.algorithms.custom_ppo import CustomPPO
 from mahrl.experiments.utils import run_training
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import (
-    DoNothingPolicy,
-    SelectAgentPolicy,
     ActionFunctionTorchPolicy,
+    CustomFCN,
+    DoNothingPolicy,
     OnlyValueFunctionTorchPolicy,
+    SelectAgentPolicy,
 )
-import grid2op
 
 
 def setup_config(config_path: str, checkpoint_path: str | None) -> None:
@@ -40,46 +40,19 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
             ppo_config.update(custom_config[key])
 
     # load in information about the environment
-    setup_env = grid2op.make(custom_config["environment"]["env_config"]["env_name"])
+    grid2op.make(custom_config["environment"]["env_config"]["env_name"])
 
-    env_info = {
-        "num_load": setup_env.n_load,
-        "num_gen": setup_env.n_gen,
-        "num_line": setup_env.n_line,
-        "dim_topo": setup_env.dim_topo,
-    }
-
-    obs = gymnasium.spaces.Dict(
-        {
-            "gen_p": gymnasium.spaces.Box(
-                -np.inf,
-                np.inf,
-                (env_info["num_gen"],),
-                np.float32,
-            ),
-            "load_p": gymnasium.spaces.Box(
-                -np.inf, np.inf, (env_info["num_load"],), np.float32
-            ),
-            "p_ex": gymnasium.spaces.Box(
-                -np.inf, np.inf, (env_info["num_line"],), np.float32
-            ),
-            "p_or": gymnasium.spaces.Box(
-                -np.inf, np.inf, (env_info["num_line"],), np.float32
-            ),
-            "rho": gymnasium.spaces.Box(
-                0.0, np.inf, (env_info["num_line"],), np.float32
-            ),
-            "timestep_overflow": gymnasium.spaces.Box(
-                -2147483648, 2147483647, (env_info["num_line"],), np.int32
-            ),
-            "topo_vect": gymnasium.spaces.Box(-1, 2, (env_info["dim_topo"],), np.int32),
-        }
-    )
+    # env_info = {
+    #     "num_load": setup_env.n_load,
+    #     "num_gen": setup_env.n_gen,
+    #     "num_line": setup_env.n_line,
+    #     "dim_topo": setup_env.dim_topo,
+    # }
 
     obs2 = gymnasium.spaces.Box(-1.0, 1.0, (58,), np.float32)
 
     # Make model to be shared by both value and action rl agent
-    shared_model = FullyConnectedNetwork(
+    shared_model = CustomFCN(
         obs_space=obs2,
         action_space=gymnasium.spaces.Discrete(24),
         num_outputs=24,
@@ -108,29 +81,25 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
                 .rollouts(preprocessor_pref=None)
             ),
         ),
-        "reinforcement_learning_policy": PolicySpec(  # performs RL topology
+        "value_reinforcement_learning_policy": PolicySpec(  # performs RL topology
             policy_class=ActionFunctionTorchPolicy,  # use default policy of PPO
             observation_space=None,  # infer automatically from env
             action_space=None,  # infer automatically from env
             config={
                 "model": {
-                    #"custom_model": shared_model,
-                    "custom_model_config": {
-                        "model": shared_model
-                    },
+                    # "custom_model": shared_model,
+                    "custom_model_config": {"model": shared_model},
                 },
             },
         ),
-        "vf_policy": PolicySpec(  # performs RL topology
+        "value_function_policy": PolicySpec(  # performs RL topology
             policy_class=OnlyValueFunctionTorchPolicy,  # use default policy of PPO
             observation_space=None,  # infer automatically from env
             action_space=gymnasium.spaces.Box(-np.inf, np.inf, tuple(), np.float32),
             config={
                 "model": {
-                    #"custom_model": shared_model,
-                    "custom_model_config": {
-                        "model": shared_model
-                    },
+                    # "custom_model": shared_model,
+                    "custom_model_config": {"model": shared_model},
                 },
             },
         ),

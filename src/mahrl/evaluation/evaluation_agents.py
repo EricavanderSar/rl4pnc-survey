@@ -125,7 +125,8 @@ class LargeTopologyGreedyAgent(GreedyAgent):
         # setup threshold
         self.threshold = env_config["rho_threshold"]
 
-        random.seed(env_config["seed"])
+        if "seed" in env_config:
+            random.seed(env_config["seed"])
 
         # self.timesteps_saved = 0
 
@@ -267,7 +268,8 @@ class TopologyGreedyAgent(GreedyAgent):
         # setup threshold
         self.threshold = env_config["rho_threshold"]
 
-        random.seed(env_config["seed"])
+        if "seed" in env_config:
+            random.seed(env_config["seed"])
 
         self.timesteps_saved = 0
 
