@@ -37,6 +37,81 @@ from mahrl.experiments.utils import (
     get_capa_substation_id,
 )
 from mahrl.grid2op_env.utils import load_action_space, setup_converter
+from mahrl.multi_agent.value_policy import YetAnotherTorchCentralizedCriticModel
+
+
+class ActionFunctionTorchPolicy(PPOTorchPolicy):
+    def __init__(
+        self,
+        observation_space: gymnasium.Space,
+        action_space: gymnasium.Space,
+        config: AlgorithmConfigDict,
+    ):
+        self.model = config["model"]["custom_model"]
+        config = config["model"]["custom_model_config"]
+
+        assert isinstance(self.model, ModelV2)
+
+        print(f"Action space: {action_space}")
+        print(f"Observation space: {observation_space}")
+
+        super().__init__(observation_space, action_space, config)
+
+    def make_model(self) -> ModelV2:
+        """Creates a new model for this policy."""
+        return self.model
+
+
+class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
+    def __init__(
+        self,
+        observation_space: gymnasium.Space,
+        action_space: gymnasium.Space,
+        config: AlgorithmConfigDict,
+    ):
+        self.model = config["model"]["custom_model"]
+        config = config["model"]["custom_model_config"]
+
+        assert isinstance(self.model, ModelV2)
+
+        print(f"Action space: {action_space}")
+        print(f"Observation space: {observation_space}")
+
+        super().__init__(observation_space, action_space, config)
+
+    def make_model(self) -> ModelV2:
+        """Creates a new model for this policy."""
+        return self.model
+
+    def _compute_action_helper(
+        self,
+        input_dict: Dict[str, Any],
+        state_batches: List[TensorType],
+        seq_lens: TensorType,
+        explore: bool,
+        timestep: Optional[int],
+    ) -> Tuple[Dict[str, TensorType], List[TensorType], Dict[str, TensorType]]:
+        """Shared forward pass logic (w/ and w/o trajectory view API).
+        Adjusted to also return the value of the value function.
+
+        Returns:
+            A tuple consisting of a) actions and value functions, b) state_out, c) extra_fetches.
+            The input_dict is modified in-place to include a numpy copy of the computed
+            actions under `SampleBatch.ACTIONS`.
+        """
+        # seq_lens = [1, 4]
+        # print(f"Input dict: {input_dict[SampleBatch.ACTION_DIST_INPUTS]}")
+
+        (actions, state_out, extra_fetches) = self._compute_action_helper(
+            input_dict, state_batches, seq_lens, explore, timestep
+        )
+
+        print(f"Actions={actions}")
+
+        actions[0] = self.model.value_function().cpu().detach().numpy()
+        actions[1] = 0.0
+
+        return actions, state_out, extra_fetches
 
 
 # pylint: disable=too-many-return-statements
@@ -255,80 +330,66 @@ class ValueFunctionTorchPolicy(PPOTorchPolicy):
 
         # self.dist_class = CustomActionDistribution
 
-    # def make_model(self) -> ModelV2:
-    #     """Creates a new model for this policy."""
-    #     _, logit_dim = ModelCatalog.get_action_dist(
-    #         self.action_space, self.config["model"], framework=self.framework
-    #     )
-    #     # breakpoint()
-    #     return CustomTorchModelV2(
-    #     # return FullyConnectedNetwork(
-    #         obs_space=self.observation_space,
-    #         action_space=self.action_space,
-    #         num_outputs=logit_dim,
-    #         model_config=self.config,
-    #         name="CustomModelV2",
-    #     )
+    def make_model(self) -> ModelV2:
+        """Creates a new model for this policy."""
+        _, logit_dim = ModelCatalog.get_action_dist(
+            self.action_space, self.config["model"], framework=self.framework
+        )
+        return CustomTorchModelV2(
+            obs_space=self.observation_space,
+            action_space=self.action_space,
+            num_outputs=logit_dim,
+            model_config=self.config,
+            name="CustomModelV2",
+        )
 
-    # def _compute_action_helper(
-    #     self,
-    #     input_dict: Dict[str, Any],
-    #     state_batches: List[TensorType],
-    #     seq_lens: TensorType,
-    #     explore: bool,
-    #     timestep: Optional[int],
-    # ) -> Tuple[Dict[str, TensorType], List[TensorType], Dict[str, TensorType]]:
-    #     """Shared forward pass logic (w/ and w/o trajectory view API).
-    #     Adjusted to also return the value of the value function.
+    def _compute_action_helper(
+        self,
+        input_dict: Dict[str, Any],
+        state_batches: List[TensorType],
+        seq_lens: TensorType,
+        explore: bool,
+        timestep: Optional[int],
+    ) -> Tuple[Dict[str, TensorType], List[TensorType], Dict[str, TensorType]]:
+        """Shared forward pass logic (w/ and w/o trajectory view API).
+        Adjusted to also return the value of the value function.
 
-    #     Returns:
-    #         A tuple consisting of a) actions and value functions, b) state_out, c) extra_fetches.
-    #         The input_dict is modified in-place to include a numpy copy of the computed
-    #         actions under `SampleBatch.ACTIONS`.
-    #     """
-    #     # seq_lens = [1, 4]
-    #     # print(f"Input dict: {input_dict[SampleBatch.ACTION_DIST_INPUTS]}")
+        Returns:
+            A tuple consisting of a) actions and value functions, b) state_out, c) extra_fetches.
+            The input_dict is modified in-place to include a numpy copy of the computed
+            actions under `SampleBatch.ACTIONS`.
+        """
+        # seq_lens = [1, 4]
+        # print(f"Input dict: {input_dict[SampleBatch.ACTION_DIST_INPUTS]}")
 
-    #     # (actions, state_out, extra_fetches) = self._policy._compute_action_helper(
-    #     #     input_dict, state_batches, seq_lens, explore, timestep
-    #     # )
-    #     (actions_tmp_val, state_out, extra_fetches) = super()._compute_action_helper(
-    #         input_dict, state_batches, seq_lens, explore, timestep
-    #     )
+        (actions, state_out, extra_fetches) = self._compute_action_helper(
+            input_dict, state_batches, seq_lens, explore, timestep
+        )
 
-    #     actions = actions_tmp_val["action"]
+        actions = actions_tmp_val["action"]
 
-    #     # breakpoint()
+        # breakpoint()
 
-    #     try:
-    #         value = self.model.value_function().cpu().detach().numpy()
-    #         value = value[:, None]
-    #         # print(f"Value: {value}")
-    #     except AssertionError:
-    #         # during initialization
-    #         value = np.zeros_like(actions).astype(np.float32)
+        try:
+            value = self.model.value_function().cpu().detach().numpy()
+            value = value[:, None]
+            # print(f"Value: {value}")
+        except AssertionError:
+            # during initialization
+            value = np.zeros_like(actions).astype(np.float32)
 
-    #         # add a small value to each item of the array for numerical stability TODO does this matter
-    #     # value += 1e-3
-    #     # value += 1
+            # add a small value to each item of the array for numerical stability TODO does this matter
+        # value += 1e-3
+        # value += 1
 
-    #     # if len(value.shape) < 2:
-    #     #     print("In this if-statemet")
-    #     #     value = value[:, None]
-    #     dict_act = {"action": actions, "value": value}
+        # if len(value.shape) < 2:
+        #     print("In this if-statemet")
+        #     value = value[:, None]
+        dict_act = {"action": actions, "value": value}
 
-    #     # Create an empty array with the same number of rows to account for the missing mean and stdev of value
-    #     empty_columns = np.empty((extra_fetches["action_dist_inputs"].shape[0], 2))
-    #     # empty_columns += 1e-3
-    #     # TODO: Check if numerical stability breaks here with extra fetches
+        print(extra_fetches)
 
-    #     # Add the empty columns to the array
-    #     extra_fetches["action_dist_inputs"][:, -2:] = empty_columns
-    #     # extra_fetches["action_dist_inputs"] = np.hstack(
-    #     #     (extra_fetches["action_dist_inputs"], empty_columns)
-    #     # )
-
-    #     return dict_act, state_out, extra_fetches
+        return dict_act, state_out, extra_fetches
 
 
 class CapaPolicy(Policy):
