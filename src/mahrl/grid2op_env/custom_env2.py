@@ -19,31 +19,16 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
     def __init__(self, env_config: dict[str, Any]):
         super().__init__(env_config)
 
+    def define_obs_space(self, env_config) -> gym.Space:
+        # Adjusted observation space for a Single Agent Environment
         obs_features = env_config.get("input", ["p_i", "p_l", "r", "o", "d"])
         n_power_attr = len([i for i in obs_features if i.startswith("p")])
         n_feature = len(obs_features) - (n_power_attr > 1) * (n_power_attr - 1)
-
         n_history = env_config.get("n_history", 6)
-
-        # re-define RLlib observationspace:
         dim_topo = self.env_g2op.observation_space.dim_topo
 
-        self._obs_space_in_preferred_format = True
-        self.observation_space = gym.spaces.Dict(
-            {
-                "high_level_agent": gym.spaces.Discrete(2),
-                "reinforcement_learning_agent":
-                    gym.spaces.Dict({
-                        "feature_matrix": gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_feature * n_history)),
-                        "topology": gym.spaces.Box(0, 2, shape=(dim_topo, dim_topo)) if env_config.get("adj_matrix")
-                        else gym.spaces.Box(-1, 1, shape=(dim_topo,))
-                    }),
-                "do_nothing_agent": gym.spaces.Discrete(1)
-            }
-        )
-
-        self.obs_converter = ObsConverter(self.env_g2op, env_config.get("danger", 0.9), attr=obs_features, n_history=n_history, adj_mat=env_config.get("adj_matrix"))
-        self.cur_obs = None
+        self.obs_converter = ObsConverter(self.env_g2op, env_config.get("danger", 0.9), attr=obs_features,
+                                          n_history=n_history, adj_mat=env_config.get("adj_matrix"))
 
         # Normalize state observations:
         if env_config.get("normalize", '') == "meanstd":
@@ -59,123 +44,23 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
             )
             self.obs_converter.load_max_min(load_path=path)
 
-    def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        options: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[MultiAgentDict, MultiAgentDict]:
-        self.obs_converter.reset()
+        # re-define RLlib observationspace:
+        self._obs_space_in_preferred_format = True
+        return gym.spaces.Dict(
+            {
+                "high_level_agent": gym.spaces.Discrete(2),
+                "reinforcement_learning_agent":
+                    gym.spaces.Dict({
+                        "feature_matrix": gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_feature * n_history)),
+                        "topology": gym.spaces.Box(0, 2, shape=(dim_topo, dim_topo)) if env_config.get("adj_matrix")
+                        else gym.spaces.Box(-1, 1, shape=(dim_topo,))
+                    }),
+                "do_nothing_agent": gym.spaces.Discrete(1)
+            }
+        )
 
-        if self.prio:
-            # use chronic priority
-            self.env_g2op.set_id(
-                self.chron_prios.sample_chron()
-            )  # NOTE: this will take the previous chronic since with env_glop.reset() you will get the next
-        g2op_obs = self.env_g2op.reset()
-        terminated = False
-        if self.prio:
-            if self.chron_prios.cur_ffw > 0:
-                self.env_g2op.fast_forward_chronics(self.chron_prios.cur_ffw * self.chron_prios.ffw_size)
-                (
-                    g2op_obs,
-                    reward,
-                    terminated,
-                    infos,
-                ) = self.env_g2op.step(self.env_g2op.action_space())
-            self.step_surv = 0
-
-        # reconnect lines if needed.
-        if not terminated:
-            g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
-
+    def update_obs(self, g2op_obs):
         self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
-        observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
-
-        chron_id = self.env_g2op.chronics_handler.get_name()
-        info = {"time serie id": chron_id}
-        # print("chron_id: ", chron_id)
-        # print('ts: ', g2op_obs.current_step)
-        return observations, info
-
-    def step(
-        self, action_dict: MultiAgentDict
-    ) -> Tuple[
-        MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict
-    ]:
-        """
-        This function performs a single step in the environment.
-        """
-
-        # Build termination dict
-        terminateds = {
-            "__all__": False
-        }
-        truncateds = {
-            "__all__": False,
-        }
-
-        rewards: Dict[str, Any] = {}
-        infos: Dict[str, Any] = {}
-        observations = {}
-
-        logging.info(f"ACTION_DICT = {action_dict}")
-
-        if "high_level_agent" in action_dict.keys():
-            action = action_dict["high_level_agent"]
-            if action == 0:
-                # do something
-                observations = {"reinforcement_learning_agent": self.cur_obs}
-            elif action == 1:
-                # do nothing
-                observations = {"do_nothing_agent": 0}
-            else:
-                raise ValueError(
-                    "An invalid action is selected by the high_level_agent in step()."
-                )
-            return observations, rewards, terminateds, truncateds, infos
-        elif "do_nothing_agent" in action_dict.keys():
-            logging.info("do_nothing_agent IS CALLED: DO NOTHING")
-
-            # overwrite action in action_dict to nothing
-            action = action_dict["do_nothing_agent"]
-        elif "reinforcement_learning_agent" in action_dict.keys():
-            logging.info("reinforcement_learning_agent IS CALLED: DO SOMETHING")
-            action = action_dict["reinforcement_learning_agent"]
-        elif bool(action_dict) is False:
-            logging.info("Caution: Empty action dictionary!")
-            return observations, rewards, terminateds, truncateds, infos
-        else:
-            logging.info(f"ACTION_DICT={action_dict}")
-            raise ValueError("No agent found in action dictionary in step().")
-
-        # Execute action given by DN or RL agent:
-        g2op_act = self.env_gym.action_space.from_gym(action)
-        (
-            g2op_obs,
-            reward,
-            terminated,
-            infos,
-        ) = self.env_g2op.step(g2op_act)
-        # reconnect lines if needed.
-        if not terminated:
-            g2op_obs, rw, terminated = self.reconnect_lines(g2op_obs)
-            reward += rw
-        # Save current observation
-        self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
-        if self.prio:
-            self.step_surv += 1
-            if terminated:
-                self.chron_prios.update_prios(self.step_surv)
-        # Give reward to RL agent
-        rewards = {"reinforcement_learning_agent": reward}
-        # Let high-level agent decide to act or not
-        observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
-        terminateds = {"__all__": terminated}
-        # For info on terminated vs truncated see: https://github.com/openai/gym/pull/2752
-        truncateds = {"__all__": g2op_obs.current_step == g2op_obs.max_step}
-        infos = {}
-        return observations, rewards, terminateds, truncateds, infos
 
 
 register_env("RlGrid2OpEnv", RlGrid2OpEnv)

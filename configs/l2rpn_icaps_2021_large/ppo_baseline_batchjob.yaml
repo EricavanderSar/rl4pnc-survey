@@ -3,6 +3,7 @@ setup:
   nb_timesteps: &nb_timesteps 100_000
   checkpoint_freq: 10
   verbose: 0
+  my_log_level: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
   folder_name: "TestSub36_2021"
   experiment_name: "TestSub36_2021"
@@ -86,12 +87,6 @@ environment:
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: maxmin
 
-env_config_val: &env_config_val
-  <<: *env_config_train
-  env_name: l2rpn_icaps_2021_large_val
-  shuffle_scenarios: False
-  prio: False # should always be False
-
 evaluation:
   evaluation_interval: 10
 #  evaluation_duration: 100 # less then there are validation episodes -> len(os.listdir(f"~/data_grid2op/{env_name}/chronics"))
@@ -102,7 +97,11 @@ evaluation:
   evaluation_num_workers: 30
   evaluation_config:
     explore: True,
-    env_config: *env_config_val # use the validation environment
+    env_config:
+      <<: *env_config_train
+      env_name: l2rpn_icaps_2021_large_val # use the validation environment
+      shuffle_scenarios: False
+      prio: False # should always be False
 
 reporting:
   keep_per_episode_custom_metrics: True
@@ -116,5 +115,3 @@ resources:
 
 rollouts:
   num_rollout_workers: 32
-
-my_log_level: 1

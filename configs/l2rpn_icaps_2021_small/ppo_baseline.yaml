@@ -3,6 +3,7 @@ setup:
   nb_timesteps: &nb_timesteps 1_000
   checkpoint_freq: 2
   verbose: 0
+  my_log_level: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
   folder_name: "TestSub36_2021"
   experiment_name: "TestSub36_2021"
@@ -41,8 +42,8 @@ training:
     post_fcnet_hiddens: [256,128]
   _enable_learner_api: False
 
-rl_module:
-  _enable_rl_module_api: False
+#rl_module:
+#  _enable_rl_module_api: False
 
 explore:
   exploration_config:
@@ -61,7 +62,7 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_type: new_env #old_env #
+    env_type: old_env #new_env #
     shuffle_scenarios: True
     env_name: l2rpn_icaps_2021_small_train
     action_space: medha_DN
@@ -79,22 +80,20 @@ environment:
     prio: True
     normalize: maxmin
 
-env_config_val: &env_config_val
-  <<: *env_config_train
-  env_name: l2rpn_icaps_2021_small_val
-  shuffle_scenarios: False
-  prio: False # should always be False
-
 evaluation:
   evaluation_interval: 1
 #  evaluation_duration: 100 # as many as there are validation episodes -> len(os.listdir("/Users/ericavandersar/data_grid2op/rte_case14_realistic_val/chronics"))
   evaluation_duration_unit: episodes
   always_attach_evaluation_results: True
 #  evaluation_parallel_to_training: True #Currently not working
-  evaluation_num_workers: 1
+  evaluation_num_workers: 2
   evaluation_config:
     explore: False,
-    env_config: *env_config_val # use the validation environment
+    env_config:
+      <<: *env_config_train
+      env_name: l2rpn_icaps_2021_small_val
+      shuffle_scenarios: False
+      prio: False # should always be False
 
 reporting:
   keep_per_episode_custom_metrics: True
@@ -103,6 +102,5 @@ resources:
   num_learner_workers: 1
 
 rollouts:
-  num_rollout_workers: 1
+  num_rollout_workers: 4
 
-my_log_level: 1

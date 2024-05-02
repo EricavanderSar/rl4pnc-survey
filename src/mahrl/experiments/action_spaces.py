@@ -130,7 +130,7 @@ def get_medha_action_space(env: BaseEnv) -> list[BaseAction]:
     return legal_actions
 
 
-def get_medha_dn_action_space(env):
+def get_medha_dn_action_space(env: BaseEnv) -> list[BaseAction]:
     """
         Generate allowed actions based on the proposed action space by Subramanian et al. (2021).
         """
@@ -157,6 +157,18 @@ def get_medha_dn_action_space(env):
         # substation-substation line is connected to each busbar does not need to be tested
         if at_least_two_occurrences:
             legal_actions.append(action)
+
+    # add do nothing actions of subs with only 1 line:
+    count_lines = Counter(env.line_ex_to_subid) + Counter(env.line_or_to_subid)
+    one_line_subs = [sub for sub, n_lines in count_lines.items() if n_lines == 1]
+    for sub in one_line_subs:
+        # Default DN topology
+        topo = np.ones(env.sub_info[sub], dtype=int)
+        action = env.action_space(
+            {"set_bus": {"substations_id": [(sub, topo)]}}
+        )
+        legal_actions.append(action)
+
     return legal_actions
 
 def get_tennet_action_space(env: BaseEnv) -> list[BaseAction]:

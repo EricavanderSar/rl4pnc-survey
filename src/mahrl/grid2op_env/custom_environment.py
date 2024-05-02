@@ -11,6 +11,7 @@ import grid2op
 from lightsim2grid import LightSimBackend
 import gymnasium as gym
 from grid2op.Action import BaseAction
+from grid2op.Observation import BaseObservation
 from grid2op.Environment import BaseEnv
 from grid2op.gym_compat import GymEnv
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
@@ -97,12 +98,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         super().__init__()
         self._skip_env_checking = True
 
-        self._agent_ids = [
-            "high_level_agent",
-            "reinforcement_learning_agent",
-            "do_nothing_agent",
-        ]
-
         # 1. create the grid2op environment
         self.env_g2op = make_g2op_env(env_config)
         if "env_name" not in env_config:
@@ -135,21 +130,44 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.env_gym = GymEnv(self.env_g2op, shuffle_chronics=env_config["shuffle_scenarios"])
         self.env_gym.reset()
 
-        # 3. customize action and observation space space to only change bus
+        # 3. Define agents:
+        self._agent_ids = self.define_agents(env_config)
+
+        # 4. customize action space to only change bus
         # create converter
         converter = setup_converter(self.env_g2op, self.possible_substation_actions)
 
         # set gym action space to discrete
         self.env_gym.action_space = CustomDiscreteActions(converter)
-        # customize observation space
+        # specific to rllib
+        self.action_space = self.define_action_space(env_config)
+
+        # 5. customize observation space
         self.env_gym.observation_space = self.rescale_observation_space(
             lib_dir,
             env_config.get("input", ["p_i", "p_l", "r", "o"])
         )
+        # specific to rllib
+        self.observation_space = self.define_obs_space(env_config)
 
-        # 4. specific to rllib
+        self.cur_obs = None
+
+        # initialize training chronic sampling weights
+        self.prio = env_config.get("prio", True)
+        self.chron_prios = ChronPrioMatrix(self.env_g2op)
+        self.step_surv = 0
+
+    def define_agents(self, env_config: dict) -> list:
+        return [
+            "high_level_agent",
+            "reinforcement_learning_agent",
+            "do_nothing_agent",
+        ]
+
+    def define_action_space(self, env_config: dict) -> gym.Space:
+        # Defines Single Agent action space
         self._action_space_in_preferred_format = True
-        self.action_space = gym.spaces.Dict(
+        return gym.spaces.Dict(
             {
                 "high_level_agent": gym.spaces.Discrete(2),
                 "reinforcement_learning_agent": gym.spaces.Discrete(len(self.possible_substation_actions)),
@@ -157,8 +175,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             }
         )
 
+    def define_obs_space(self, env_config: dict) -> gym.Space:
         self._obs_space_in_preferred_format = True
-        self.observation_space = gym.spaces.Dict(
+        return gym.spaces.Dict(
             {
                 "high_level_agent": gym.spaces.Discrete(2),
                 "reinforcement_learning_agent":
@@ -168,13 +187,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 "do_nothing_agent": gym.spaces.Discrete(1),
             }
         )
-
-        self.previous_obs: OrderedDict[str, Any] = OrderedDict()
-
-        # initialize training chronic sampling weights
-        self.prio = env_config.get("prio", True)
-        self.chron_prios = ChronPrioMatrix(self.env_g2op)
-        self.step_surv = 0
 
     def reset(
         self,
@@ -192,19 +204,19 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             g2op_obs = self.env_g2op.reset()
         terminated = False
 
-        # # reconnect lines if needed.
-        # if not terminated:
-        #    g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
+        # reconnect lines if needed.
+        if not terminated:
+           g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
 
         observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
         chron_id = self.env_g2op.chronics_handler.get_name()
         infos = {"time serie id": chron_id}
 
-        self.previous_obs = self.env_gym.observation_space.to_gym(g2op_obs)
-        # self.previous_obs, infos = self.env_gym.reset()
-        # observations = {"high_level_agent": self.previous_obs['rho'].max().flatten()}
-
+        self.update_obs(g2op_obs)
         return observations, infos
+
+    def update_obs(self, g2op_obs):
+        self.cur_obs = self.env_gym.observation_space.to_gym(g2op_obs)
 
     def prio_reset(self):
         # use chronic priority
@@ -250,7 +262,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             action = action_dict["high_level_agent"]
             if action == 0:
                 # do something
-                observations = {"reinforcement_learning_agent": self.previous_obs}
+                observations = {"reinforcement_learning_agent": self.cur_obs}
             elif action == 1:
                 # do nothing
                 observations = {"do_nothing_agent": 0}
@@ -270,21 +282,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             raise ValueError("No agent found in action dictionary in step().")
 
         # Execute action given by DN or RL agent:
-        g2op_act = self.env_gym.action_space.from_gym(action)
-        (
-            g2op_obs,
-            reward,
-            terminated,
-            infos,
-        ) = self.env_g2op.step(g2op_act)
-        # # reconnect lines if needed.
-        # if not terminated:
-        #     g2op_obs, rw, terminated = self.reconnect_lines(g2op_obs)
-        #     reward += rw
-        if self.prio:
-            self.step_surv += 1
-            if terminated:
-                self.chron_prios.update_prios(self.step_surv)
+        g2op_obs, reward, terminated, infos = self.gym_act_in_g2op(action)
         # Give reward to RL agent
         rewards = {"reinforcement_learning_agent": reward}
         # Let high-level agent decide to act or not
@@ -292,8 +290,26 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         terminateds = {"__all__": terminated}
         truncateds = {"__all__": g2op_obs.current_step == g2op_obs.max_step}
         infos = {}
-        self.previous_obs = self.env_gym.observation_space.to_gym(g2op_obs)
         return observations, rewards, terminateds, truncateds, infos
+
+    def gym_act_in_g2op(self, action)-> Tuple[BaseObservation, float, bool, dict]:
+        g2op_act = self.env_gym.action_space.from_gym(action)
+        (
+            g2op_obs,
+            reward,
+            terminated,
+            infos,
+        ) = self.env_g2op.step(g2op_act)
+        # reconnect lines if needed.
+        if not terminated:
+            g2op_obs, rw, terminated = self.reconnect_lines(g2op_obs)
+            reward += rw
+        if self.prio:
+            self.step_surv += 1
+            if terminated:
+                self.chron_prios.update_prios(self.step_surv)
+        self.update_obs(g2op_obs)
+        return g2op_obs, reward , terminated, infos
 
     def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
         """
@@ -385,20 +401,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
         super().__init__(env_config)
 
         # create greedy agents for each substation
-        if env_config["action_space"].startswith("asymmetry"):
-            _, _, controllable_substations = calculate_action_space_asymmetry(
-                self.env_g2op
-            )
-        elif env_config["action_space"].startswith("medha"):
-            _, _, controllable_substations = calculate_action_space_medha(
-                self.env_g2op
-            )
-        elif env_config["action_space"].startswith("tennet"):
-            _, _, controllable_substations = calculate_action_space_tennet(
-                self.env_g2op
-            )
-        else:
-            raise ValueError("No action valid space is defined.")
+        controllable_substations = find_list_of_agents(self.env_g2op, env_config["action_space"])
 
         self.agents = create_greedy_agent_per_substation(
             self.env_g2op,
@@ -417,6 +420,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
         self.reset_capa_idx = 1
         self.g2op_obs = None
         self.proposed_g2op_actions: dict[int, BaseAction] = {}
+        print('Environment is GREEDY!')
 
     def reset(
         self,
@@ -464,12 +468,12 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironmen
 
                 observation_for_middle_agent = OrderedDict(
                     {
-                        "previous_obs": self.previous_obs,  # NOTE Pass entire obs
+                        # "previous_obs": self.previous_obs,  # NOTE Pass entire obs
                         "proposed_actions": {
-                            str(sub_id): self.converter.revert_act(action)
+                            str(sub_id): self.env_gym.action_space.to_gym(action)
                             for sub_id, action in self.proposed_g2op_actions.items()
                         },
-                        "reset_capa_idx": self.reset_capa_idx,
+                        # "reset_capa_idx": self.reset_capa_idx,
                     }
                 )
                 observations = {"choose_substation_agent": observation_for_middle_agent}
@@ -540,32 +544,11 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
     def __init__(self, env_config: dict[str, Any]):
         super().__init__(env_config)
 
+        controllable_substations = find_list_of_agents(self.env_g2op, env_config["action_space"])
         # add all RL agents
-        list_of_substations = list(
-            find_list_of_agents(
-                self.env_g2op,
-                env_config["action_space"],
-            ).keys()
-        )
+        list_of_substations = list(controllable_substations.keys())
 
-        self.rl_agent_ids = []
-
-        # get changeable substations
-        if env_config["action_space"].startswith("asymmetry"):
-            _, _, controllable_substations = calculate_action_space_asymmetry(
-                self.env_g2op
-            )
-        elif env_config["action_space"].startswith("medha"):
-            _, _, controllable_substations = calculate_action_space_medha(
-                self.env_g2op
-            )
-        elif env_config["action_space"].startswith("tennet"):
-            _, _, controllable_substations = calculate_action_space_tennet(
-                self.env_g2op
-            )
-        else:
-            raise ValueError("No action valid space is defined.")
-
+        print(" ENVIRONMENT:", HierarchicalCustomizedGrid2OpEnvironment)
         actions_per_substations = get_actions_per_substation(
             controllable_substations=controllable_substations,
             possible_substation_actions=self.possible_substation_actions,
@@ -583,6 +566,8 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         # map the middle output substation to the substation id
         self.middle_to_substation_map = dict(enumerate(list_of_substations))
 
+        self.rl_agent_ids = []
+
         for sub_idx in list_of_substations:
             # add agent
             self.rl_agent_ids.append(f"reinforcement_learning_agent_{sub_idx}")
@@ -594,7 +579,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             "do_nothing_agent",
         ]
 
-        self.is_capa = "capa" in env_config["action_space"]
+        self.is_capa = "capa" in env_config.keys()
         self.reset_capa_idx = 1
         self.proposed_actions: dict[int, int] = {}
         self.proposed_confidences: dict[int, float] = {}
@@ -672,15 +657,25 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             observations = {
                 "choose_substation_agent": OrderedDict(
                     {
-                        # "previous_obs": self.previous_obs,
                         "proposed_actions": {
                             str(sub_id): action
                             for sub_id, action in self.proposed_actions.items()
                         },
-                        # "reset_capa_idx": self.reset_capa_idx,
                     }
                 )
             }
+
+            if self.is_capa:
+                if isinstance(observations["choose_substation_agent"], OrderedDict):
+                    # add reset_capa_idx to observations
+                    observations["choose_substation_agent"][
+                        "reset_capa_idx"
+                    ] = self.reset_capa_idx
+                    observations["choose_substation_agent"][
+                        "previous_obs"
+                    ] = self.previous_obs
+                else:
+                    raise ValueError("Capa observations is not an OrderedDict.")
 
             self.reset_capa_idx = 0
         elif any(

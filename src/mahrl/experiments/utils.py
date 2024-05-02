@@ -5,19 +5,27 @@ Utilities in the grid2op experiments.
 import logging
 import os
 from typing import Any, Dict, List, OrderedDict, Union
+from tabulate import tabulate
 
 import numpy as np
-import ray
 from grid2op.Environment import BaseEnv
+import ray
 from ray import air, tune
-from ray.air.integrations.mlflow import MLflowLoggerCallback
-from ray.rllib.algorithms import Algorithm
-from ray.rllib.models import ModelCatalog
+from ray.air.integrations.wandb import WandbLoggerCallback
+from ray.tune.result_grid import ResultGrid
+# from ray.tune.schedulers import MedianStoppingRule
+# from ray.air.integrations.mlflow import MLflowLoggerCallback
+# from ray.rllib.algorithms import Algorithm
+# from ray.rllib.models import ModelCatalog
 
-from mahrl.models.mlp import SimpleMlp
+from mahrl.algorithms.custom_ppo import CustomPPO
+from mahrl.algorithms.optuna_search import MyOptunaSearch
+from mahrl.experiments.callback import Style, TuneCallback
+
+REPORT_END = False
 
 
-def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
+def calculate_action_space_asymmetry(env: BaseEnv, add_dn:bool = False) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies without symmetries.
     """
@@ -39,7 +47,7 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, 
         alpha = 2 ** (nr_elements - 1) - (2**nr_non_lines - 1)
         action_space += alpha if alpha > 1 else 0
         # if alpha > 1:  # without do nothings for single substations
-        if alpha > 0:
+        if (add_dn and alpha > 0) or (alpha > 1):
             controllable_substations[sub] = alpha
         possible_topologies *= max(alpha, 1)
 
@@ -49,7 +57,7 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, 
     return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
+def calculate_action_space_medha(env: BaseEnv, add_dn: bool = False) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies following Subrahamian (2021).
     """
@@ -72,7 +80,7 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, dict[int, int]
         combined = alpha - beta - gamma
         action_space += combined if combined > 1 else 0
         # if combined > 1:  # without do nothings for single substations
-        if combined > 0:
+        if (add_dn and combined > 0) or (combined > 1):
             controllable_substations[sub] = combined
         possible_topologies *= max(combined, 1)
 
@@ -82,7 +90,7 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, dict[int, int]
     return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
+def calculate_action_space_tennet(env: BaseEnv, add_dn=False) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies following the proposed action space.
     """
@@ -123,8 +131,7 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, dict[int, int
         ) / 2  # remove symmetries
 
         action_space += int(combined) if combined > 1 else 0
-        if combined > 1:  # without do nothings for single substations
-            # if combined > 0:
+        if (add_dn and combined > 0) or (combined > 1):  # combined > 1: without do nothings for single substations
             controllable_substations[sub] = combined
         possible_topologies *= max(combined, 1)
 
@@ -184,14 +191,15 @@ def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[int, int]:
     """
     Function that returns the number of controllable substations.
     """
+    add_dn = action_space.endswith("dn")
     if action_space.startswith("asymmetry"):
-        _, _, list_of_agents = calculate_action_space_asymmetry(env)
+        _, _, list_of_agents = calculate_action_space_asymmetry(env, add_dn)
         return list_of_agents
     if action_space.startswith("medha"):
-        _, _, list_of_agents = calculate_action_space_medha(env)
+        _, _, list_of_agents = calculate_action_space_medha(env, add_dn)
         return list_of_agents
     if action_space.startswith("tennet"):
-        _, _, list_of_agents = calculate_action_space_tennet(env)
+        _, _, list_of_agents = calculate_action_space_tennet(env, add_dn)
         return list_of_agents
     raise ValueError("The action space is not supported.")
 
@@ -233,60 +241,178 @@ def delete_nested_key(d, path):
         del current[last_key]
 
 
-def run_training(
-    config: dict[str, Any], setup: dict[str, Any], algorithm: Algorithm
-) -> None:
+# def run_training(
+#     config: dict[str, Any], setup: dict[str, Any], algorithm: Algorithm
+# ) -> None:
+#     """
+#     Function that runs the training script.
+#     """
+#     # init ray
+#     # ray.shutdown()
+#     ray.init(ignore_reinit_error=False)
+#
+#     ModelCatalog.register_custom_model("fcn", SimpleMlp)
+#
+#     # Create tuner
+#     tuner = tune.Tuner(
+#         algorithm,
+#         param_space=config,
+#         tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
+#         run_config=air.RunConfig(
+#             name="mlflow",
+#             callbacks=[
+#                 MLflowLoggerCallback(
+#                     tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+#                     experiment_name=setup["experiment_name"],
+#                     save_artifact=setup["save_artifact"],
+#                 )
+#             ],
+#             stop={"timesteps_total": setup["nb_timesteps"]},
+#             storage_path=os.path.abspath(setup["storage_path"]),
+#             checkpoint_config=air.CheckpointConfig(
+#                 checkpoint_frequency=setup["checkpoint_freq"],
+#                 checkpoint_at_end=setup["checkpoint_at_end"],
+#                 checkpoint_score_attribute=setup["checkpoint_score_attr"],
+#                 num_to_keep=setup["keep_checkpoints_num"],
+#             ),
+#             verbose=setup["verbose"],
+#         ),
+#     )
+#
+#     # Launch tuning
+#     try:
+#         tuner.fit()
+#     finally:
+#         # Close ray instance
+#         ray.shutdown()
+#
+#     # save config to params.json in the runs file that is created
+#     with open(
+#         os.path.join(
+#             setup["storage_path"],
+#             # "mlruns",
+#             # "configs",
+#             "params.json",
+#         ),
+#         "w",
+#         encoding="utf-8",
+#     ) as config_file:
+#         config_file.write(str(config))
+
+def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) -> ResultGrid:
     """
     Function that runs the training script.
     """
+    # runtime_env = {"env_vars": {"PYTHONWARNINGS": "ignore"}}
+    # ray.init(runtime_env= runtime_env, local_mode=False)
     # init ray
-    # ray.shutdown()
-    ray.init(ignore_reinit_error=False)
+    # Set the environment variable
+    os.environ["RAY_DEDUP_LOGS"] = "0"
+    # os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
+    os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
+    # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
+    # Run wandb offline and to sync when finished use following command in result directory:
+    # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
+    os.environ["WANDB_MODE"] = "offline"
+    os.environ["WANDB_SILENT"] = "true"
+    ray.init()
 
-    ModelCatalog.register_custom_model("fcn", SimpleMlp)
+    # Get the hostname and port
+    address = ray.worker._real_worker._global_node.address
+    host_name, port = address.split(":")
+    print("Hostname:", host_name)
+    print("Port:", port)
+
+    # Use Optuna search algorithm to find good working parameters
+    if setup['optimize']:
+        algo = MyOptunaSearch(
+            metric=setup["score_metric"],
+            mode="max",
+            points_to_evaluate=[setup['points_to_evaluate']] if 'points_to_evaluate' in setup else None,
+        )
+        if 'result_dir' in setup.keys():
+            print("Retrieving data old experiment from : ", setup['result_dir'])
+            algo.restore_from_dir(setup['result_dir'])
+            for key in algo._space.keys():
+                if '/' in key:
+                    delete_nested_key(config, key)
+                else:
+                    del config[key]
+        # # Scheduler determines if we should prematurely stop a certain experiment - NOTE: DOES NOT WORK AS EXPECTED!!!
+        # scheduler = MedianStoppingRule(
+        #     time_attr="timesteps_total", #Default = "time_total_s"
+        #     metric=setup["score_metric"],
+        #     mode="max",
+        #     grace_period=setup["grace_period"], # First exploration before stopping
+        #     min_samples_required=5, # Default = 3
+        #     min_time_slice=10_000,
+        #     hard_stop=False,
+        # )
 
     # Create tuner
     tuner = tune.Tuner(
-        algorithm,
+        trainable=CustomPPO,
         param_space=config,
-        tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
         run_config=air.RunConfig(
-            name="mlflow",
-            callbacks=[
-                MLflowLoggerCallback(
-                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
-                    experiment_name=setup["experiment_name"],
-                    save_artifact=setup["save_artifact"],
-                )
-            ],
+            name=setup["folder_name"],
+            # storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
             stop={"timesteps_total": setup["nb_timesteps"]},
-            storage_path=os.path.abspath(setup["storage_path"]),
+            # "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
+            callbacks=[
+                WandbLoggerCallback(
+                    project=setup["experiment_name"],
+                                    ),
+                TuneCallback(
+                    setup["my_log_level"],
+                    "evaluation/custom_metrics/grid2op_end_mean",
+                    eval_freq=config["evaluation_interval"],
+                    heartbeat_freq=60,
+                ),
+            ],
             checkpoint_config=air.CheckpointConfig(
                 checkpoint_frequency=setup["checkpoint_freq"],
-                checkpoint_at_end=setup["checkpoint_at_end"],
-                checkpoint_score_attribute=setup["checkpoint_score_attr"],
-                num_to_keep=setup["keep_checkpoints_num"],
+                checkpoint_at_end=True,
+                checkpoint_score_attribute="custom_metrics/corrected_ep_len_mean",
+                num_to_keep=5,
             ),
             verbose=setup["verbose"],
         ),
+        tune_config=tune.TuneConfig(
+            search_alg=algo,
+            num_samples=setup["num_samples"],
+            # scheduler=scheduler,
+        ) if setup["optimize"] else None
+        ,
     )
 
     # Launch tuning
     try:
-        tuner.fit()
+        result_grid = tuner.fit()
     finally:
         # Close ray instance
         ray.shutdown()
 
-    # save config to params.json in the runs file that is created
-    with open(
-        os.path.join(
-            setup["storage_path"],
-            # "mlruns",
-            # "configs",
-            "params.json",
-        ),
-        "w",
-        encoding="utf-8",
-    ) as config_file:
-        config_file.write(str(config))
+    for i in range(len(result_grid)):
+        result = result_grid[i]
+        if not result.error:
+            print(Style.BOLD + f" *---- Trial {i} finished successfully with evaluation results ---*\n" + Style.END +
+                  f"{tabulate([result.metrics['evaluation']['custom_metrics']], headers='keys', tablefmt='rounded_grid')}")
+
+            # print("ALL RESULT METRICS: ", result.metrics)
+            # print("ENV CONFIG: ", result.config['env_config'])
+            # print("RESULT CONFIG: ", result.config['env_config'])
+            # Print table with environment config.
+            if REPORT_END:
+                print(f"--- Environment Configuration  ---- \n"
+                      f"{tabulate([result.config['env_config']], headers='keys', tablefmt='rounded_grid')}")
+                # print other params:
+                params_ppo = ['gamma', 'lr', 'exploration_config',  'vf_loss_coeff', 'entropy_coeff', 'clip_param',
+                              'lambda', 'vf_clip_param', 'num_sgd_iter', 'sgd_minibatch_size', 'train_batch_size']
+                values = [result.config[par] for par in params_ppo]
+                print(f"--- PPO Configuration  ---- \n"
+                      f"{tabulate([values], headers=params_ppo, tablefmt='rounded_grid')}")
+                print(f"--- Model Configuration  ---- \n"
+                      f"{tabulate([result.config['model']], headers='keys', tablefmt='rounded_grid')}")
+        else:
+            print(f"Trial failed with error {result.error}.")
+    return result_grid

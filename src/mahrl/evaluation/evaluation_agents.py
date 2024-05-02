@@ -499,21 +499,6 @@ class RandomAndGreedyAgent(GreedyAgent):
 
         # get changeable substations
         if env_config["action_space"] == "asymmetry":
-            _, _, controllable_substations = calculate_action_space_asymmetry(setup_env)
-        elif env_config["action_space"] == "medha":
-            _, _, controllable_substations = calculate_action_space_medha(setup_env)
-        elif env_config["action_space"] == "tennet":
-            _, _, controllable_substations = calculate_action_space_tennet(setup_env)
-        else:
-            raise ValueError("No action valid space is defined.")
-
-        # set up greedy agents
-        self.agents = create_greedy_agent_per_substation(
-            setup_env, env_config, controllable_substations, possible_actions
-        )
-
-        # get changeable substations
-        if env_config["action_space"] == "asymmetry":
             _, _, self.controllable_substations = calculate_action_space_asymmetry(
                 setup_env
             )
@@ -527,6 +512,11 @@ class RandomAndGreedyAgent(GreedyAgent):
             )
         else:
             raise ValueError("No action valid space is defined.")
+
+        # set up greedy agents
+        self.agents = create_greedy_agent_per_substation(
+            setup_env, env_config, self.controllable_substations, possible_actions
+        )
 
     def act(
         self,
@@ -586,14 +576,14 @@ def get_actions_per_substation(
         substation: [] for substation in list(controllable_substations.keys())
     }
 
-    print(f"empty actions_per_substation {actions_per_substation}")
+    # print(f"empty actions_per_substation {actions_per_substation}")
 
     # get possible actions related to that substation actions_per_substation
     for action in possible_substation_actions[1:]:  # exclude the DoNothing action
         sub_id = int(action.as_dict()["set_bus_vect"]["modif_subs_id"][-1])
         actions_per_substation[sub_id].append(action)
 
-    print(f"action per substations")
+    # print(f"action per substations {[(key, len(item)) for key,item in actions_per_substation.items()]}")
     return actions_per_substation
 
 

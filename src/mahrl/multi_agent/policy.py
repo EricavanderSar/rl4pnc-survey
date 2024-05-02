@@ -34,8 +34,9 @@ from mahrl.experiments.utils import (
     calculate_action_space_medha,
     calculate_action_space_tennet,
     get_capa_substation_id,
+    find_list_of_agents
 )
-from mahrl.grid2op_env.utils import load_actions, setup_converter
+from mahrl.grid2op_env.utils import load_actions, setup_converter, rename_env
 
 
 def policy_mapping_fn(
@@ -293,6 +294,8 @@ class ValueFunctionTorchPolicy(PPOTorchPolicy):
         # Create an empty array with the same number of rows to account for the missing mean and stdev of value
         empty_columns = np.empty((extra_fetches["action_dist_inputs"].shape[0], 2))
 
+        # TODO: Check if numerical stability breaks here with extra fetches
+
         # Add the empty columns to the array
         extra_fetches["action_dist_inputs"] = np.hstack(
             (extra_fetches["action_dist_inputs"], empty_columns)
@@ -314,30 +317,19 @@ class CapaPolicy(Policy):
     ):
         env_config = config["model"]["custom_model_config"]["environment"]["env_config"]
         setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
+        # Rename env name to get rid of "_train" or "_val" etc
+        rename_env(setup_env)
 
         path = os.path.join(
             env_config["lib_dir"],
-            f"data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
+            f"data/action_spaces/{setup_env.env_name}/{env_config['action_space']}.json",
         )
         self.possible_substation_actions = load_actions(path, setup_env)
 
         self.converter = setup_converter(setup_env, self.possible_substation_actions)
 
         # get changeable substations
-        if env_config["action_space"] == "asymmetry":
-            _, _, self.controllable_substations = calculate_action_space_asymmetry(
-                setup_env
-            )
-        elif env_config["action_space"] == "medha":
-            _, _, self.controllable_substations = calculate_action_space_medha(
-                setup_env
-            )
-        elif env_config["action_space"] == "tennet":
-            _, _, self.controllable_substations = calculate_action_space_tennet(
-                setup_env
-            )
-        else:
-            raise ValueError("No action valid space is defined.")
+        self.controllable_substations = find_list_of_agents(setup_env, env_config["action_space"])
 
         Policy.__init__(
             self,
@@ -574,7 +566,7 @@ class SelectAgentPolicy(Policy):
 
     def compute_actions(
         self,
-        obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
+        obs_batch: List[float],
         state_batches: Optional[List[TensorType]] = None,
         prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
         prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,

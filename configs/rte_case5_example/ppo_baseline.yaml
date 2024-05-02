@@ -3,6 +3,7 @@ setup:
   nb_timesteps: 1_000
   checkpoint_freq: 2 # number of iterations between checkpoints (1 iteration = 1 agent update?)
   verbose: 0
+  my_log_level: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
   folder_name: "Default params"
   experiment_name: "PPOSingle_Case5_default" # name in WandB
@@ -75,12 +76,6 @@ environment:
     prio: True
     normalize: True
 
-env_config_val: &env_config_val
-  <<: *env_config_train
-  env_name: rte_case5_example_val
-  shuffle_scenarios: False
-  prio: False
-
 evaluation:
   evaluation_interval: 1
   evaluation_duration: 2 # as many as there are validation episodes
@@ -89,7 +84,11 @@ evaluation:
   evaluation_num_workers: 2
   evaluation_config:
     explore: False
-    env_config: *env_config_val # use the validation environment
+    env_config:
+      <<: *env_config_train
+      env_name: rte_case5_example_val
+      shuffle_scenarios: False
+      prio: False
 
 scaling_config:
   num_workers: 4
@@ -103,4 +102,3 @@ reporting:
 rollouts:
   num_rollout_workers: 3
 
-my_log_level: 1

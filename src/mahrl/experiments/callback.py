@@ -24,8 +24,6 @@ from ray.rllib.evaluation.rollout_worker import RolloutWorker
 from ray.rllib.policy.policy import Policy
 from ray.rllib.policy.sample_batch import SampleBatch
 
-from mahrl.grid2op_env.custom_env2 import RlGrid2OpEnv
-
 
 class Style:
    PURPLE = '\033[95m'

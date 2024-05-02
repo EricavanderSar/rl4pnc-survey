@@ -6,8 +6,6 @@ import argparse
 import logging
 import os
 from typing import Any
-from tabulate import tabulate
-import re
 
 import grid2op
 
@@ -19,8 +17,6 @@ from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
-from ray.tune.result_grid import ResultGrid
-from ray.tune.schedulers import MedianStoppingRule
 from ray.rllib.models import ModelCatalog
 
 from mahrl.experiments.yaml import load_config
@@ -32,10 +28,7 @@ from mahrl.multi_agent.policy import (
     DoNothingPolicy2,
     SelectAgentPolicy2
 )
-from mahrl.algorithms.custom_ppo import CustomPPO
-from mahrl.algorithms.optuna_search import MyOptunaSearch
-from mahrl.experiments.callback import Style, TuneCallback
-from mahrl.experiments.utils import delete_nested_key
+from mahrl.experiments.utils import run_training
 from mahrl.models.linear_model import LinFCN
 
 REPORT_END = False
@@ -46,123 +39,123 @@ ENV_TYPE = {
 }
 
 
-def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) -> ResultGrid:
-    """
-    Function that runs the training script.
-    """
-    # runtime_env = {"env_vars": {"PYTHONWARNINGS": "ignore"}}
-    # ray.init(runtime_env= runtime_env, local_mode=False)
-    # init ray
-    # Set the environment variable
-    os.environ["RAY_DEDUP_LOGS"] = "0"
-    # os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
-    os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
-    # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
-    # Run wandb offline and to sync when finished use following command in result directory:
-    # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
-    os.environ["WANDB_MODE"] = "offline"
-    os.environ["WANDB_SILENT"] = "true"
-    ray.init()
-
-    # Get the hostname and port
-    address = ray.worker._real_worker._global_node.address
-    host_name, port = address.split(":")
-    print("Hostname:", host_name)
-    print("Port:", port)
-
-    # Use Optuna search algorithm to find good working parameters
-    if setup['optimize']:
-        algo = MyOptunaSearch(
-            metric=setup["score_metric"],
-            mode="max",
-            points_to_evaluate=[setup['points_to_evaluate']] if 'points_to_evaluate' in setup else None,
-        )
-        if 'result_dir' in setup.keys():
-            print("Retrieving data old experiment from : ", setup['result_dir'])
-            algo.restore_from_dir(setup['result_dir'])
-            for key in algo._space.keys():
-                if '/' in key:
-                    delete_nested_key(config, key)
-                else:
-                    del config[key]
-        # # Scheduler determines if we should prematurely stop a certain experiment - NOTE: DOES NOT WORK AS EXPECTED!!!
-        # scheduler = MedianStoppingRule(
-        #     time_attr="timesteps_total", #Default = "time_total_s"
-        #     metric=setup["score_metric"],
-        #     mode="max",
-        #     grace_period=setup["grace_period"], # First exploration before stopping
-        #     min_samples_required=5, # Default = 3
-        #     min_time_slice=10_000,
-        #     hard_stop=False,
-        # )
-
-    # Create tuner
-    tuner = tune.Tuner(
-        trainable=CustomPPO,
-        param_space=config,
-        run_config=air.RunConfig(
-            name=setup["folder_name"],
-            # storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
-            stop={"timesteps_total": setup["nb_timesteps"]},
-            # "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
-            callbacks=[
-                WandbLoggerCallback(
-                    project=setup["experiment_name"],
-                                    ),
-                TuneCallback(
-                    config["my_log_level"],
-                    "evaluation/custom_metrics/grid2op_end_mean",
-                    eval_freq=config["evaluation_interval"],
-                    heartbeat_freq=60,
-                ),
-            ],
-            checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=setup["checkpoint_freq"],
-                checkpoint_at_end=True,
-                checkpoint_score_attribute="custom_metrics/corrected_ep_len_mean",
-                num_to_keep=5,
-            ),
-            verbose=setup["verbose"],
-        ),
-        tune_config=tune.TuneConfig(
-            search_alg=algo,
-            num_samples=setup["num_samples"],
-            # scheduler=scheduler,
-        ) if setup["optimize"] else None
-        ,
-    )
-
-    # Launch tuning
-    try:
-        result_grid = tuner.fit()
-    finally:
-        # Close ray instance
-        ray.shutdown()
-
-    for i in range(len(result_grid)):
-        result = result_grid[i]
-        if not result.error:
-            print(Style.BOLD + f" *---- Trial {i} finished successfully with evaluation results ---*\n" + Style.END +
-                  f"{tabulate([result.metrics['evaluation']['custom_metrics']], headers='keys', tablefmt='rounded_grid')}")
-
-            # print("ALL RESULT METRICS: ", result.metrics)
-            # print("ENV CONFIG: ", result.config['env_config'])
-            # print("RESULT CONFIG: ", result.config['env_config'])
-            # Print table with environment config.
-            if REPORT_END:
-                print(f"--- Environment Configuration  ---- \n"
-                      f"{tabulate([result.config['env_config']], headers='keys', tablefmt='rounded_grid')}")
-                # print other params:
-                params_ppo = ['gamma', 'lr', 'exploration_config',  'vf_loss_coeff', 'entropy_coeff', 'clip_param',
-                              'lambda', 'vf_clip_param', 'num_sgd_iter', 'sgd_minibatch_size', 'train_batch_size']
-                values = [result.config[par] for par in params_ppo]
-                print(f"--- PPO Configuration  ---- \n"
-                      f"{tabulate([values], headers=params_ppo, tablefmt='rounded_grid')}")
-                print(f"--- Model Configuration  ---- \n"
-                      f"{tabulate([result.config['model']], headers='keys', tablefmt='rounded_grid')}")
-        else:
-            print(f"Trial failed with error {result.error}.")
-    return result_grid
+# def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) -> ResultGrid:
+#     """
+#     Function that runs the training script.
+#     """
+#     # runtime_env = {"env_vars": {"PYTHONWARNINGS": "ignore"}}
+#     # ray.init(runtime_env= runtime_env, local_mode=False)
+#     # init ray
+#     # Set the environment variable
+#     os.environ["RAY_DEDUP_LOGS"] = "0"
+#     # os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
+#     os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
+#     # os.environ["RAY_AIR_NEW_OUTPUT"] = "0"
+#     # Run wandb offline and to sync when finished use following command in result directory:
+#     # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
+#     os.environ["WANDB_MODE"] = "offline"
+#     os.environ["WANDB_SILENT"] = "true"
+#     ray.init()
+#
+#     # Get the hostname and port
+#     address = ray.worker._real_worker._global_node.address
+#     host_name, port = address.split(":")
+#     print("Hostname:", host_name)
+#     print("Port:", port)
+#
+#     # Use Optuna search algorithm to find good working parameters
+#     if setup['optimize']:
+#         algo = MyOptunaSearch(
+#             metric=setup["score_metric"],
+#             mode="max",
+#             points_to_evaluate=[setup['points_to_evaluate']] if 'points_to_evaluate' in setup else None,
+#         )
+#         if 'result_dir' in setup.keys():
+#             print("Retrieving data old experiment from : ", setup['result_dir'])
+#             algo.restore_from_dir(setup['result_dir'])
+#             for key in algo._space.keys():
+#                 if '/' in key:
+#                     delete_nested_key(config, key)
+#                 else:
+#                     del config[key]
+#         # # Scheduler determines if we should prematurely stop a certain experiment - NOTE: DOES NOT WORK AS EXPECTED!!!
+#         # scheduler = MedianStoppingRule(
+#         #     time_attr="timesteps_total", #Default = "time_total_s"
+#         #     metric=setup["score_metric"],
+#         #     mode="max",
+#         #     grace_period=setup["grace_period"], # First exploration before stopping
+#         #     min_samples_required=5, # Default = 3
+#         #     min_time_slice=10_000,
+#         #     hard_stop=False,
+#         # )
+#
+#     # Create tuner
+#     tuner = tune.Tuner(
+#         trainable=CustomPPO,
+#         param_space=config,
+#         run_config=air.RunConfig(
+#             name=setup["folder_name"],
+#             # storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
+#             stop={"timesteps_total": setup["nb_timesteps"]},
+#             # "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
+#             callbacks=[
+#                 WandbLoggerCallback(
+#                     project=setup["experiment_name"],
+#                                     ),
+#                 TuneCallback(
+#                     setup["my_log_level"],
+#                     "evaluation/custom_metrics/grid2op_end_mean",
+#                     eval_freq=config["evaluation_interval"],
+#                     heartbeat_freq=60,
+#                 ),
+#             ],
+#             checkpoint_config=air.CheckpointConfig(
+#                 checkpoint_frequency=setup["checkpoint_freq"],
+#                 checkpoint_at_end=True,
+#                 checkpoint_score_attribute="custom_metrics/corrected_ep_len_mean",
+#                 num_to_keep=5,
+#             ),
+#             verbose=setup["verbose"],
+#         ),
+#         tune_config=tune.TuneConfig(
+#             search_alg=algo,
+#             num_samples=setup["num_samples"],
+#             # scheduler=scheduler,
+#         ) if setup["optimize"] else None
+#         ,
+#     )
+#
+#     # Launch tuning
+#     try:
+#         result_grid = tuner.fit()
+#     finally:
+#         # Close ray instance
+#         ray.shutdown()
+#
+#     for i in range(len(result_grid)):
+#         result = result_grid[i]
+#         if not result.error:
+#             print(Style.BOLD + f" *---- Trial {i} finished successfully with evaluation results ---*\n" + Style.END +
+#                   f"{tabulate([result.metrics['evaluation']['custom_metrics']], headers='keys', tablefmt='rounded_grid')}")
+#
+#             # print("ALL RESULT METRICS: ", result.metrics)
+#             # print("ENV CONFIG: ", result.config['env_config'])
+#             # print("RESULT CONFIG: ", result.config['env_config'])
+#             # Print table with environment config.
+#             if REPORT_END:
+#                 print(f"--- Environment Configuration  ---- \n"
+#                       f"{tabulate([result.config['env_config']], headers='keys', tablefmt='rounded_grid')}")
+#                 # print other params:
+#                 params_ppo = ['gamma', 'lr', 'exploration_config',  'vf_loss_coeff', 'entropy_coeff', 'clip_param',
+#                               'lambda', 'vf_clip_param', 'num_sgd_iter', 'sgd_minibatch_size', 'train_batch_size']
+#                 values = [result.config[par] for par in params_ppo]
+#                 print(f"--- PPO Configuration  ---- \n"
+#                       f"{tabulate([values], headers=params_ppo, tablefmt='rounded_grid')}")
+#                 print(f"--- Model Configuration  ---- \n"
+#                       f"{tabulate([result.config['model']], headers='keys', tablefmt='rounded_grid')}")
+#         else:
+#             print(f"Trial failed with error {result.error}.")
+#     return result_grid
 
 
 def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[str, Any]):
@@ -175,29 +168,16 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     config_path = os.path.join(workdir_path, input_path)
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
-    ppo_config.update(custom_config["training"])
-    ppo_config.update(custom_config["debugging"])
-    ppo_config.update(custom_config["framework"])
-    # ppo_config.update(custom_config["rl_module"])
-    ppo_config.update(custom_config["explore"])
-    ppo_config.update(custom_config["callbacks"])
-    ppo_config.update(custom_config["environment"])
-    ppo_config.update(custom_config["multi_agent"])
-    if "resources" in custom_config.keys():
-        ppo_config.update(custom_config["resources"])
-    if "rollouts" in custom_config.keys():
-        ppo_config.update(custom_config["rollouts"])
-    if "scaling_config" in custom_config.keys():
-        ppo_config.update(custom_config["scaling_config"])
-
-    custom_config["evaluation"]["evaluation_duration"] = len(
+    for key in custom_config.keys():
+        if key != "setup":
+            ppo_config.update(custom_config[key])
+    # Set eval duration equal to N available validation episodes
+    ppo_config["evaluation_duration"] = len(
         os.listdir(os.path.join(
             f"{grid2op.get_current_local_dir()}",
-            f"{custom_config['env_config_val']['env_name']}",
+            ppo_config["evaluation_config"]["env_config"]["env_name"],
             "chronics")
         ))
-    ppo_config.update(custom_config["evaluation"])
-    ppo_config.update(custom_config["reporting"])
     change_workdir(workdir_path, ppo_config["env_config"]["env_name"])
     # ppo_config["env_config"]["lib_dir"] = os.path.join(workdir_path, ppo_config["env_config"]["lib_dir"])
     policies = {
@@ -237,7 +217,7 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     ppo_config.update({"policies": policies})
     ppo_config.update({"env": ENV_TYPE[custom_config["environment"]["env_config"]["env_type"]]})
     ppo_config.update({"trial_info": "trial_id"})
-    ppo_config.update({"my_log_level": custom_config["my_log_level"]})
+    ppo_config.update({"my_log_level": custom_config["setup"]["my_log_level"]})
 
     return ppo_config, custom_config
 
@@ -266,7 +246,7 @@ if __name__ == "__main__":
         "-f",
         "--file_path",
         type=str,
-        default="./configs/l2rpn_icaps_2021_small/ppo_baseline.yaml",  #"./configs/rte_case5_example/ppo_baseline.yaml", #
+        default="./configs/l2rpn_case14_sandbox/ppo_baseline.yaml", #"./configs/l2rpn_icaps_2021_small/ppo_baseline.yaml",  #
         help="Path to the config file.",
     )
     parser.add_argument(

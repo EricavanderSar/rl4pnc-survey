@@ -88,7 +88,7 @@ def custom_synchronous_parallel_sample(
     assert not (max_agent_steps is not None and max_env_steps is not None)
     agent_or_env_steps = 0
     max_agent_or_env_steps = max_agent_steps or max_env_steps or None
-    all_sample_batches = []
+    all_sample_batches: List[SampleBatchType] = []
 
     policies_to_train = worker_set.local_worker().get_policies_to_train()
     worker_set.local_worker()
@@ -113,19 +113,27 @@ def custom_synchronous_parallel_sample(
         # Update our counters for the stopping criterion of the while loop.
         if max_agent_steps:
             new_batches = []
-            for b in sample_batches:
-                filtered_policy_batches = {pid: batch for pid, batch in b.policy_batches.items() if pid in policies_to_train}
-                new_batches.append(MultiAgentBatch.wrap_as_needed(filtered_policy_batches, b.env_steps()))
+            for batch in sample_batches:
+                filtered_policy_batches = {
+                    pid: batch
+                    for pid, batch in batch.policy_batches.items()
+                    if pid in policies_to_train
+                }
+                new_batches.append(
+                    MultiAgentBatch.wrap_as_needed(
+                        filtered_policy_batches, batch.env_steps()
+                    )
+                )
             sample_batches = new_batches
-            # print('sample_batches: ', sample_batches)
+            print('sample_batches: ', sample_batches)
 
-        for b in sample_batches:
+        for batch in sample_batches:
             if max_agent_steps:
-                agent_or_env_steps += b.agent_steps()
+                agent_or_env_steps += batch.agent_steps()
             else:
-                agent_or_env_steps += b.env_steps()
+                agent_or_env_steps += batch.env_steps()
         all_sample_batches.extend(sample_batches)
-        # print("agent or env steps:", agent_or_env_steps)
+        print("agent or env steps:", agent_or_env_steps)
 
     if concat is True:
         full_batch = concat_samples(all_sample_batches)
@@ -136,8 +144,7 @@ def custom_synchronous_parallel_sample(
         #    ].reverse().index(1)
         #    full_batch = full_batch.slice(0, last_complete_ep_idx)
         return full_batch
-    else:
-        return all_sample_batches
+    return all_sample_batches
 
 
 class CustomPPO(PPO):
@@ -153,6 +160,9 @@ class CustomPPO(PPO):
         super().__init__(config, env, logger_creator, **kwargs)
 
     def training_step(self) -> ResultDict:
+        """
+        Defines the custom training step.
+        """
         # Collect SampleBatches from sample workers until we have a full batch.
         with self._timers[SAMPLE_TIMER]:
             if self.config.count_steps_by == "agent_steps":
@@ -164,10 +174,10 @@ class CustomPPO(PPO):
                 train_batch = custom_synchronous_parallel_sample(
                     worker_set=self.workers, max_env_steps=self.config.train_batch_size
                 )
-        # print("policies", train_batch.policy_batches.keys())
-        # print("train_batch_size: ", train_batch.count)
-        # print("agent_steps: ", train_batch.agent_steps())
-        # print("env_steps : ", train_batch.env_steps())
+        print("policies", train_batch.policy_batches.keys())
+        print("train_batch_size: ", train_batch.count)
+        print("agent_steps: ", train_batch.agent_steps())
+        print("env_steps : ", train_batch.env_steps())
         train_batch = train_batch.as_multi_agent()
         self._counters[NUM_AGENT_STEPS_SAMPLED] += train_batch.agent_steps()
         self._counters[NUM_ENV_STEPS_SAMPLED] += train_batch.env_steps()
@@ -201,7 +211,7 @@ class CustomPPO(PPO):
             # TODO (Kourosh): We should also not be using train_results as a message
             #  passing medium to infer which policies to update. We could use
             #  policies_to_train variable that is given by the user to infer this.
-            policies_to_update = set(train_results.keys()) - {ALL_MODULES}
+            policies_to_update = list(set(train_results.keys()) - {ALL_MODULES})
         else:
             policies_to_update = list(train_results.keys())
 

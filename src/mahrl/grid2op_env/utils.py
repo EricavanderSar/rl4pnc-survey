@@ -70,6 +70,9 @@ class CustomDiscreteActions(gymnasium.spaces.Discrete):
         """
         return self.converter.convert_act(gym_action)
 
+    def to_gym(self, action: BaseAction) -> int:
+        return int(np.where(self.converter.all_actions == action)[0][0])
+
     def close(self) -> None:
         """Not implemented."""
 

@@ -73,7 +73,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-e",
         "--environment",
-        default="l2rpn_icaps_2021_small",
+        default="l2rpn_case14_sandbox",
         type=str,
         help="Name of the environment to be used.",
     )

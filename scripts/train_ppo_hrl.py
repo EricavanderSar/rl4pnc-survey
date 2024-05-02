@@ -5,6 +5,7 @@ Trains PPO hrl agent.
 import argparse
 import logging
 from typing import Any
+import os
 
 import grid2op
 import gymnasium
@@ -13,14 +14,17 @@ from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 
-from mahrl.algorithms.custom_ppo import CustomPPO
 from mahrl.experiments.utils import (
     find_list_of_agents,
     find_substation_per_lines,
     run_training,
 )
 from mahrl.experiments.yaml import load_config
-from mahrl.grid2op_env.custom_environment import (
+# from mahrl.grid2op_env.custom_environment import (
+#     GreedyHierarchicalCustomizedGrid2OpEnvironment,
+#     HierarchicalCustomizedGrid2OpEnvironment,
+# )
+from mahrl.grid2op_env.hierarchical_envs_tennet import (
     GreedyHierarchicalCustomizedGrid2OpEnvironment,
     HierarchicalCustomizedGrid2OpEnvironment,
 )
@@ -124,9 +128,9 @@ def select_mid_level_policy(
     if middle_agent_type in ("capa"):
         mid_level_observation = gymnasium.spaces.Dict(
             {
-                "previous_obs": gym_previous_obs,
                 "proposed_actions": gym_proposed_actions,
                 "reset_capa_idx": gymnasium.spaces.Discrete(2),
+                "previous_obs": gym_previous_obs,
             }
         )
     elif middle_agent_type in ("rl", "random"):
@@ -155,7 +159,6 @@ def select_mid_level_policy(
             config=(
                 AlgorithmConfig()
                 .training(
-                    _enable_learner_api=False,
                     model={
                         "custom_model_config": {
                             "line_info": line_info,
@@ -163,7 +166,6 @@ def select_mid_level_policy(
                         },
                     },
                 )
-                .rl_module(_enable_rl_module_api=False)
                 .rollouts(preprocessor_pref=None)
             ),
         )
@@ -176,8 +178,6 @@ def select_mid_level_policy(
             ),  # choose one of agents
             config=(
                 AlgorithmConfig()
-                .training(_enable_learner_api=False)
-                .rl_module(_enable_rl_module_api=False)
                 .rollouts(preprocessor_pref=None)
             ),
         )
@@ -191,7 +191,6 @@ def select_mid_level_policy(
             config=(
                 AlgorithmConfig()
                 .training(
-                    _enable_learner_api=False,
                     model={
                         "custom_model_config": {
                             "line_info": line_info,
@@ -199,7 +198,6 @@ def select_mid_level_policy(
                         },
                     },
                 )
-                .rl_module(_enable_rl_module_api=False)
                 .rollouts(preprocessor_pref=None)
             ),
         )
@@ -275,8 +273,11 @@ def select_low_level_policy(
 
 
 def setup_config(
-    config_path: str, middle_agent_type: str, lower_agent_type: str
-) -> None:
+        workdir_path: str,
+        config_path: str,
+        middle_agent_type: str,
+        lower_agent_type: str
+) -> (dict[str, Any], dict[str, Any]):
     """
     Set up the configuration for training a hierarchical reinforcement learning (HRL) model.
 
@@ -288,6 +289,8 @@ def setup_config(
     Returns:
         None
     """
+
+    os.chdir(workdir_path)
     # load base PPO config and load in hyperparameters
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
@@ -330,7 +333,6 @@ def setup_config(
             config=(
                 AlgorithmConfig()
                 .training(
-                    _enable_learner_api=False,
                     model={
                         "custom_model_config": {
                             "rho_threshold": custom_config["environment"]["env_config"][
@@ -339,7 +341,6 @@ def setup_config(
                         }
                     },
                 )
-                .rl_module(_enable_rl_module_api=False)
                 .rollouts(preprocessor_pref=None)
             ),
         ),
@@ -350,8 +351,6 @@ def setup_config(
             action_space=gymnasium.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
-                .training(_enable_learner_api=False)
-                .rl_module(_enable_rl_module_api=False)
             ),
         ),
     }
@@ -361,7 +360,7 @@ def setup_config(
     # if policy is rl, set an agent to train
     if middle_agent_type in ("rl", "rl_v"):
         ppo_config["policies_to_train"] = ["choose_substation_policy"]
-    elif middle_agent_type in ("capa", "random", "argmax"):
+    else: # middle_agent_type in ("capa", "random", "argmax"):
         ppo_config["policies_to_train"] = []
 
     if lower_agent_type in ("rl", "rl_v"):
@@ -381,25 +380,34 @@ def setup_config(
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})
-
-    run_training(ppo_config, custom_config["setup"], CustomPPO)
+    ppo_config.update({"my_log_level": custom_config["setup"]["my_log_level"]})
+    return ppo_config, custom_config
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
     parser.add_argument(
-        "-c",
-        "--config",
+        "-f",
+        "--file_path",
         type=str,
+        default="./configs/l2rpn_case14_sandbox/ppo_baseline.yaml", #"./configs/l2rpn_icaps_2021_small/ppo_baseline.yaml",  #
         help="Path to the config file.",
+    )
+    parser.add_argument(
+        "-wd",
+        "--workdir",
+        type=str,
+        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/",
+        help="path do store results.",
     )
 
     parser.add_argument(
         "-m",
         "--middle",
         type=str,
-        default="capa",
+        default="rl",
+        choices=["capa", "random", "argmax", "rl", "rl_v"],
         help="The type of middle level agent (capa or rl).",
     )
 
@@ -407,18 +415,17 @@ if __name__ == "__main__":
         "-l",
         "--lower",
         type=str,
-        default="greedy",
+        default="rl",
+        choices=["greedy", "rl", "rl_v"],
         help="The type of middle level agent (greedy or rl).",
     )
 
     # Parse the command-line arguments
     args = parser.parse_args()
 
-    # Access the parsed arguments
-    input_config_path = args.config
-
-    if input_config_path:
-        setup_config(input_config_path, args.middle, args.lower)
+    if args.file_path:
+        ppo_config, custom_config = setup_config(args.workdir, args.file_path, args.middle, args.lower)
+        result_grid = run_training(ppo_config, custom_config["setup"], args.workdir)
     else:
         parser.print_help()
         logging.error("\nError: --file_path is required to specify config location.")
