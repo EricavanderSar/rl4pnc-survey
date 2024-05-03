@@ -125,7 +125,7 @@ def custom_synchronous_parallel_sample(
                     )
                 )
             sample_batches = new_batches
-            print('sample_batches: ', sample_batches)
+            # print('sample_batches: ', sample_batches)
 
         for batch in sample_batches:
             if max_agent_steps:
@@ -133,7 +133,7 @@ def custom_synchronous_parallel_sample(
             else:
                 agent_or_env_steps += batch.env_steps()
         all_sample_batches.extend(sample_batches)
-        print("agent or env steps:", agent_or_env_steps)
+        # print("agent or env steps:", agent_or_env_steps)
 
     if concat is True:
         full_batch = concat_samples(all_sample_batches)
@@ -174,10 +174,10 @@ class CustomPPO(PPO):
                 train_batch = custom_synchronous_parallel_sample(
                     worker_set=self.workers, max_env_steps=self.config.train_batch_size
                 )
-        print("policies", train_batch.policy_batches.keys())
-        print("train_batch_size: ", train_batch.count)
-        print("agent_steps: ", train_batch.agent_steps())
-        print("env_steps : ", train_batch.env_steps())
+        # print("policies", train_batch.policy_batches.keys())
+        # print("train_batch_size: ", train_batch.count)
+        # print("agent_steps: ", train_batch.agent_steps())
+        # print("env_steps : ", train_batch.env_steps())
         train_batch = train_batch.as_multi_agent()
         self._counters[NUM_AGENT_STEPS_SAMPLED] += train_batch.agent_steps()
         self._counters[NUM_ENV_STEPS_SAMPLED] += train_batch.env_steps()

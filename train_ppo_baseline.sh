@@ -3,11 +3,11 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=54
-#SBATCH --gpus=3
+#SBATCH --cpus-per-task=72
+#SBATCH --gpus=4
 #SBATCH --partition=gpu
 #SBATCH --time=96:00:00
-#SBATCH --output=TestCase36_2021_ppo_baseline_%j.out
+#SBATCH --output=Case36_Tune_ppo_baseline_%j.out
 
 
 ENVNAME=l2rpn_icaps_2021_large #l2rpn_case14_sandbox #rte_case14_realistic #
