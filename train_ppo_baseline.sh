@@ -3,15 +3,16 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=64
-#SBATCH --partition=rome
-#SBATCH --time=24:00:00
+#SBATCH --cpus-per-task=54
+#SBATCH --gpus=3
+#SBATCH --partition=gpu
+#SBATCH --time=96:00:00
 #SBATCH --output=TestCase36_2021_ppo_baseline_%j.out
 
 
 ENVNAME=l2rpn_icaps_2021_large #l2rpn_case14_sandbox #rte_case14_realistic #
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=TestSub36_2021
+RESDIR=Tune_Sub36_2021
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
