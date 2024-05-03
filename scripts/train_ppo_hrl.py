@@ -121,6 +121,7 @@ def select_mid_level_policy(
         ValueError: If the middle_agent_type is not recognized.
 
     """
+    print('Actions per substation: ', agent_per_substation)
     gym_previous_obs, gym_proposed_actions, gym_proposed_confidences = setup_gym_spaces(
         agent_per_substation, env_info
     )
