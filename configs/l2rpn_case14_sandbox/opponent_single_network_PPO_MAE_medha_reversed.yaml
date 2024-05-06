@@ -1,30 +1,31 @@
 setup:
   nb_timesteps: &nb_timesteps 500000
-  checkpoint_freq: 10
+  checkpoint_freq: 50
   checkpoint_at_end: True
   keep_checkpoints_num: 5
   checkpoint_score_attr: evaluation/episode_reward_mean
   verbose: 1
-  storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
+  # storage_path: /home3/s3374610/mahrl_grid2op/runs/ # 
+  storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
   experiment_name: l2rpn_case14_sandbox/opponent_single_network
   save_artifact: True
   num_samples: 2
 
-# debugging:
-#   seed: &seed 20
+debugging:
+  seed: &seed !randint [0, 100000]
 
 training:
   # tunable parameters
-  gamma: 0.99 # !grid_search [0.95, 0.99]
-  lr: 0.0001 # !grid_search [0.00005, 0.0005, 0.005]
+  # gamma: 0.99 # !grid_search [0.95, 0.99]
+  lr: !grid_search [5e-3, 5e-4, 5e-5] #0.0001 # !grid_search [0.00005, 0.0005, 0.005]
   # vf_loss_coeff: 0.5
-  kl_coeff: 0.2
-  entropy_coeff: 0.01
-  clip_param: 0.3
+  # kl_coeff: 0.2
+  # entropy_coeff: 0.01
+  # clip_param: 0.3
   # lambda_: 0.95
-  num_sgd_iter: 15
-  sgd_minibatch_size: 256 # !grid_search [32, 64, 128]
-  train_batch_size: 1024
+  num_sgd_iter: !grid_search [5, 15] #15
+  sgd_minibatch_size: !grid_search [64, 256, 518] #256 # !grid_search [32, 64, 128]
+  train_batch_size: !grid_search [1024, 2048, 4048] #1024
   model:
     fcnet_hiddens: 
     - 256
@@ -57,7 +58,8 @@ environment:
     env_name: l2rpn_case14_sandbox_train
     num_agents: 3
     action_space: medha_reversed
-    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ #  /home3/s3374610/mahrl_grid2op/ 
+    # lib_dir: /home3/s3374610/mahrl_grid2op/ 
+    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
       # general kwargs
@@ -78,7 +80,7 @@ environment:
           - '3_6_15'
           - '3_8_16'
           - '6_8_19'
-    # seed: *seed
+    seed: *seed
     rho_threshold: 0.95
     shuffle_scenarios: True
 
@@ -95,9 +97,9 @@ evaluation:
     env_config: *env_config_val # use the validation environment
     explore: True
 
-# resources:
-#   num_gpus: 0
-#   num_learner_workers: 6
+resources:
+  num_gpus: 0
+  num_learner_workers: 6
 
-# rollouts:
-#   num_rollout_workers: 4
+rollouts:
+  num_rollout_workers: 4

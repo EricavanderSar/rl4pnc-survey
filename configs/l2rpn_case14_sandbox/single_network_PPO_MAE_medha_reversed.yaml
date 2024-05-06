@@ -8,15 +8,15 @@ setup:
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
   experiment_name: replicate_ppo_baseline
   save_artifact: True
-  num_samples: 12
+  num_samples: 2
 
 # debugging:
 #   seed: &seed 20
 
 training:
   # tunable parameters
-  gamma: 0.99 # !grid_search [0.95, 0.99]
-  lr: 0.0001 # !grid_search [0.00005, 0.0005, 0.005]
+  gamma: 0.99 #!quniform [0.95, 1, 0.01] # !grid_search [0.95, 0.99]
+  lr: 0.0001 # !loguniform [0.00001, 0.1] # !grid_search [0.00005, 0.0005, 0.005]
   # vf_loss_coeff: 0.5
   kl_coeff: 0.2
   entropy_coeff: 0
@@ -24,7 +24,7 @@ training:
   # lambda_: 0.95
   num_sgd_iter: 5
   sgd_minibatch_size: 256 # !grid_search [32, 64, 128]
-  train_batch_size: 1024
+  train_batch_size: 1024 # !choice [1024, 2048]
   model:
     fcnet_hiddens: 
     - 256

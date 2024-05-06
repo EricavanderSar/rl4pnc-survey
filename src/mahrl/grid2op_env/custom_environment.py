@@ -11,6 +11,7 @@ import numpy as np
 from grid2op.Action import BaseAction
 from grid2op.Environment import BaseEnv
 from grid2op.gym_compat import GymEnv
+from grid2op.Chronics import Multifolder
 from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
@@ -157,6 +158,25 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         # determine agent ids
         if "vf_rl" in env_config:
             self.is_value_rl = True
+
+            #########################################
+            # Experiment with grouping
+            # self._agent_ids = [
+            #     "high_level_agent",
+            #     "vf_group",
+            #     "do_nothing_agent",
+            # ]
+
+            # self.env = self.with_agent_groups(
+            #     groups={
+            #         "vf_group": [
+            #             "value_reinforcement_learning_agent",
+            #             "value_function_agent",
+            #         ]
+            #     },
+            # )
+
+            #########################################
             self._agent_ids = [
                 "high_level_agent",
                 "value_reinforcement_learning_agent",
@@ -173,6 +193,45 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         # setup shared parameters
         self.previous_obs: OrderedDict[str, Any] = OrderedDict()
+
+    def no_shunt_reset(
+        self,
+        seed: Optional[int] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[OrderedDict[str, Any], dict[str, Any]]:
+        """
+        This function resets the environment with prio sampling.
+        """
+        # adapted from the internal GymEnv _aux_reset method
+        if self.env_gym._shuffle_chronics and isinstance(
+            self.env_gym.init_env.chronics_handler.real_data, Multifolder
+        ):
+            self.env_gym.init_env.chronics_handler.sample_next_chronics()
+
+        super().reset(seed=seed)
+        if seed is not None:
+            self.env_gym._aux_seed_spaces()
+            seed, next_seed, underlying_env_seeds = self.env_gym._aux_seed_g2op(seed)
+
+        g2op_obs = self.env_gym.init_env.reset()
+
+        ##############################################
+        # disable shunts
+        g2op_obs, _, _, _ = self.env_gym.init_env.step(
+            self.env_gym.init_env._helper_action_env({"shunt": {"shunt_q": [(0, 0.0)]}})
+        )
+        ##############################################
+
+        gym_obs = self.env_gym.observation_space.to_gym(g2op_obs)
+
+        chron_id = self.env_gym.init_env.chronics_handler.get_id()
+        info = {"time serie id": chron_id}
+        if seed is not None:
+            info["seed"] = seed
+            info["grid2op_env_seed"] = next_seed
+            info["underlying_env_seeds"] = underlying_env_seeds
+
+        return gym_obs, info
 
     def reset(
         self,
@@ -191,6 +250,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             Tuple[MultiAgentDict, MultiAgentDict]: Tuple containing the initial observations and info.
 
         """
+        # self.previous_obs, info = self.no_shunt_reset()
         self.previous_obs, info = self.env_gym.reset()
         return {"high_level_agent": max(self.previous_obs["rho"])}, {"__common__": info}
 
@@ -446,7 +506,21 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
 
         if "high_level_agent" in action_dict.keys():
             observations = self.perform_high_level_action(action_dict)
-        elif "do_nothing_agent" in action_dict.keys():
+        elif (
+            ("do_nothing_agent" in action_dict.keys())
+            and (
+                not any(
+                    key.startswith("reinforcement_learning_agent")
+                    for key in action_dict.keys()
+                )
+            )
+            and (
+                not any(
+                    key.startswith("value_reinforcement_learning_agent")
+                    for key in action_dict.keys()
+                )
+            )
+        ):
             # step do nothing in environment
             self.previous_obs, reward, terminated, truncated, info = self.env_gym.step(
                 0
@@ -483,6 +557,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             observations = {
                 "choose_substation_agent": OrderedDict(
                     {
+                        "previous_obs": self.previous_obs,
                         "proposed_actions": {
                             str(sub_id): action
                             for sub_id, action in self.proposed_actions.items()
@@ -497,9 +572,9 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                     observations["choose_substation_agent"][
                         "reset_capa_idx"
                     ] = self.reset_capa_idx
-                    observations["choose_substation_agent"][
-                        "previous_obs"
-                    ] = self.previous_obs
+                    # observations["choose_substation_agent"][
+                    #     "previous_obs"
+                    # ] = self.previous_obs
                 else:
                     raise ValueError("Capa observations is not an OrderedDict.")
 
@@ -623,9 +698,12 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         """
         proposed_actions: dict[int, int] = {}
         for key, action in action_dict.items():
-            # extract integer at end of key
-            agent_id = int(key.split("_")[-1])
-            proposed_actions[agent_id] = int(action)
+            if not key == "do_nothing_agent":
+                # extract integer at end of key
+                agent_id = int(key.split("_")[-1])
+                proposed_actions[agent_id] = int(action)
+            else:
+                proposed_actions[-1] = 0
 
         return proposed_actions
 
@@ -641,6 +719,9 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             for agent_id in self.rl_agent_ids:
                 # observations[agent_id] = gymnasium.spaces.Dict(self.previous_obs) # NOTE For the vf only?
                 observations[agent_id] = self.previous_obs
+
+            # also add do nothing agent
+            observations["do_nothing_agent"] = 0
         elif action == 1:  # do nothing
             observations = {"do_nothing_agent": 0}
         else:
@@ -749,10 +830,15 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
             if action == 0:  # do something
                 self.proposed_actions = {
                     sub_id: self.get_local_from_global(
-                        self.converter.revert_act(agent.act(self.g2op_obs, reward=None))
+                        self.env_gym.action_space.to_gym(
+                            agent.act(self.g2op_obs, reward=None)
+                        )
                     )
                     for sub_id, agent in self.agents.items()
                 }
+
+                # also propose do nothing action
+                self.proposed_actions[-1] = 0
 
                 observation_for_middle_agent = OrderedDict(
                     {

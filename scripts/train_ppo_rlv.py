@@ -87,7 +87,6 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
             action_space=None,  # infer automatically from env
             config={
                 "model": {
-                    # "custom_model": shared_model,
                     "custom_model_config": {"model": shared_model},
                 },
             },
@@ -98,7 +97,6 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
             action_space=gymnasium.spaces.Box(-np.inf, np.inf, tuple(), np.float32),
             config={
                 "model": {
-                    # "custom_model": shared_model,
                     "custom_model_config": {"model": shared_model},
                 },
             },

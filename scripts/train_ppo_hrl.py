@@ -97,7 +97,7 @@ def select_mid_level_policy(
     line_info: dict[int, list[int]],
     env_info: dict[str, int],
     custom_config: dict[str, Any],
-) -> PolicySpec:
+) -> tuple[PolicySpec, dict[str, Any]]:
     """
     Specifies the policy for the middle level agent.
 
@@ -121,20 +121,25 @@ def select_mid_level_policy(
     )
 
     if middle_agent_type in ("capa"):
+        custom_config["environment"]["env_config"]["capa"] = True
         mid_level_observation = gymnasium.spaces.Dict(
             {
-                "proposed_actions": gym_proposed_actions,
-                "reset_capa_idx": gymnasium.spaces.Discrete(2),
                 "previous_obs": gym_previous_obs,
-            }
-        )
-    elif middle_agent_type in ("rl", "random"):
-        mid_level_observation = gymnasium.spaces.Dict(
-            {
+                "reset_capa_idx": gymnasium.spaces.Discrete(2),
                 "proposed_actions": gym_proposed_actions,
             }
         )
-    elif middle_agent_type in ("rl_v", "argmax"):
+    elif middle_agent_type in ("random", "rl"):
+        mid_level_observation = gymnasium.spaces.Dict(
+            {
+                "previous_obs": gym_previous_obs,
+                "proposed_actions": gym_proposed_actions,
+            }
+        )
+    elif middle_agent_type in (
+        "rl_v",
+        "argmax",
+    ):  # NOTE ORDER MIGHT BREAK IT WITH DICTIONARY
         mid_level_observation = gymnasium.spaces.Dict(
             {
                 "proposed_actions": gym_proposed_actions,
@@ -143,8 +148,6 @@ def select_mid_level_policy(
         )
 
     if middle_agent_type == "capa":
-        custom_config["environment"]["env_config"]["capa"] = True
-
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=CapaPolicy,
             observation_space=mid_level_observation,  # information specifically for CAPA
@@ -227,7 +230,7 @@ def select_mid_level_policy(
         raise ValueError(
             f"Middle agent type {middle_agent_type} not recognized. Please use 'capa', 'random', 'argmax', 'rl_v' or 'rl'."
         )
-    return mid_level_policy
+    return mid_level_policy, custom_config
 
 
 def select_low_level_policy(
@@ -294,10 +297,6 @@ def setup_config(
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
 
-    for key in custom_config.keys():
-        if key != "setup":
-            ppo_config.update(custom_config[key])
-
     # load in information about the environment
     setup_env = grid2op.make(custom_config["environment"]["env_config"]["env_name"])
 
@@ -319,9 +318,14 @@ def setup_config(
     line_info = find_substation_per_lines(setup_env, list_of_substations)
 
     # set-up the mid level policy
-    mid_level_policy = select_mid_level_policy(
+    mid_level_policy, custom_config = select_mid_level_policy(
         middle_agent_type, agent_per_substation, line_info, env_info, custom_config
     )
+
+    # load whole config into ppoconfig
+    for key in custom_config.keys():
+        if key != "setup":
+            ppo_config.update(custom_config[key])
 
     # define all level policies
     policies = {
@@ -372,7 +376,7 @@ def setup_config(
                 f"reinforcement_learning_policy_{sub_idx}"
                 for sub_idx in list_of_substations
             ]
-        else:
+        elif lower_agent_type == "rl_v":
             ppo_config["policies_to_train"] += [
                 f"value_reinforcement_learning_policy_{sub_idx}"
                 for sub_idx in list_of_substations

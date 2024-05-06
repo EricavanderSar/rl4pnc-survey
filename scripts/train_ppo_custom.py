@@ -25,6 +25,7 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     # load base PPO config and load in hyperparameters
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
+
     if checkpoint_path:
         custom_config["setup"]["checkpoint_path"] = checkpoint_path
 

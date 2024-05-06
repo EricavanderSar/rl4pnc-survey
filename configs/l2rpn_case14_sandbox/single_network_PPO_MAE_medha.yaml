@@ -8,7 +8,7 @@ setup:
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
   experiment_name: replicate_ppo_baseline
   save_artifact: True
-  num_samples: 12
+  num_samples: 2
 
 # debugging:
 #   seed: &seed 20

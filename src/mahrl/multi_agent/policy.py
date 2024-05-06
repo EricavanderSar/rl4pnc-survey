@@ -89,13 +89,12 @@ class ActionFunctionTorchPolicy(PPOTorchPolicy):
         action_space: gymnasium.Space,
         config: AlgorithmConfigDict,
     ):
-        self.sub_modelaldkfj = config["model"]["custom_model_config"]["model"]
+        # self.sub_modelaldkfj = config["model"]["custom_model_config"]["model"]
 
+        self.model = config["model"]["custom_model_config"]["model"]
         super().__init__(observation_space, action_space, config)
 
         # print(f"Action proposed model: {self.model}")
-
-        self.model = config["model"]["custom_model_config"]["model"]
 
         # print(f"Action my model: {self.model}")
 
@@ -103,7 +102,7 @@ class ActionFunctionTorchPolicy(PPOTorchPolicy):
 
     def make_model(self) -> ModelV2:
         """Creates a new model for this policy."""
-        return self.sub_modelaldkfj
+        return self.model
 
     def _compute_action_helper(
         self,
@@ -152,13 +151,12 @@ class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
         action_space: gymnasium.Space,
         config: AlgorithmConfigDict,
     ):
-        self.sub_modelaldkf = config["model"]["custom_model_config"]["model"]
+        # self.sub_modelaldkf = config["model"]["custom_model_config"]["model"]
 
+        self.model = config["model"]["custom_model_config"]["model"]
         super().__init__(observation_space, action_space, config)
 
         # print(f"Value proposed model: {self.model}")
-
-        # self.model = config["model"]["custom_model_config"]["model"]
 
         # print(f"Value my model: {self.model}")
 
@@ -175,7 +173,7 @@ class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
             num_outputs=2,  # mean and std
             model_config=self.config,
             name="CustomModelV2",
-            _sub_model=self.sub_modelaldkf,
+            _sub_model=self.model,
         )
 
     def _compute_action_helper(
@@ -186,11 +184,11 @@ class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
         explore: bool,
         timestep: int,
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-        # print(f"Model in valuepolicy: {id(self.model)}")
+        print(f"Model in valuepolicy: {id(self.model)}")
         logits, state_out, extra_fetches = super()._compute_action_helper(
             input_dict, state_batches, seq_lens, explore, timestep
         )
-        # print(f"Value logits (from _compute_action_helper): {logits}")
+        print(f"Value logits (from _compute_action_helper): {logits}")
         return logits, state_out, extra_fetches
 
 
@@ -234,9 +232,9 @@ class CustomFCN(FullyConnectedNetwork):
         """
         outputs, state_out = super().__call__(input_dict, state, seq_lens)
 
-        # print(
-        #     f"Value in Action Agent (from __call__): {self.value_function().cpu().detach()}"
-        # )
+        print(
+            f"Value in Action Agent (from __call__): {self.value_function().cpu().detach()}"
+        )
 
         return outputs, state_out
 
@@ -300,7 +298,7 @@ class ValueOnlyModel(FullyConnectedNetwork):
         outputs[:, -2:-1] = self._values.reshape(-1, 1)
         outputs[:, -1:] = -1e2
 
-        # print(f"Value in Value Agent (from __call__): {self._values[:, None]}")
+        print(f"Value in Value Agent (from __call__): {self._values[:, None]}")
 
         # TODO detach the states
 

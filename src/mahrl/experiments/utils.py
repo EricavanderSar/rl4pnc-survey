@@ -13,8 +13,12 @@ from ray import air, tune
 from ray.air.integrations.mlflow import MLflowLoggerCallback
 from ray.rllib.algorithms import Algorithm
 from ray.rllib.models import ModelCatalog
-
+from ray.tune.search.bayesopt import BayesOptSearch
+from ray.tune.search import ConcurrencyLimiter
 from mahrl.models.mlp import SimpleMlp
+
+from ray.tune.schedulers.hb_bohb import HyperBandForBOHB
+from ray.tune.search.bohb import TuneBOHB
 
 
 def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
@@ -228,11 +232,87 @@ def run_training(
 
     ModelCatalog.register_custom_model("fcn", SimpleMlp)
 
-    # Create tuner
+    # # Create tuner
+    # algo = TuneBOHB()
+    # algo = ray.tune.search.ConcurrencyLimiter(algo, max_concurrent=4)
+    # scheduler = HyperBandForBOHB(
+    #     time_attr="training_iteration",
+    #     max_t=10,
+    #     reduction_factor=4,
+    #     stop_last_trials=False,
+    # )
+
+    # tuner = tune.Tuner(
+    #     algorithm,
+    #     param_space=config,
+    #     tune_config=tune.TuneConfig(
+    #         metric="custom_metrics/corrected_ep_len_mean",
+    #         mode="max",
+    #         search_alg=algo,
+    #         scheduler=scheduler,
+    #         num_samples=10,
+    #     ),
+    #     run_config=air.RunConfig(
+    #         name="mlflow",
+    #         callbacks=[
+    #             MLflowLoggerCallback(
+    #                 tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+    #                 experiment_name=setup["experiment_name"],
+    #                 save_artifact=setup["save_artifact"],
+    #             )
+    #         ],
+    #         stop={"timesteps_total": setup["nb_timesteps"]},
+    #         storage_path=os.path.abspath(setup["storage_path"]),
+    #         checkpoint_config=air.CheckpointConfig(
+    #             checkpoint_frequency=setup["checkpoint_freq"],
+    #             checkpoint_at_end=setup["checkpoint_at_end"],
+    #             checkpoint_score_attribute=setup["checkpoint_score_attr"],
+    #             num_to_keep=setup["keep_checkpoints_num"],
+    #         ),
+    #         verbose=setup["verbose"],
+    #     ),
+    # )
+    # tuner = tune.Tuner(
+    #     algorithm,
+    #     param_space=config,
+    #     tune_config=tune.TuneConfig(
+    #         metric="evaluation/episode_reward_mean",
+    #         mode="max",
+    #         search_alg=ConcurrencyLimiter(
+    #             BayesOptSearch(
+    #                 utility_kwargs={"kind": "ucb", "kappa": 2.5, "xi": 0.0}
+    #             ),  # NOTE WHAT do these do
+    #             max_concurrent=4,
+    #         ),  # NOTE: What does max_concurrent do
+    #         # num_samples=setup["num_samples"],
+    #         num_samples=14,
+    #     ),
+    #     run_config=air.RunConfig(
+    #         name="mlflow",
+    #         callbacks=[
+    #             MLflowLoggerCallback(
+    #                 tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+    #                 experiment_name=setup["experiment_name"],
+    #                 save_artifact=setup["save_artifact"],
+    #             )
+    #         ],
+    #         stop={"timesteps_total": setup["nb_timesteps"]},
+    #         storage_path=os.path.abspath(setup["storage_path"]),
+    #         checkpoint_config=air.CheckpointConfig(
+    #             checkpoint_frequency=setup["checkpoint_freq"],
+    #             checkpoint_at_end=setup["checkpoint_at_end"],
+    #             checkpoint_score_attribute=setup["checkpoint_score_attr"],
+    #             num_to_keep=setup["keep_checkpoints_num"],
+    #         ),
+    #         verbose=setup["verbose"],
+    #     ),
+    # )
     tuner = tune.Tuner(
         algorithm,
         param_space=config,
-        tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
+        tune_config=tune.TuneConfig(
+            num_samples=setup["num_samples"],
+        ),
         run_config=air.RunConfig(
             name="mlflow",
             callbacks=[
