@@ -77,7 +77,7 @@ def get_asymmetrical_action_space(env: BaseEnv) -> list[BaseAction]:
     return legal_actions
 
 
-def get_medha_action_space(env: BaseEnv) -> list[BaseAction]:
+def get_medha_action_space(env: BaseEnv, opt_shunt: bool = False) -> list[BaseAction]:
     """
     Generate allowed actions based on the proposed action space by Subramanian et al. (2021).
     """
@@ -127,13 +127,19 @@ def get_medha_action_space(env: BaseEnv) -> list[BaseAction]:
 
         if not meets_condition:
             legal_actions.append(possible_substation_actions[index])
+
+    if opt_shunt:
+        legal_actions = get_optshunt_actions(env, legal_actions)
     return legal_actions
 
 
-def get_medha_dn_action_space(env: BaseEnv) -> list[BaseAction]:
+def get_medha_dn_action_space(env: BaseEnv, opt_shunt=False) -> list[BaseAction]:
     """
         Generate allowed actions based on the proposed action space by Subramanian et al. (2021).
-        """
+
+        Added option
+            'opt_shunt'. If opt_shunt : Optimize the symmetry actions at the substations containing shunt.
+    """
 
     # look at all substations (since all substations have more than one element)
     legal_actions = []
@@ -158,6 +164,9 @@ def get_medha_dn_action_space(env: BaseEnv) -> list[BaseAction]:
         if at_least_two_occurrences:
             legal_actions.append(action)
 
+    if opt_shunt:
+        legal_actions = get_optshunt_actions(env, legal_actions)
+
     # add do nothing actions of subs with only 1 line:
     count_lines = Counter(env.line_ex_to_subid) + Counter(env.line_or_to_subid)
     one_line_subs = [sub for sub, n_lines in count_lines.items() if n_lines == 1]
@@ -170,6 +179,52 @@ def get_medha_dn_action_space(env: BaseEnv) -> list[BaseAction]:
         legal_actions.append(action)
 
     return legal_actions
+
+
+def get_optshunt_actions(env: BaseEnv, actions: list[BaseAction]) -> list[BaseAction]:
+    # This function checks for all actions related to a substation with shunt if the reversed action is better
+    env_rev = grid2op.make(env.env_name)
+    for idx, act in enumerate(actions):
+        lines_impact, subs_impact = act.get_topological_impact()
+        if subs_impact[env.shunt_to_subid].any():
+            sub_act = int(np.arange(env.n_sub)[subs_impact])
+            topo_act = act.sub_set_bus[act.sub_set_bus > 0]
+            print(f'Substation {sub_act}, Topo {topo_act} ')
+            # compute reversed action:
+            rev_topo = np.where(topo_act == 1, 2, 1)
+            act_rev = env.action_space(
+                {"set_bus": {"substations_id": [(sub_act, rev_topo)]}}
+            )
+            # test n times and save best result.
+            n = 10
+            rhos_normal = np.zeros(n)
+            rhos_rev = np.zeros(n)
+            for i in range(n):
+                # print("Chronic id of env: ", env.chronics_handler.get_name())
+                # print("Chronic id of env_rev: ", env_rev.chronics_handler.get_name())
+                obs = env.reset()
+                obs_rev = env_rev.reset()
+                # try action normal
+                obs, reward, done, info = env.step(act)
+                # try action reversed
+                obs_rev, reward_rev, done_rev, info_rev = env_rev.step(act_rev)
+                rhos_normal[i] = obs.rho.max() if obs.rho.max() > 0 else 2
+                rhos_rev[i] = obs_rev.rho.max() if obs_rev.rho.max() > 0 else 2
+            # print mean max rho values
+            print('max rho NORMAL: ', rhos_normal.mean())
+            print('vec: ', rhos_normal)
+            print('max rho REVERSED: ', rhos_rev.mean())
+            print('vec: ', rhos_rev)
+            if rhos_normal.mean() > rhos_rev.mean():
+                actions[idx] = act_rev
+                print(f'Action adjusted to reverse topo: {rev_topo}')
+                # print(actions[idx])
+            else:
+                print('Action remains the same.')
+                # print(actions[idx])
+    return actions
+
+
 
 def get_tennet_action_space(env: BaseEnv) -> list[BaseAction]:
     """
