@@ -59,6 +59,10 @@ def create_action_spaces(
         possible_actions = get_medha_dn_action_space(env, opt_shunt=True)
         file_path = os.path.join(save_path, "medha_dn_optshunt.json")
         save_to_json(possible_actions, file_path)
+    if "medha_dn_allshunt" in action_spaces_to_create:
+        possible_actions = get_medha_dn_action_space(env, all_shunt=True)
+        file_path = os.path.join(save_path, "medha_dn_allshunt.json")
+        save_to_json(possible_actions, file_path)
     if "tennet" in action_spaces_to_create:
         mathematically_possible_actions, _, _ = calculate_action_space_tennet(env)
         possible_actions = get_tennet_action_space(env)
@@ -86,7 +90,7 @@ if __name__ == "__main__":
         "--action_space",
         type=str,
         help="Action space to be used.",
-        default="medha_dn_optshunt",
+        default="medha_dn_allshunt",
     )
     parser.add_argument(
         "-s",

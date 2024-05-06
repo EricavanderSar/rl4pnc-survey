@@ -77,7 +77,7 @@ def get_asymmetrical_action_space(env: BaseEnv) -> list[BaseAction]:
     return legal_actions
 
 
-def get_medha_action_space(env: BaseEnv, opt_shunt: bool = False) -> list[BaseAction]:
+def get_medha_action_space(env: BaseEnv, opt_shunt: bool = False, all_shunt: bool = False) -> list[BaseAction]:
     """
     Generate allowed actions based on the proposed action space by Subramanian et al. (2021).
     """
@@ -130,14 +130,16 @@ def get_medha_action_space(env: BaseEnv, opt_shunt: bool = False) -> list[BaseAc
 
     if opt_shunt:
         legal_actions = get_optshunt_actions(env, legal_actions)
+    elif all_shunt:
+        legal_actions = get_optshunt_actions(env, legal_actions)
     return legal_actions
 
 
-def get_medha_dn_action_space(env: BaseEnv, opt_shunt=False) -> list[BaseAction]:
+def get_medha_dn_action_space(env: BaseEnv, opt_shunt=False, all_shunt=False) -> list[BaseAction]:
     """
         Generate allowed actions based on the proposed action space by Subramanian et al. (2021).
 
-        Added option
+        EVDS: Added option
             'opt_shunt'. If opt_shunt : Optimize the symmetry actions at the substations containing shunt.
     """
 
@@ -166,6 +168,8 @@ def get_medha_dn_action_space(env: BaseEnv, opt_shunt=False) -> list[BaseAction]
 
     if opt_shunt:
         legal_actions = get_optshunt_actions(env, legal_actions)
+    elif all_shunt:
+        legal_actions = get_allshunt_actions(env, legal_actions)
 
     # add do nothing actions of subs with only 1 line:
     count_lines = Counter(env.line_ex_to_subid) + Counter(env.line_or_to_subid)
@@ -182,7 +186,19 @@ def get_medha_dn_action_space(env: BaseEnv, opt_shunt=False) -> list[BaseAction]
 
 
 def get_optshunt_actions(env: BaseEnv, actions: list[BaseAction]) -> list[BaseAction]:
-    # This function checks for all actions related to a substation with shunt if the reversed action is better
+    """
+    This function checks for all actions related to a substation with shunt if the reversed action is better
+    If this is the case the action is replaced by the reversed action
+
+    Parameters
+    ----------
+    env: Grid2op Environment
+    actions: List of grid2op actions.
+
+    Returns
+    -------
+    actions: List of grid2op actions, similar to the old list, but  where some actions have been reversed
+    """
     env_rev = grid2op.make(env.env_name)
     for idx, act in enumerate(actions):
         lines_impact, subs_impact = act.get_topological_impact()
@@ -224,6 +240,35 @@ def get_optshunt_actions(env: BaseEnv, actions: list[BaseAction]) -> list[BaseAc
                 # print(actions[idx])
     return actions
 
+
+def get_allshunt_actions(env: BaseEnv, actions: list[BaseAction]) -> list[BaseAction]:
+    """
+    Include also reversed action to action space for substations with shunt.
+    Parameters
+    ----------
+    env: Grid2op Environment
+    actions: List of grid2op actions.
+
+    Returns
+    -------
+    actions: List of grid2op actions, similar to the old list, but  where actions have been added for substations
+    with shunt.
+    """
+    new_actions = []
+    for idx, act in enumerate(actions):
+        lines_impact, subs_impact = act.get_topological_impact()
+        if subs_impact[env.shunt_to_subid].any():
+            sub_act = int(np.arange(env.n_sub)[subs_impact])
+            topo_act = act.sub_set_bus[act.sub_set_bus > 0]
+            print(f'Substation {sub_act}, Topo {topo_act} ')
+            # compute reversed action:
+            rev_topo = np.where(topo_act == 1, 2, 1)
+            act_rev = env.action_space(
+                {"set_bus": {"substations_id": [(sub_act, rev_topo)]}}
+            )
+            new_actions.append(act_rev)
+    actions.extend(new_actions)
+    return actions
 
 
 def get_tennet_action_space(env: BaseEnv) -> list[BaseAction]:

@@ -71,7 +71,7 @@ environment:
     env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha_DN_optshunt
+    action_space: medha_dn_allshunt
     mask: 3
     lib_dir: !workdir
     grid2op_kwargs:
