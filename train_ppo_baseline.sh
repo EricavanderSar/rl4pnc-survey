@@ -10,7 +10,7 @@
 #SBATCH --output=Case36_Tune_ppo_baseline_%j.out
 
 
-ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
+ENVNAME=l2rpn_icaps_2021_large #l2rpn_case14_sandbox #rte_case14_realistic #
 WORKDIR=$TMPDIR/evds_output_dir
 RESDIR=Tune2_Sub36_2021
 
