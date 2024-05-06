@@ -711,6 +711,10 @@ class RandomPolicy(Policy):
         else:
             action_keys = list(obs_batch[0]["proposed_actions"].keys())
         random_sub_id = random.randrange(len(action_keys))
+
+        # if the last agent is chosen, return -1 to do nothing
+        if random_sub_id == len(action_keys):
+            random_sub_id = -1
         return [random_sub_id], [], {}
 
     def get_weights(self) -> ModelWeights:

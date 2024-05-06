@@ -76,8 +76,11 @@ def setup_gym_spaces(
 
     gym_proposed_actions = gymnasium.spaces.Dict(
         {
-            str(i): gymnasium.spaces.Discrete(int(agent_per_substation[i]))
-            for i in list(agent_per_substation.keys())
+            **{
+                str(i): gymnasium.spaces.Discrete(int(agent_per_substation[i]))
+                for i in list(agent_per_substation.keys())
+            },
+            "-1": gymnasium.spaces.Discrete(1),
         }
     )
 
@@ -147,13 +150,13 @@ def select_mid_level_policy(
             }
         )
 
+    act_space = gymnasium.spaces.Discrete(len(list(agent_per_substation.keys())) + 1)
+
     if middle_agent_type == "capa":
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=CapaPolicy,
             observation_space=mid_level_observation,  # information specifically for CAPA
-            action_space=gymnasium.spaces.Discrete(
-                len(list(agent_per_substation.keys()))
-            ),  # choose one of agents
+            action_space=act_space,  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -173,9 +176,7 @@ def select_mid_level_policy(
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=RandomPolicy,
             observation_space=mid_level_observation,  # NOTE: Observation space is redundant but needed in custom_env
-            action_space=gymnasium.spaces.Discrete(
-                len(list(agent_per_substation.keys()))
-            ),  # choose one of agents
+            action_space=act_space,  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
@@ -188,9 +189,7 @@ def select_mid_level_policy(
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=ArgMaxPolicy,
             observation_space=mid_level_observation,  # NOTE: Observation space is redundant but needed in custom_env
-            action_space=gymnasium.spaces.Discrete(
-                len(list(agent_per_substation.keys()))
-            ),  # choose one of agents
+            action_space=act_space,  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -210,9 +209,7 @@ def select_mid_level_policy(
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=None,  # use default policy of PPO
             observation_space=mid_level_observation,
-            action_space=gymnasium.spaces.Discrete(
-                len(list(agent_per_substation.keys()))
-            ),  # choose one of agents
+            action_space=act_space,  # choose one of agents
             config=None,
         )
     elif middle_agent_type == "rl_v":
@@ -221,9 +218,7 @@ def select_mid_level_policy(
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=None,  # use default policy of PPO
             observation_space=mid_level_observation,
-            action_space=gymnasium.spaces.Discrete(
-                len(list(agent_per_substation.keys()))
-            ),  # choose one of agents
+            action_space=act_space,  # choose one of agents
             config={"env_config": env_config},
         )
     else:
