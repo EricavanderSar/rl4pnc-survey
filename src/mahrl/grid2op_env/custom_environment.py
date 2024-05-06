@@ -47,50 +47,6 @@ ACTTYPE = TypeVar("ACTTYPE")
 RENDERFRAME = TypeVar("RENDERFRAME")
 
 
-class ReconnectingGymEnv(GymEnv):
-    """
-    This class wrapps the Grid2Op GymEnv and automatically connects disconnected
-    powerlines in the environment.
-    """
-
-    def __init__(self, env: BaseEnv, shuffle_chronics: bool = True):
-        super().__init__(env, shuffle_chronics=shuffle_chronics)
-        self.reconnect_line: list[BaseAction] = []
-
-    def step(self, action: int) -> Tuple[OBSTYPE, float, bool, bool, dict[str, Any]]:
-        """
-        Perform a step in the environment.
-
-        Parameters:
-            action (ACTTYPE): The action to perform in the environment.
-
-        Returns:
-            Tuple[OBSTYPE, float, bool, dict[str, Any]]: The observation, reward, done, truncated flag and info dictionary.
-        """
-
-        g2op_act = self.action_space.from_gym(action)
-
-        if self.reconnect_line:
-            for line in self.reconnect_line:
-                g2op_act = g2op_act + line
-
-        g2op_obs, reward, terminated, info = self.init_env.step(g2op_act)
-
-        to_reco = ~g2op_obs.line_status
-        self.reconnect_line = []
-        if np.any(to_reco):
-            reco_id = np.where(to_reco)[0]
-            for line_id in reco_id:
-                g2op_act = self.init_env.action_space(
-                    {"set_line_status": [(line_id, +1)]}
-                )
-                self.reconnect_line.append(g2op_act)
-
-        gym_obs = self.observation_space.to_gym(g2op_obs)
-        truncated = False  # see https://github.com/openai/gym/pull/2752
-        return gym_obs, float(reward), terminated, truncated, info
-
-
 class CustomizedGrid2OpEnvironment(MultiAgentEnv):
     """Encapsulate Grid2Op environment and set action/observation space."""
 

@@ -5,8 +5,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Case14_Sandbox"
-  experiment_name: "Case14_Sandbox"
+  folder_name: "Case14_Sandbox_ActSpaces"
+  experiment_name: "Case14_Sandbox_ActSpaces"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -71,7 +71,7 @@ environment:
     env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha_DN
+    action_space: medha_DN_rev
     mask: 3
     lib_dir: !workdir
     grid2op_kwargs:
