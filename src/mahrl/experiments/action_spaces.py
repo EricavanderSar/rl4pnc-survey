@@ -228,9 +228,9 @@ def get_optshunt_actions(env: BaseEnv, actions: list[BaseAction]) -> list[BaseAc
                 rhos_rev[i] = obs_rev.rho.max() if obs_rev.rho.max() > 0 else 2
             # print mean max rho values
             print('max rho NORMAL: ', rhos_normal.mean())
-            print('vec: ', rhos_normal)
+            # print('vec: ', rhos_normal)
             print('max rho REVERSED: ', rhos_rev.mean())
-            print('vec: ', rhos_rev)
+            # print('vec: ', rhos_rev)
             if rhos_normal.mean() > rhos_rev.mean():
                 actions[idx] = act_rev
                 print(f'Action adjusted to reverse topo: {rev_topo}')

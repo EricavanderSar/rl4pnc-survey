@@ -81,7 +81,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-e",
         "--environment",
-        default="l2rpn_case14_sandbox",
+        default="rte_case14_realistic",
         type=str,
         help="Name of the environment to be used.",
     )
@@ -90,7 +90,7 @@ if __name__ == "__main__":
         "--action_space",
         type=str,
         help="Action space to be used.",
-        default="medha_dn_allshunt",
+        default="medha_dn_optshunt",
     )
     parser.add_argument(
         "-s",

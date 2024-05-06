@@ -154,15 +154,15 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         This function resets the environment.
         """
         if self.prio:
-            # use chronic priority
-            g2op_obs, terminated = self.prio_reset()
+            terminated = True
+            while terminated:
+                # use chronic priority
+                g2op_obs, terminated = self.prio_reset()
         else:
             g2op_obs = self.env_g2op.reset()
-        terminated = False
 
         # reconnect lines if needed.
-        if not terminated:
-           g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
+        g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
 
         observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
         chron_id = self.env_g2op.chronics_handler.get_name()
@@ -183,6 +183,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         terminated = False
         if self.chron_prios.cur_ffw > 0:
             self.env_g2op.fast_forward_chronics(self.chron_prios.cur_ffw * self.chron_prios.ffw_size)
+            # Get new observation of this time step
             (
                 g2op_obs,
                 reward,

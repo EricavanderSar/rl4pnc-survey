@@ -5,8 +5,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Tune_Sub36_2021"
-  experiment_name: "Tune_Sub36_2021"
+  folder_name: "Tune2_Sub36_2021"
+  experiment_name: "Tune2_Sub36_2021"
   optimize: True
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
