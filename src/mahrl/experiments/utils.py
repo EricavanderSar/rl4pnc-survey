@@ -4,21 +4,16 @@ Utilities in the grid2op experiments.
 
 import logging
 import os
+import random
 from typing import Any, Dict, List, OrderedDict, Union
 
 import numpy as np
 import ray
+import torch
 from grid2op.Environment import BaseEnv
 from ray import air, tune
 from ray.air.integrations.mlflow import MLflowLoggerCallback
 from ray.rllib.algorithms import Algorithm
-from ray.rllib.models import ModelCatalog
-from ray.tune.search.bayesopt import BayesOptSearch
-from ray.tune.search import ConcurrencyLimiter
-from mahrl.models.mlp import SimpleMlp
-
-from ray.tune.schedulers.hb_bohb import HyperBandForBOHB
-from ray.tune.search.bohb import TuneBOHB
 
 
 def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
@@ -230,7 +225,10 @@ def run_training(
     # ray.shutdown()
     ray.init(ignore_reinit_error=False)
 
-    ModelCatalog.register_custom_model("fcn", SimpleMlp)
+    if "debugging" in config and "seed" in config["debugging"]:
+        set_reproducibillity(config["debugging"]["seed"])
+
+    # ModelCatalog.register_custom_model("fcn", SimpleMlp)
 
     # # Create tuner
     # algo = TuneBOHB()
@@ -353,3 +351,18 @@ def run_training(
         encoding="utf-8",
     ) as config_file:
         config_file.write(str(config))
+
+
+def set_reproducibillity(seed: int) -> None:
+    """
+    Set the random seed for reproducibility.
+
+    Parameters:
+        seed (int): The seed value to set for random number generators.
+
+    Returns:
+        None
+    """
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)

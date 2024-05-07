@@ -7,7 +7,7 @@ import logging
 from typing import Any
 
 import grid2op
-import gymnasium
+import gymnasium as gym
 import numpy as np
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
@@ -35,7 +35,7 @@ from mahrl.multi_agent.policy import (
 
 def setup_gym_spaces(
     agent_per_substation: dict[int, int], env_info: dict[str, int]
-) -> tuple[gymnasium.spaces.Dict, gymnasium.spaces.Dict, gymnasium.spaces.Dict]:
+) -> tuple[gym.spaces.Dict, gym.spaces.Dict, gym.spaces.Dict]:
     """
     Set up the gym spaces for the RL environment.
 
@@ -44,49 +44,47 @@ def setup_gym_spaces(
         env_info (dict[str, int]): A dictionary containing information about the environment.
 
     Returns:
-        tuple[gymnasium.spaces.Dict, gymnasium.spaces.Dict, gymnasium.spaces.Dict]: A tuple containing the gym spaces for
+        tuple[gym.spaces.Dict, gym.spaces.Dict, gym.spaces.Dict]: A tuple containing the gym spaces for
             previous observations, proposed actions, and proposed confidences.
     """
-    gym_previous_obs = gymnasium.spaces.Dict(
+    gym_previous_obs = gym.spaces.Dict(
         {
-            "gen_p": gymnasium.spaces.Box(
+            "gen_p": gym.spaces.Box(
                 -np.inf,
                 np.inf,
                 (env_info["num_gen"],),
                 np.float32,
             ),
-            "load_p": gymnasium.spaces.Box(
+            "load_p": gym.spaces.Box(
                 -np.inf, np.inf, (env_info["num_load"],), np.float32
             ),
-            "p_ex": gymnasium.spaces.Box(
+            "p_ex": gym.spaces.Box(
                 -np.inf, np.inf, (env_info["num_line"],), np.float32
             ),
-            "p_or": gymnasium.spaces.Box(
+            "p_or": gym.spaces.Box(
                 -np.inf, np.inf, (env_info["num_line"],), np.float32
             ),
-            "rho": gymnasium.spaces.Box(
-                0.0, np.inf, (env_info["num_line"],), np.float32
-            ),
-            "timestep_overflow": gymnasium.spaces.Box(
+            "rho": gym.spaces.Box(0.0, np.inf, (env_info["num_line"],), np.float32),
+            "timestep_overflow": gym.spaces.Box(
                 -2147483648, 2147483647, (env_info["num_line"],), np.int32
             ),
-            "topo_vect": gymnasium.spaces.Box(-1, 2, (env_info["dim_topo"],), np.int32),
+            "topo_vect": gym.spaces.Box(-1, 2, (env_info["dim_topo"],), np.int32),
         }
     )
 
-    gym_proposed_actions = gymnasium.spaces.Dict(
+    gym_proposed_actions = gym.spaces.Dict(
         {
             **{
-                str(i): gymnasium.spaces.Discrete(int(agent_per_substation[i]))
+                str(i): gym.spaces.Discrete(int(agent_per_substation[i]))
                 for i in list(agent_per_substation.keys())
             },
-            "-1": gymnasium.spaces.Discrete(1),
+            "-1": gym.spaces.Discrete(1),
         }
     )
 
-    gym_proposed_confidences = gymnasium.spaces.Dict(
+    gym_proposed_confidences = gym.spaces.Dict(
         {
-            str(i): gymnasium.spaces.Box(-np.inf, np.inf, tuple(), np.float32)
+            str(i): gym.spaces.Box(-np.inf, np.inf, tuple(), np.float32)
             for i in list(agent_per_substation.keys())
         }
     )
@@ -125,15 +123,15 @@ def select_mid_level_policy(
 
     if middle_agent_type in ("capa"):
         custom_config["environment"]["env_config"]["capa"] = True
-        mid_level_observation = gymnasium.spaces.Dict(
+        mid_level_observation = gym.spaces.Dict(
             {
                 "previous_obs": gym_previous_obs,
-                "reset_capa_idx": gymnasium.spaces.Discrete(2),
+                "reset_capa_idx": gym.spaces.Discrete(2),
                 "proposed_actions": gym_proposed_actions,
             }
         )
     elif middle_agent_type in ("random", "rl"):
-        mid_level_observation = gymnasium.spaces.Dict(
+        mid_level_observation = gym.spaces.Dict(
             {
                 "previous_obs": gym_previous_obs,
                 "proposed_actions": gym_proposed_actions,
@@ -143,14 +141,14 @@ def select_mid_level_policy(
         "rl_v",
         "argmax",
     ):  # NOTE ORDER MIGHT BREAK IT WITH DICTIONARY
-        mid_level_observation = gymnasium.spaces.Dict(
+        mid_level_observation = gym.spaces.Dict(
             {
                 "proposed_actions": gym_proposed_actions,
                 "proposed_confidences": gym_proposed_confidences,
             }
         )
 
-    act_space = gymnasium.spaces.Discrete(len(list(agent_per_substation.keys())) + 1)
+    act_space = gym.spaces.Discrete(len(list(agent_per_substation.keys())) + 1)
 
     if middle_agent_type == "capa":
         mid_level_policy = PolicySpec(  # rule based substation selection
@@ -250,7 +248,7 @@ def select_low_level_policy(
             policies[f"reinforcement_learning_policy_{sub_idx}"] = PolicySpec(
                 policy_class=None,  # infer automatically from env (PPO)
                 observation_space=None,  # infer automatically from env
-                action_space=gymnasium.spaces.Discrete(int(num_actions)),
+                action_space=gym.spaces.Discrete(int(num_actions)),
                 config=None,
             )
     elif (
@@ -261,10 +259,10 @@ def select_low_level_policy(
             policies[f"value_reinforcement_learning_policy_{sub_idx}"] = PolicySpec(
                 policy_class=None,
                 observation_space=None,  # infer automatically from env
-                action_space=gymnasium.spaces.Dict(
+                action_space=gym.spaces.Dict(
                     {
-                        "action": gymnasium.spaces.Discrete(int(num_actions)),
-                        "value": gymnasium.spaces.Box(
+                        "action": gym.spaces.Discrete(int(num_actions)),
+                        "value": gym.spaces.Box(
                             float(-np.inf), float(np.inf), tuple(), np.float32
                         ),
                     }
@@ -326,8 +324,8 @@ def setup_config(
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy,
-            observation_space=gymnasium.spaces.Box(-np.inf, np.inf),  # only the max rho
-            action_space=gymnasium.spaces.Discrete(2),  # choose one of agents
+            observation_space=gym.spaces.Box(-np.inf, np.inf),  # only the max rho
+            action_space=gym.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -347,8 +345,8 @@ def setup_config(
         "choose_substation_policy": mid_level_policy,
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,
-            observation_space=gymnasium.spaces.Discrete(1),  # no observation space
-            action_space=gymnasium.spaces.Discrete(1),  # only perform do-nothing
+            observation_space=gym.spaces.Discrete(1),  # no observation space
+            action_space=gym.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)

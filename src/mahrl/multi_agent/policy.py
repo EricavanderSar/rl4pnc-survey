@@ -8,7 +8,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import grid2op
-import gymnasium
+import gymnasium as gym
 import numpy as np
 import torch
 from ray.actor import ActorHandle
@@ -85,8 +85,8 @@ class ActionFunctionTorchPolicy(PPOTorchPolicy):
 
     def __init__(
         self,
-        observation_space: gymnasium.Space,
-        action_space: gymnasium.Space,
+        observation_space: gym.Space,
+        action_space: gym.Space,
         config: AlgorithmConfigDict,
     ):
         # self.sub_modelaldkfj = config["model"]["custom_model_config"]["model"]
@@ -137,8 +137,8 @@ class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
     A custom policy class that extends the PPOTorchPolicy class and implements a value-only function policy.
 
     Args:
-        observation_space (gymnasium.Space): The observation space of the environment.
-        action_space (gymnasium.Space): The action space of the environment.
+        observation_space (gym.Space): The observation space of the environment.
+        action_space (gym.Space): The action space of the environment.
         config (AlgorithmConfigDict): The configuration dictionary for the algorithm.
 
     Attributes:
@@ -147,8 +147,8 @@ class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
 
     def __init__(
         self,
-        observation_space: gymnasium.Space,
-        action_space: gymnasium.Space,
+        observation_space: gym.Space,
+        action_space: gym.Space,
         config: AlgorithmConfigDict,
     ):
         # self.sub_modelaldkf = config["model"]["custom_model_config"]["model"]
@@ -199,8 +199,8 @@ class CustomFCN(FullyConnectedNetwork):
 
     def __init__(
         self,
-        obs_space: gymnasium.spaces.Space,
-        action_space: gymnasium.spaces.Space,
+        obs_space: gym.spaces.Space,
+        action_space: gym.spaces.Space,
         num_outputs: int,
         model_config: ModelConfigDict,
         name: str,
@@ -258,8 +258,8 @@ class ValueOnlyModel(FullyConnectedNetwork):
 
     def __init__(
         self,
-        obs_space: gymnasium.spaces.Space,
-        action_space: gymnasium.spaces.Space,
+        obs_space: gym.spaces.Space,
+        action_space: gym.spaces.Space,
         num_outputs: int,
         model_config: ModelConfigDict,
         name: str,
@@ -339,8 +339,8 @@ class CapaPolicy(Policy):
 
     def __init__(
         self,
-        observation_space: gymnasium.Space,
-        action_space: gymnasium.Space,
+        observation_space: gym.Space,
+        action_space: gym.Space,
         config: AlgorithmConfigDict,
     ):
         env_config = config["model"]["custom_model_config"]["environment"]["env_config"]
@@ -512,8 +512,8 @@ class DoNothingPolicy(Policy):
 
     def __init__(
         self,
-        observation_space: gymnasium.Space,
-        action_space: gymnasium.Space,
+        observation_space: gym.Space,
+        action_space: gym.Space,
         config: AlgorithmConfigDict,
     ):
         Policy.__init__(
@@ -591,8 +591,8 @@ class SelectAgentPolicy(Policy):
 
     def __init__(
         self,
-        observation_space: gymnasium.Space,
-        action_space: gymnasium.Space,
+        observation_space: gym.Space,
+        action_space: gym.Space,
         config: AlgorithmConfigDict,
     ):
         Policy.__init__(
@@ -681,8 +681,8 @@ class RandomPolicy(Policy):
 
     def __init__(
         self,
-        observation_space: gymnasium.Space,
-        action_space: gymnasium.Space,
+        observation_space: gym.Space,
+        action_space: gym.Space,
         config: AlgorithmConfigDict,
     ):
         Policy.__init__(
@@ -770,8 +770,8 @@ class ArgMaxPolicy(Policy):
 
     def __init__(
         self,
-        observation_space: gymnasium.Space,
-        action_space: gymnasium.Space,
+        observation_space: gym.Space,
+        action_space: gym.Space,
         config: AlgorithmConfigDict,
     ):
         Policy.__init__(
@@ -801,6 +801,98 @@ class ArgMaxPolicy(Policy):
             proposed_confidences = obs_batch[0]["proposed_confidences"]
 
         sub_id = np.argmax(proposed_confidences)
+        return [sub_id], [], {}
+
+    def get_weights(self) -> ModelWeights:
+        """No weights to save."""
+        return {}
+
+    def set_weights(self, weights: ModelWeights) -> None:
+        """No weights to set."""
+
+    def apply_gradients(self, gradients: ModelGradients) -> None:
+        """No gradients to apply."""
+        raise NotImplementedError
+
+    def compute_gradients(
+        self, postprocessed_batch: SampleBatch
+    ) -> Tuple[ModelGradients, Dict[str, TensorType]]:
+        """No gradient to compute."""
+        return [], {}
+
+    def loss(
+        self, model: ModelV2, dist_class: ActionDistribution, train_batch: SampleBatch
+    ) -> Union[TensorType, List[TensorType]]:
+        """No loss function"""
+        raise NotImplementedError
+
+    def learn_on_batch(self, samples: SampleBatch) -> Dict[str, TensorType]:
+        """Not implemented."""
+        raise NotImplementedError
+
+    def learn_on_batch_from_replay_buffer(
+        self, replay_actor: ActorHandle, policy_id: PolicyID
+    ) -> Dict[str, TensorType]:
+        """Not implemented."""
+        raise NotImplementedError
+
+    def load_batch_into_buffer(self, batch: SampleBatch, buffer_index: int = 0) -> int:
+        """Not implemented."""
+        raise NotImplementedError
+
+    def get_num_samples_loaded_into_buffer(self, buffer_index: int = 0) -> int:
+        """Not implemented."""
+        raise NotImplementedError
+
+    def learn_on_loaded_batch(self, offset: int = 0, buffer_index: int = 0) -> None:
+        """Not implemented."""
+        raise NotImplementedError
+
+
+class SampleValuePolicy(Policy):
+    """
+    Policy that chooses a random substation.
+    """
+
+    def __init__(
+        self,
+        observation_space: gym.Space,
+        action_space: gym.Space,
+        config: AlgorithmConfigDict,
+    ):
+        Policy.__init__(
+            self,
+            observation_space=observation_space,
+            action_space=action_space,
+            config=config,
+        )
+
+    def compute_actions(
+        self,
+        obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
+        state_batches: Optional[List[TensorType]] = None,
+        prev_action_batch: Union[List[TensorStructType], TensorStructType] = None,
+        prev_reward_batch: Union[List[TensorStructType], TensorStructType] = None,
+        info_batch: Optional[Dict[str, List[Any]]] = None,
+        episodes: Optional[List[str]] = None,
+        explore: Optional[bool] = None,
+        timestep: Optional[int] = None,
+        **kwargs: Dict[str, Any],
+    ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+        """Computes actions for the current policy."""
+        # find the index with the highest value in proposed_confidences
+        if isinstance(obs_batch, dict):
+            proposed_confidences = obs_batch["proposed_confidences"]
+        else:
+            proposed_confidences = obs_batch[0]["proposed_confidences"]
+
+        # take the sub_id based on a uniform sample of proposed_confidences
+        sub_id = random.choices(
+            list(proposed_confidences.keys()),
+            weights=list(proposed_confidences.values()),
+            k=1,
+        )[0]
+
         return [sub_id], [], {}
 
     def get_weights(self) -> ModelWeights:

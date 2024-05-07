@@ -6,7 +6,7 @@ import os
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Tuple, TypeVar, Union
 
-import gymnasium
+import gymnasium as gym
 import numpy as np
 from grid2op.Action import BaseAction
 from grid2op.Chronics import Multifolder
@@ -72,7 +72,7 @@ class ReconnectingGymEnv(GymEnv):
 
         to_reco = ~g2op_obs.line_status
         self.reconnect_line = []
-        if np.any(to_reco):
+        if np.any(to_reco):  # TODO: Check if there's a difference between info and obs
             reco_id = np.where(to_reco)[0]
             for line_id in reco_id:
                 g2op_act = self.init_env.action_space(
@@ -136,9 +136,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.env_gym.action_space = CustomDiscreteActions(self.converter)
 
         # specific to rllib
-        self.action_space = gymnasium.spaces.Discrete(
-            len(self.possible_substation_actions)
-        )
+        self.action_space = gym.spaces.Discrete(len(self.possible_substation_actions))
 
         # customize observation space
         self.env_gym.observation_space = self.env_gym.observation_space.keep_only_attr(
@@ -151,7 +149,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         )
 
         # specific to rllib
-        self.observation_space = gymnasium.spaces.Dict(
+        self.observation_space = gym.spaces.Dict(
             dict(self.env_gym.observation_space.spaces.items())
         )
 
@@ -718,7 +716,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         if action == 0:  # do something
             # add an observation key for all agents in self.rl_agent_ids
             for agent_id in self.rl_agent_ids:
-                # observations[agent_id] = gymnasium.spaces.Dict(self.previous_obs) # NOTE For the vf only?
+                # observations[agent_id] = gym.spaces.Dict(self.previous_obs) # NOTE For the vf only?
                 observations[agent_id] = self.previous_obs
 
             # also add do nothing agent
@@ -952,7 +950,7 @@ register_env(
 )
 
 
-# class SingleAgentGrid2OpEnvironment(gymnasium.Env):
+# class SingleAgentGrid2OpEnvironment(gym.Env):
 #     """Encapsulate Grid2Op environment and set action/observation space."""
 
 #     def __init__(self, env_config: dict[str, Any]):
@@ -983,7 +981,7 @@ register_env(
 #         self.env_gym.action_space = CustomDiscreteActions(converter)
 
 #         # specific to rllib
-#         self.action_space = gymnasium.spaces.Discrete(
+#         self.action_space = gym.spaces.Discrete(
 #             len(self.possible_substation_actions)
 #         )
 
@@ -998,7 +996,7 @@ register_env(
 #         )
 
 #         # specific to rllib
-#         self.observation_space = gymnasium.spaces.Dict(
+#         self.observation_space = gym.spaces.Dict(
 #             dict(self.env_gym.observation_space.spaces.items())
 #         )
 

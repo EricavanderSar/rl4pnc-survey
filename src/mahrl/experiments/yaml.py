@@ -4,7 +4,6 @@ Implements yaml config loading.
 
 from typing import Any, Callable, Union
 
-import random
 import yaml
 from grid2op.Action import BaseAction, PowerlineSetAction
 from grid2op.Opponent import (
@@ -20,6 +19,7 @@ from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.evaluation.episode_v2 import EpisodeV2
 from ray.rllib.evaluation.rollout_worker import RolloutWorker
 from ray.rllib.policy.policy import PolicySpec
+from ray.tune.search.sample import Integer, randint
 from yaml.loader import FullLoader, Loader, UnsafeLoader
 from yaml.nodes import MappingNode, ScalarNode
 
@@ -218,7 +218,7 @@ def tune_choice_constructor(
 
 def randint_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
-) -> int:
+) -> Integer:
     """
     Constructor for randint
     """
@@ -226,7 +226,7 @@ def randint_constructor(
     for scalar_node in node.value:
         val = float_to_integer(float(scalar_node.value))
         vals.append(val)
-    return random.randint(vals[0], vals[1])
+    return randint(vals[0], vals[1])
 
 
 def powerline_action_constructor(

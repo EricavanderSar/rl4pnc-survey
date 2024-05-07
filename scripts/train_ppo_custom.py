@@ -5,7 +5,7 @@ Trains PPO baseline agent.
 import argparse
 import logging
 
-import gymnasium
+import gymnasium as gym
 import numpy as np
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
@@ -36,8 +36,8 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy,
-            observation_space=gymnasium.spaces.Box(-np.inf, np.inf),  # only the max rho
-            action_space=gymnasium.spaces.Discrete(2),  # choose one of agents
+            observation_space=gym.spaces.Box(-np.inf, np.inf),  # only the max rho
+            action_space=gym.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -62,8 +62,8 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,
-            observation_space=gymnasium.spaces.Discrete(1),  # no observation space
-            action_space=gymnasium.spaces.Discrete(1),  # only perform do-nothing
+            observation_space=gym.spaces.Discrete(1),  # no observation space
+            action_space=gym.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
