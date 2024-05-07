@@ -34,11 +34,10 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, 
             for row in env.observation_space.get_obj_substations(substation_id=sub)
             if row[1] != -1 or row[2] != -1
         )
-
         alpha = 2 ** (nr_elements - 1) - (2**nr_non_lines - 1)
         action_space += alpha if alpha > 1 else 0
-        # if alpha > 1:  # without do nothings for single substations
-        if alpha > 0:
+        if alpha > 1:  # without do nothings for single substations
+            # if alpha > 0:
             controllable_substations[sub] = alpha
         possible_topologies *= max(alpha, 1)
 
@@ -70,8 +69,8 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, dict[int, int]
         gamma = 2**nr_non_lines - 1 - nr_non_lines
         combined = alpha - beta - gamma
         action_space += combined if combined > 1 else 0
-        # if combined > 1:  # without do nothings for single substations
-        if combined > 0:
+        if combined > 1:  # without do nothings for single substations
+            # if combined > 0:
             controllable_substations[sub] = combined
         possible_topologies *= max(combined, 1)
 

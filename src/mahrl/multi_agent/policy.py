@@ -94,10 +94,6 @@ class ActionFunctionTorchPolicy(PPOTorchPolicy):
         self.model = config["model"]["custom_model_config"]["model"]
         super().__init__(observation_space, action_space, config)
 
-        # print(f"Action proposed model: {self.model}")
-
-        # print(f"Action my model: {self.model}")
-
         assert isinstance(self.model, ModelV2)
 
     def make_model(self) -> ModelV2:
@@ -125,7 +121,6 @@ class ActionFunctionTorchPolicy(PPOTorchPolicy):
         Returns:
             Tuple: A tuple containing the logits, state outputs, and extra fetches.
         """
-        # print(f"Model in actionpolicy: {id(self.model)}")
         logits, state_out, extra_fetches = super()._compute_action_helper(
             input_dict, state_batches, seq_lens, explore, timestep
         )
@@ -151,22 +146,13 @@ class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
         action_space: gym.Space,
         config: AlgorithmConfigDict,
     ):
-        # self.sub_modelaldkf = config["model"]["custom_model_config"]["model"]
-
         self.model = config["model"]["custom_model_config"]["model"]
         super().__init__(observation_space, action_space, config)
-
-        # print(f"Value proposed model: {self.model}")
-
-        # print(f"Value my model: {self.model}")
 
         assert isinstance(self.model, ModelV2)
 
     def make_model(self) -> ModelV2:
         """Creates a new model for this policy."""
-        # _, logit_dim = ModelCatalog.get_action_dist(
-        #     self.sub_model.action_space, self.sub_model.config["model"], framework=self.framework
-        # )
         return ValueOnlyModel(
             obs_space=self.observation_space,
             action_space=self.action_space,
@@ -175,21 +161,6 @@ class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
             name="CustomModelV2",
             _sub_model=self.model,
         )
-
-    def _compute_action_helper(
-        self,
-        input_dict: Union[SampleBatch, ModelInputDict],
-        state_batches: List[TensorType],
-        seq_lens: List[int],
-        explore: bool,
-        timestep: int,
-    ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-        print(f"Model in valuepolicy: {id(self.model)}")
-        logits, state_out, extra_fetches = super()._compute_action_helper(
-            input_dict, state_batches, seq_lens, explore, timestep
-        )
-        print(f"Value logits (from _compute_action_helper): {logits}")
-        return logits, state_out, extra_fetches
 
 
 class CustomFCN(FullyConnectedNetwork):
@@ -232,11 +203,19 @@ class CustomFCN(FullyConnectedNetwork):
         """
         outputs, state_out = super().__call__(input_dict, state, seq_lens)
 
-        print(
-            f"Value in Action Agent (from __call__): {self.value_function().cpu().detach()}"
-        )
-
         return outputs, state_out
+
+    def __deepcopy__(self, memo: Optional[Dict[int, Any]] = None) -> Any:
+        """
+        Overwrite deepcopy so that it returns the same actual object to both policies.
+
+        Args:
+            memo (Optional[Dict[int, Any]], optional): The memo dictionary. Defaults to None.
+
+        Returns:
+            Any: The copied object.
+        """
+        return self
 
     def import_from_h5(self, h5_file: str) -> None:
         """
@@ -297,10 +276,6 @@ class ValueOnlyModel(FullyConnectedNetwork):
 
         outputs[:, -2:-1] = self._values.reshape(-1, 1)
         outputs[:, -1:] = -1e2
-
-        print(f"Value in Value Agent (from __call__): {self._values[:, None]}")
-
-        # TODO detach the states
 
         return outputs, state_out
 

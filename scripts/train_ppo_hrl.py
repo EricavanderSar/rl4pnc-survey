@@ -272,6 +272,31 @@ def select_low_level_policy(
     return policies
 
 
+def split_hub_into_agents(agent_per_substation: dict[int, int]) -> dict[int, int]:
+    """
+    Splits the hub into agents.
+
+    Args:
+        agent_per_substation (dict[int, int]): A dictionary mapping substation indices to the number of actions.
+
+    Returns:
+        dict[int, int]: The updated dictionary mapping substation indices to the number of actions.
+    """
+    extra_agents = 0
+    # enumerate over dict to find the hub agent (over 1000 possible configurations)
+    for sub_idx, num_actions in agent_per_substation.items():
+        if num_actions > 1000:
+            extra_agents += 1
+        else:
+            # replace sub_idx with sub_idx + extra_agents
+            agent_per_substation[sub_idx + extra_agents] = num_actions
+            # delete original sub_idx
+            del agent_per_substation[sub_idx]
+            agent_per_substation[sub_idx] = num_actions
+    # TODO implement for 36-bus
+    return agent_per_substation
+
+
 def setup_config(
     config_path: str, middle_agent_type: str, lower_agent_type: str
 ) -> None:
@@ -305,6 +330,8 @@ def setup_config(
         setup_env,
         custom_config["environment"]["env_config"]["action_space"],
     )
+
+    agent_per_substation = split_hub_into_agents(agent_per_substation)
 
     list_of_substations = list(agent_per_substation.keys())
 

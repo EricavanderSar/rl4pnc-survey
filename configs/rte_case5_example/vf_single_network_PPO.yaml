@@ -72,7 +72,7 @@ env_config_val: &env_config_val
   stage: val
 
 evaluation:
-  evaluation_interval: 2
+  evaluation_interval: 5
   evaluation_duration: 20 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   evaluation_config: 

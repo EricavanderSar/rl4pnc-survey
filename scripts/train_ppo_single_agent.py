@@ -9,7 +9,7 @@ from ray.rllib.algorithms import ppo  # import the type of agents
 
 from mahrl.experiments.utils import run_training
 from mahrl.experiments.yaml import load_config
-from mahrl.grid2op_env.custom_environment import SingleAgentGrid2OpEnvironment
+from mahrl.grid2op_env.single_agent_environment import SingleAgentGrid2OpEnvironment
 
 
 def setup_config(config_path: str, checkpoint_path: str | None) -> None:
