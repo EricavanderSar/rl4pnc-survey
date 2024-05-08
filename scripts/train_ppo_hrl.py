@@ -37,7 +37,7 @@ from mahrl.multi_agent.policy import (
 
 def setup_gym_spaces(
     agent_per_substation: dict[int, int], env_info: dict[str, int]
-) -> tuple[gym.spaces.Dict, gym.spaces.Dict, gym.spaces.Dict]:
+) -> tuple[gym.spaces.Dict, gym.spaces.Dict, gym.spaces.Dict, gym.spaces.Dict]:
     """
     Set up the gym spaces for the RL environment.
 
@@ -84,6 +84,20 @@ def setup_gym_spaces(
         }
     )
 
+    num_all_actions = (
+        int(sum(agent_per_substation.values())) + 1
+    )  # including do-nothing
+
+    capa_gym_proposed_actions = gym.spaces.Dict(
+        {
+            **{
+                str(i): gym.spaces.Discrete(num_all_actions)
+                for i in list(agent_per_substation.keys())
+            },
+            "-1": gym.spaces.Discrete(1),
+        }
+    )
+
     gym_proposed_confidences = gym.spaces.Dict(
         {
             str(i): gym.spaces.Box(-np.inf, np.inf, tuple(), np.float32)
@@ -91,7 +105,12 @@ def setup_gym_spaces(
         }
     )
 
-    return gym_previous_obs, gym_proposed_actions, gym_proposed_confidences
+    return (
+        gym_previous_obs,
+        gym_proposed_actions,
+        capa_gym_proposed_actions,
+        gym_proposed_confidences,
+    )
 
 
 def select_mid_level_policy(
@@ -119,9 +138,12 @@ def select_mid_level_policy(
         ValueError: If the middle_agent_type is not recognized.
 
     """
-    gym_previous_obs, gym_proposed_actions, gym_proposed_confidences = setup_gym_spaces(
-        agent_per_substation, env_info
-    )
+    (
+        gym_previous_obs,
+        gym_proposed_actions,
+        capa_gym_proposed_actions,
+        gym_proposed_confidences,
+    ) = setup_gym_spaces(agent_per_substation, env_info)
 
     if middle_agent_type in ("capa"):
         custom_config["environment"]["env_config"]["capa"] = True
@@ -129,7 +151,7 @@ def select_mid_level_policy(
             {
                 "previous_obs": gym_previous_obs,
                 "reset_capa_idx": gym.spaces.Discrete(2),
-                "proposed_actions": gym_proposed_actions,
+                "proposed_actions": capa_gym_proposed_actions,
             }
         )
     elif middle_agent_type in ("random", "rl"):

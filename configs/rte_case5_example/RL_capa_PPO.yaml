@@ -8,10 +8,10 @@ setup:
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
   experiment_name: rte_case5_example/RL_capa
   save_artifact: True
-  num_samples: 1
+  num_samples: 20
 
 debugging:
-  seed: &seed 14
+  seed: &seed !randint [0, 100000]
 
 training:
   # tunable parameters
@@ -59,7 +59,6 @@ environment:
     grid2op_kwargs:
       # general kwargs
       reward_class: !ScaledL2RPNReward
-    seed: *seed
     rho_threshold: 0.95
     stage: train
     prio: True
