@@ -1,6 +1,7 @@
 """
 Utils for evaluation of agents.
 """
+
 import os
 from typing import Any
 
@@ -17,7 +18,6 @@ def load_episodes(path: str) -> list[EpisodeData]:
 
     all_episodes = []
     for full_path, episode_studied in li_episode:
-        print(f"Loading episode {episode_studied}")
         this_episode = EpisodeData.from_disk(full_path, episode_studied)
         all_episodes.append(this_episode)
 

@@ -4,20 +4,25 @@ Utilities in the grid2op experiments.
 
 import logging
 import os
+import random
 from typing import Any, Dict, List, OrderedDict, Union
 
 import numpy as np
 import ray
+import torch
 from grid2op.Environment import BaseEnv
 from ray import air, tune
 from ray.air.integrations.mlflow import MLflowLoggerCallback
 from ray.rllib.algorithms import Algorithm
-from ray.rllib.models import ModelCatalog
+from ray.tune.schedulers.hb_bohb import HyperBandForBOHB
+from ray.tune.search import ConcurrencyLimiter
+from ray.tune.search.bayesopt import BayesOptSearch
+from ray.tune.search.bohb import TuneBOHB
 
-from mahrl.models.mlp import SimpleMlp
 
-
-def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
+def calculate_action_space_asymmetry(
+    env: BaseEnv, add_dn: bool = False
+) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies without symmetries.
     """
@@ -39,7 +44,7 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, 
         alpha = 2 ** (nr_elements - 1) - (2**nr_non_lines - 1)
         action_space += alpha if alpha > 1 else 0
         # if alpha > 1:  # without do nothings for single substations
-        if alpha > 0:
+        if (add_dn and alpha > 0) or (alpha > 1):
             controllable_substations[sub] = alpha
         possible_topologies *= max(alpha, 1)
 
@@ -49,7 +54,9 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, 
     return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
+def calculate_action_space_medha(
+    env: BaseEnv, add_dn: bool = False
+) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies following Subrahamian (2021).
     """
@@ -71,18 +78,16 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, dict[int, int]
         gamma = 2**nr_non_lines - 1 - nr_non_lines
         combined = alpha - beta - gamma
         action_space += combined if combined > 1 else 0
-        # if combined > 1:  # without do nothings for single substations
-        if combined > 0:
+        if (add_dn and combined > 0) or (combined > 1):
             controllable_substations[sub] = combined
         possible_topologies *= max(combined, 1)
 
-    logging.info(f"actions {action_space}")
-    logging.info(f"topologies {possible_topologies}")
-    logging.info(f"controllable substations {controllable_substations}")
     return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
+def calculate_action_space_tennet(
+    env: BaseEnv, add_dn: bool = False
+) -> tuple[int, int, dict[int, int]]:
     """
     Function prints and returns the number of legal actions and topologies following the proposed action space.
     """
@@ -123,14 +128,10 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, dict[int, int
         ) / 2  # remove symmetries
 
         action_space += int(combined) if combined > 1 else 0
-        if combined > 1:  # without do nothings for single substations
-            # if combined > 0:
+        if (add_dn and combined > 0) or (combined > 1):
             controllable_substations[sub] = combined
         possible_topologies *= max(combined, 1)
 
-    logging.info(f"actions {action_space}")
-    logging.info(f"topologies {possible_topologies}")
-    logging.info(f"controllable substations {controllable_substations}")
     return action_space, possible_topologies, controllable_substations
 
 
@@ -170,10 +171,6 @@ def get_capa_substation_id(
     connected_rhos = dict(
         sorted(connected_rhos.items(), key=lambda item: item[1], reverse=True)
     )
-
-    # # find substation with max average rho
-    # max_value = max(connected_rhos.values())
-    # return [key for key, value in connected_rhos.items() if value == max_value][0]
 
     # return the ordered entries
     # NOTE: When there are two equal max values, the first one is returned first
@@ -223,36 +220,16 @@ def run_training(
     Function that runs the training script.
     """
     # init ray
-    # ray.shutdown()
     ray.init(ignore_reinit_error=False)
 
-    ModelCatalog.register_custom_model("fcn", SimpleMlp)
+    if "debugging" in config and "seed" in config["debugging"]:
+        set_reproducibillity(config["debugging"]["seed"])
 
-    # Create tuner
-    tuner = tune.Tuner(
-        algorithm,
-        param_space=config,
-        tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
-        run_config=air.RunConfig(
-            name="mlflow",
-            callbacks=[
-                MLflowLoggerCallback(
-                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
-                    experiment_name=setup["experiment_name"],
-                    save_artifact=setup["save_artifact"],
-                )
-            ],
-            stop={"timesteps_total": setup["nb_timesteps"]},
-            storage_path=os.path.abspath(setup["storage_path"]),
-            checkpoint_config=air.CheckpointConfig(
-                checkpoint_frequency=setup["checkpoint_freq"],
-                checkpoint_at_end=setup["checkpoint_at_end"],
-                checkpoint_score_attribute=setup["checkpoint_score_attr"],
-                num_to_keep=setup["keep_checkpoints_num"],
-            ),
-            verbose=setup["verbose"],
-        ),
-    )
+        # set seed in env
+        config["env_config"]["seed"] = config["debugging"]["seed"]
+        config["evaluation_config"]["env_config"]["seed"] = config["debugging"]["seed"]
+
+    tuner = get_gridsearch_tuner(setup, config, algorithm)
 
     # Launch tuning
     try:
@@ -273,3 +250,169 @@ def run_training(
         encoding="utf-8",
     ) as config_file:
         config_file.write(str(config))
+
+
+def get_gridsearch_tuner(
+    setup: dict[str, Any], config: dict[str, Any], algorithm: Algorithm
+) -> tune.Tuner:
+    """
+    Returns a GridSearch tuner for hyperparameter optimization.
+
+    Args:
+        setup (dict): A dictionary containing setup parameters.
+        config (dict): A dictionary containing hyperparameter configurations.
+        algorithm (Algorithm): The algorithm to be tuned.
+
+    Returns:
+        tune.Tuner: A GridSearch tuner object.
+
+    """
+    tuner = tune.Tuner(
+        algorithm,
+        param_space=config,
+        tune_config=tune.TuneConfig(
+            num_samples=setup["num_samples"],
+        ),
+        run_config=air.RunConfig(
+            name="mlflow",
+            callbacks=[
+                MLflowLoggerCallback(
+                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+                    experiment_name=setup["experiment_name"],
+                    save_artifact=setup["save_artifact"],
+                )
+            ],
+            stop={"timesteps_total": setup["nb_timesteps"]},
+            storage_path=os.path.abspath(setup["storage_path"]),
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=setup["checkpoint_freq"],
+                checkpoint_at_end=setup["checkpoint_at_end"],
+                checkpoint_score_attribute=setup["checkpoint_score_attr"],
+                num_to_keep=setup["keep_checkpoints_num"],
+            ),
+            verbose=setup["verbose"],
+        ),
+    )
+    return tuner
+
+
+def get_bohb_tuner(
+    setup: dict[str, Any], config: dict[str, Any], algorithm: Algorithm
+) -> tune.Tuner:
+    """
+    Returns a BOHB tuner for hyperparameter optimization.
+
+    Args:
+        setup (dict): A dictionary containing setup parameters.
+        config (dict): A dictionary containing hyperparameter configurations.
+        algorithm (Algorithm): The algorithm to be tuned.
+
+    Returns:
+        tune.Tuner: The BOHB tuner.
+
+    """
+    # Create tuner
+    algo = TuneBOHB()
+    algo = ray.tune.search.ConcurrencyLimiter(algo, max_concurrent=4)
+    scheduler = HyperBandForBOHB(
+        time_attr="training_iteration",
+        max_t=10,
+        reduction_factor=4,
+        stop_last_trials=False,
+    )
+
+    tuner = tune.Tuner(
+        algorithm,
+        param_space=config,
+        tune_config=tune.TuneConfig(
+            metric="custom_metrics/corrected_ep_len_mean",
+            mode="max",
+            search_alg=algo,
+            scheduler=scheduler,
+            num_samples=10,
+        ),
+        run_config=air.RunConfig(
+            name="mlflow",
+            callbacks=[
+                MLflowLoggerCallback(
+                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+                    experiment_name=setup["experiment_name"],
+                    save_artifact=setup["save_artifact"],
+                )
+            ],
+            stop={"timesteps_total": setup["nb_timesteps"]},
+            storage_path=os.path.abspath(setup["storage_path"]),
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=setup["checkpoint_freq"],
+                checkpoint_at_end=setup["checkpoint_at_end"],
+                checkpoint_score_attribute=setup["checkpoint_score_attr"],
+                num_to_keep=setup["keep_checkpoints_num"],
+            ),
+            verbose=setup["verbose"],
+        ),
+    )
+    return tuner
+
+
+def get_bayesian_tuner(
+    setup: dict[str, Any], config: dict[str, Any], algorithm: Algorithm
+) -> tune.Tuner:
+    """
+    Returns a Bayesian tuner for hyperparameter optimization.
+
+    Args:
+        setup (dict): A dictionary containing setup parameters.
+        config (dict): A dictionary containing hyperparameter configurations.
+        algorithm (Algorithm): The algorithm to be used for tuning.
+
+    Returns:
+        tune.Tuner: A Bayesian tuner for hyperparameter optimization.
+    """
+    tuner = tune.Tuner(
+        algorithm,
+        param_space=config,
+        tune_config=tune.TuneConfig(
+            metric="evaluation/episode_reward_mean",
+            mode="max",
+            search_alg=ConcurrencyLimiter(
+                BayesOptSearch(utility_kwargs={"kind": "ucb", "kappa": 2.5, "xi": 0.0}),
+                max_concurrent=4,
+            ),
+            num_samples=14,
+        ),
+        run_config=air.RunConfig(
+            name="mlflow",
+            callbacks=[
+                MLflowLoggerCallback(
+                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+                    experiment_name=setup["experiment_name"],
+                    save_artifact=setup["save_artifact"],
+                )
+            ],
+            stop={"timesteps_total": setup["nb_timesteps"]},
+            storage_path=os.path.abspath(setup["storage_path"]),
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=setup["checkpoint_freq"],
+                checkpoint_at_end=setup["checkpoint_at_end"],
+                checkpoint_score_attribute=setup["checkpoint_score_attr"],
+                num_to_keep=setup["keep_checkpoints_num"],
+            ),
+            verbose=setup["verbose"],
+        ),
+    )
+    return tuner
+
+
+def set_reproducibillity(seed: int) -> None:
+    """
+    Set the random seed for reproducibility.
+
+    Parameters:
+        seed (int): The seed value to set for random number generators.
+
+    Returns:
+        None
+    """
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)

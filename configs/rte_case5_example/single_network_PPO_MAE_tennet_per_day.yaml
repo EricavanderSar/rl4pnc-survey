@@ -5,7 +5,7 @@ setup:
   keep_checkpoints_num: 5
   checkpoint_score_attr: evaluation/episode_reward_mean
   verbose: 1
-  storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
+  storage_path: /home/daddabarba/Downloads/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
   experiment_name: rte_case5_example/single_network
   save_artifact: True
   num_samples: 1
@@ -54,7 +54,7 @@ environment:
     num_agents: 3
     shuffle_scenarios: True
     action_space: tennet
-    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 
+    lib_dir: /home/daddabarba/Repos/mahrl_grid2op # /home3/s3374610/mahrl_grid2op/ 
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
       # general kwargs

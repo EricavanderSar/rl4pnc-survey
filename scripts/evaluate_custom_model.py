@@ -25,7 +25,7 @@ from mahrl.evaluation.evaluation_agents import (
 )
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.grid2op_env.utils import load_actions
+from mahrl.grid2op_env.utils import get_original_env_name, load_actions
 
 
 def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
@@ -374,9 +374,12 @@ if __name__ == "__main__":
             # load config file
             environment_config = load_config(args.config)["environment"]["env_config"]
             # change the env_name from _train to _test
-            environment_config["env_name"] = environment_config["env_name"].replace(
-                "_train", "_test"
+            environment_config["env_name"] = get_original_env_name(
+                environment_config["env_name"]
             )
+            # environment_config["env_name"] = environment_config["env_name"].replace(
+            #     "_train", "_test"
+            # )
             init_setup_env = grid2op.make(environment_config["env_name"])
 
             # start runners
