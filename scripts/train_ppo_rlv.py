@@ -6,7 +6,7 @@ import argparse
 import logging
 
 import grid2op
-import gymnasium
+import gymnasium as gym
 import numpy as np
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
@@ -49,22 +49,31 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     #     "dim_topo": setup_env.dim_topo,
     # }
 
-    obs2 = gymnasium.spaces.Box(-1.0, 1.0, (58,), np.float32)
-
     # Make model to be shared by both value and action rl agent
+    # medha DN 14-bus # TODO: Check if obs2 is correct?
+    obs2 = gym.spaces.Box(-1.0, 1.0, (152,), np.float32)
     shared_model = CustomFCN(
         obs_space=obs2,
-        action_space=gymnasium.spaces.Discrete(24),
-        num_outputs=24,
+        action_space=gym.spaces.Discrete(112),
+        num_outputs=112,
         model_config=custom_config,
         name="shared_model",
     )
+    # tennet 5-bus
+    # obs2 = gym.spaces.Box(-1.0, 1.0, (58,), np.float32)
+    # shared_model = CustomFCN(
+    #     obs_space=obs2,
+    #     action_space=gym.spaces.Discrete(24),
+    #     num_outputs=24,
+    #     model_config=custom_config,
+    #     name="shared_model",
+    # )
 
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy,
-            observation_space=gymnasium.spaces.Box(-np.inf, np.inf),  # only the max rho
-            action_space=gymnasium.spaces.Discrete(2),  # choose one of agents
+            observation_space=gym.spaces.Box(-np.inf, np.inf),  # only the max rho
+            action_space=gym.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -87,7 +96,6 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
             action_space=None,  # infer automatically from env
             config={
                 "model": {
-                    # "custom_model": shared_model,
                     "custom_model_config": {"model": shared_model},
                 },
             },
@@ -95,18 +103,17 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
         "value_function_policy": PolicySpec(  # performs RL topology
             policy_class=OnlyValueFunctionTorchPolicy,  # use default policy of PPO
             observation_space=None,  # infer automatically from env
-            action_space=gymnasium.spaces.Box(-np.inf, np.inf, tuple(), np.float32),
+            action_space=gym.spaces.Box(-np.inf, np.inf, tuple(), np.float32),
             config={
                 "model": {
-                    # "custom_model": shared_model,
                     "custom_model_config": {"model": shared_model},
                 },
             },
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,
-            observation_space=gymnasium.spaces.Discrete(1),  # no observation space
-            action_space=gymnasium.spaces.Discrete(1),  # only perform do-nothing
+            observation_space=gym.spaces.Discrete(1),  # no observation space
+            action_space=gym.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)

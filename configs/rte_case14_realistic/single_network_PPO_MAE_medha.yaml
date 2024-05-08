@@ -8,10 +8,10 @@ setup:
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
   experiment_name: replicate_ppo_baseline
   save_artifact: True
-  num_samples: 1
+  num_samples: 2
 
 debugging:
-  seed: &seed 20
+  seed: &seed !randint [0, 100000]
 
 training:
   # tunable parameters
@@ -62,7 +62,7 @@ environment:
     grid2op_kwargs:
       # general kwargs
       reward_class: !ScaledL2RPNReward
-    seed: *seed
+    # seed: *seed
     rho_threshold: 0.95
     shuffle_scenarios: True
 

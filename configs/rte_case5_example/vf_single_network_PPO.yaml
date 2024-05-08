@@ -6,12 +6,12 @@ setup:
   checkpoint_score_attr: evaluation/episode_reward_mean
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
-  experiment_name: rte_case5_example/greedy_RL
+  experiment_name: rte_case5_example/single_network
   save_artifact: True
   num_samples: 1
 
-# debugging:
-#   seed: &seed 14
+debugging:
+  seed: &seed 14
 
 training:
   # tunable parameters
@@ -45,11 +45,12 @@ framework:
 
 multi_agent:
   policy_mapping_fn: !policy_mapping_fn
-  policies_to_train: ["reinforcement_learning_policy"]
+  policies_to_train: ["value_reinforcement_learning_policy"]
   count_steps_by: agent_steps
 
 environment:
   env_config: &env_config_train
+    vf_rl: True
     env_name: rte_case5_example_per_day_train
     num_agents: 3
     shuffle_scenarios: True
@@ -59,7 +60,7 @@ environment:
     grid2op_kwargs:
       # general kwargs
       reward_class: !ScaledL2RPNReward
-    # seed: *seed
+    seed: *seed
     rho_threshold: 0.95
     stage: train
     prio: True
@@ -71,7 +72,7 @@ env_config_val: &env_config_val
   stage: val
 
 evaluation:
-  evaluation_interval: 2
+  evaluation_interval: 5
   evaluation_duration: 20 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   evaluation_config: 

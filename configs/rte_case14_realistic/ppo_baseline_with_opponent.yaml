@@ -1,24 +1,31 @@
 setup:
-  nb_timesteps: &nb_timesteps 1000000
-  checkpoint_freq: 10000
+  nb_timesteps: &nb_timesteps 500000
+  checkpoint_freq: 50
+  checkpoint_at_end: True
+  keep_checkpoints_num: 5
+  checkpoint_score_attr: evaluation/episode_reward_mean
   verbose: 1
+  # storage_path: /home3/s3374610/mahrl_grid2op/runs/ # 
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
+  experiment_name: rte_case14_realistic/opponent_single_network
+  save_artifact: True
+  num_samples: 2
 
-debugging:
-  seed: &seed 14
+# debugging:
+#   seed: &seed !randint [0, 100000]
 
 training:
   # tunable parameters
-  gamma: 0.95 # !grid_search [0.95, 0.99]
-  lr: 0.003 # !grid_search [0.0005, 0.005, 0.05]
-  vf_loss_coeff: 0.5
+  lr: 0.0001 # !grid_search [0.0005, 0.005, 0.05]
   entropy_coeff: 0.01
-  clip_param: 0.2
-  lambda_: 0.95
-  sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
-  train_batch_size: 128
+  clip_param: 0.3
+  sgd_minibatch_size: 256 # !grid_search [32, 64, 128]
+  train_batch_size: 1024
+  num_sgd_iter: 15
+  kl_coeff: 0.2
   model:
     fcnet_hiddens: 
+    - 256
     - 256
     - 256
   _enable_learner_api: False
@@ -28,8 +35,7 @@ rl_module:
 
 explore:
   exploration_config:
-    type: EpsilonGreedy
-    explore: False
+    type: StochasticSampling
 
 callbacks:
   callbacks: !CustomMetricsCallback
@@ -40,17 +46,19 @@ framework:
 multi_agent:
   policy_mapping_fn: !policy_mapping_fn
   policies_to_train: ["reinforcement_learning_policy"]
+  count_steps_by: agent_steps
 
 environment:
-  env_config:
-    env_name: rte_case14_realistic
+  env_config: &env_config_train
+    shuffle_scenarios: True
+    env_name: rte_case14_realistic_train
     num_agents: 3
-    action_space: asymmetry
+    action_space: medha_DN_onechange
     lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
       # general kwargs
-      reward_class: !LossReward
+      reward_class: !ScaledL2RPNReward
       # kwargs specific to opponents
       opponent_attack_cooldown: 144 # max 2 attacks per day
       opponent_attack_duration: 48 # 4 hours in a day
@@ -67,5 +75,25 @@ environment:
           - '3_6_15'
           - '3_8_16'
           - '6_8_19'
-    seed: *seed
+    # seed: *seed
     rho_threshold: 0.95
+
+env_config_val: &env_config_val
+  <<: *env_config_train
+  env_name: rte_case14_realistic_val
+  shuffle_scenarios: False
+
+evaluation:
+  evaluation_interval: 2
+  evaluation_duration: 100 # as many as there are validation episodes
+  evaluation_duration_unit: episodes
+  evaluation_config: 
+    env_config: *env_config_val # use the validation environment
+    explore: True
+
+# resources:
+#   num_gpus: 0
+#   num_learner_workers: 6
+
+# rollouts:
+#   num_rollout_workers: 4

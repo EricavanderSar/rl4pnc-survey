@@ -5,17 +5,17 @@ setup:
   keep_checkpoints_num: 5
   checkpoint_score_attr: evaluation/episode_reward_mean
   verbose: 1
-  storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
+  storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
   experiment_name: replicate_ppo_baseline
   save_artifact: True
   num_samples: 2
 
-# debugging:
-#   seed: &seed 20
+debugging:
+  seed: &seed !randint [0, 100000]
 
 training:
   # tunable parameters
-  gamma: 0.99 # !grid_search [0.95, 0.99]
+  # gamma: 0.99 # !grid_search [0.95, 0.99]
   lr: 0.0001 # !grid_search [0.00005, 0.0005, 0.005]
   # vf_loss_coeff: 0.5
   kl_coeff: 0.2
@@ -49,41 +49,36 @@ framework:
 
 multi_agent:
   policy_mapping_fn: !policy_mapping_fn
-  policies_to_train: ["reinforcement_learning_policy"]
+  policies_to_train: ["value_reinforcement_learning_policy"]
   count_steps_by: agent_steps
 
 environment:
   env_config: &env_config_train
-    env_name: l2rpn_case14_sandbox_train
+    vf_rl: True
+    env_name: rte_case14_realistic_train
     num_agents: 3
-    action_space: medha
-    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ #  /home3/s3374610/mahrl_grid2op/ 
+    shuffle_scenarios: True
+    action_space: medha_DN_onechange
+    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
       # general kwargs
       reward_class: !ScaledL2RPNReward
-    # seed: *seed
+    seed: *seed
     rho_threshold: 0.95
-    shuffle_scenarios: True
-    in_evaluation: False
+    stage: train
+    prio: False
 
 env_config_val: &env_config_val
   <<: *env_config_train
-  env_name: l2rpn_case14_sandbox_val
+  env_name: rte_case14_realistic_val
   shuffle_scenarios: False
-  in_evaluation: True
+  stage: val
 
 evaluation:
-  evaluation_interval: 2
+  evaluation_interval: 10
   evaluation_duration: 100 # as many as there are validation episodes
   evaluation_duration_unit: episodes
   evaluation_config: 
     env_config: *env_config_val # use the validation environment
     explore: True
-
-# resources:
-#   num_gpus: 0
-#   num_learner_workers: 6
-
-# rollouts:
-#   num_rollout_workers: 4

@@ -19,6 +19,7 @@ from ray.rllib.algorithms.callbacks import DefaultCallbacks
 from ray.rllib.evaluation.episode_v2 import EpisodeV2
 from ray.rllib.evaluation.rollout_worker import RolloutWorker
 from ray.rllib.policy.policy import PolicySpec
+from ray.tune.search.sample import Integer, randint
 from yaml.loader import FullLoader, Loader, UnsafeLoader
 from yaml.nodes import MappingNode, ScalarNode
 
@@ -141,7 +142,7 @@ def tune_search_quniform_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> Any:
     """
-    Constructor for tune uniform float sampling
+    Constructor for tune quantified uniform float sampling
 
     """
     vals = []
@@ -149,6 +150,34 @@ def tune_search_quniform_constructor(
         val = float_to_integer(float(scalar_node.value))
         vals.append(val)
     return tune.quniform(vals[0], vals[1], vals[2])
+
+
+def tune_search_uniform_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> Any:
+    """
+    Constructor for tune uniform float sampling
+
+    """
+    vals = []
+    for scalar_node in node.value:
+        val = float_to_integer(float(scalar_node.value))
+        vals.append(val)
+    return tune.uniform(vals[0], vals[1])
+
+
+def tune_search_loguniform_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> Any:
+    """
+    Constructor for tune loguniform float sampling
+
+    """
+    vals = []
+    for scalar_node in node.value:
+        val = float_to_integer(float(scalar_node.value))
+        vals.append(val)
+    return tune.loguniform(vals[0], vals[1])
 
 
 def tune_search_grid_search_constructor(
@@ -185,6 +214,19 @@ def tune_choice_constructor(
             val = float_to_integer(float(scalar_node.value))
         vals.append(val)
     return tune.choice(vals)
+
+
+def randint_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> Integer:
+    """
+    Constructor for randint
+    """
+    vals = []
+    for scalar_node in node.value:
+        val = float_to_integer(float(scalar_node.value))
+        vals.append(val)
+    return randint(vals[0], vals[1])
 
 
 def powerline_action_constructor(
@@ -240,8 +282,11 @@ def add_constructors() -> None:
     yaml.FullLoader.add_constructor("!AlgorithmConfig", algorithm_config_constructor)
     yaml.FullLoader.add_constructor("!PolicySpec", policy_spec_constructor)
     yaml.FullLoader.add_constructor("!quniform", tune_search_quniform_constructor)
+    yaml.FullLoader.add_constructor("!uniform", tune_search_uniform_constructor)
+    yaml.FullLoader.add_constructor("!loguniform", tune_search_loguniform_constructor)
     yaml.FullLoader.add_constructor("!grid_search", tune_search_grid_search_constructor)
     yaml.FullLoader.add_constructor("!choice", tune_choice_constructor)
+    yaml.FullLoader.add_constructor("!randint", randint_constructor)
     yaml.FullLoader.add_constructor("!PowerlineSetAction", powerline_action_constructor)
     yaml.FullLoader.add_constructor(
         "!RandomLineOpponent", randomline_opponent_constructor
