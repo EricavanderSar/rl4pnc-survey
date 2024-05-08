@@ -327,6 +327,10 @@ class CapaPolicy(Policy):
         )
         self.possible_substation_actions = load_action_space(path, setup_env)
 
+        # add the do-nothing action at index 0
+        do_nothing_action = setup_env.action_space({})
+        self.possible_substation_actions.insert(0, do_nothing_action)
+
         self.converter = setup_converter(setup_env, self.possible_substation_actions)
 
         # get changeable substations
@@ -384,16 +388,16 @@ class CapaPolicy(Policy):
         **kwargs: Dict[str, Any],
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
         """Computes actions for the current policy."""
-        # setup counter
+        # setup counter (1st digit of state)
         idx = state_batches[0][0]
 
         # substation to act on is the remaining digits in the state
         substation_to_act_on = [sub[0] for sub in state_batches[1:]]
 
         # convert all gym to grid2op actions
-        for gym_action in obs_batch["proposed_actions"]:
-            obs_batch["proposed_actions"][gym_action] = self.converter.convert_act(
-                int(gym_action)
+        for sub, gym_action in obs_batch["proposed_actions"].items():
+            obs_batch["proposed_actions"][str(sub)] = self.converter.convert_act(
+                int(gym_action[0])
             )
 
         # if no list is created yet, do so
@@ -409,19 +413,18 @@ class CapaPolicy(Policy):
         # find an action that is not the do nothing action by looping over the substations
         chosen_action: dict[str, Any] = {}
         while (not chosen_action) and (idx < len(self.controllable_substations)):
-            action_index = idx % len(self.controllable_substations)
-
-            idx += 1
             chosen_action = obs_batch["proposed_actions"][
-                str(substation_to_act_on[action_index])
+                str(substation_to_act_on[idx % len(self.controllable_substations)])
             ]
 
             # if it's not the do nothing action, return action index (similar to NN)
             # if it's the do nothing action, continue the loop
             if chosen_action:
                 return (
-                    np.array([substation_to_act_on[action_index]]),
-                    [np.array([idx])]
+                    np.array(
+                        [substation_to_act_on[idx % len(self.controllable_substations)]]
+                    ),
+                    [np.array([idx + 1])]
                     + [np.array([sub]) for sub in substation_to_act_on],
                     {},
                 )

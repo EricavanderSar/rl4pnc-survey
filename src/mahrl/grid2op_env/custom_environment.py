@@ -16,10 +16,7 @@ from ray.rllib.env.multi_agent_env import MultiAgentEnv
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
-from mahrl.evaluation.evaluation_agents import (
-    create_greedy_agent_per_substation,
-    get_actions_per_substation,
-)
+from mahrl.evaluation.evaluation_agents import get_actions_per_substation
 from mahrl.experiments.utils import (
     calculate_action_space_asymmetry,
     calculate_action_space_medha,
@@ -34,8 +31,6 @@ from mahrl.grid2op_env.utils import (
     rescale_observation_space,
     setup_converter,
 )
-
-CHANGEABLE_SUBSTATIONS = [0, 2, 3]
 
 OBSTYPE = TypeVar("OBSTYPE")
 ACTTYPE = TypeVar("ACTTYPE")
@@ -351,10 +346,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 truncated,
                 info,
             ) = self.env_gym.step(action_dict["do_nothing_agent"])
-            if self.prio and self.stage == "train":
-                self.step_surv += 1
-                if terminated:
-                    self.chron_prios.update_prios(self.step_surv)
+
+            self.perform_prio_update(terminated)
 
             # reward the RL agent for this step, go back to HL agent
             if self.is_value_rl:
@@ -374,10 +367,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 truncated,
                 info,
             ) = self.env_gym.step(action_dict["reinforcement_learning_agent"])
-            if self.prio and self.stage == "train":
-                self.step_surv += 1
-                if terminated:
-                    self.chron_prios.update_prios(self.step_surv)
+
+            self.perform_prio_update(terminated)
 
             # reward the RL agent for this step, go back to HL agent
             rewards = {"reinforcement_learning_agent": reward}
@@ -387,7 +378,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             infos = {"__common__": info}
         elif "value_reinforcement_learning_agent" in action_dict.keys():
             # perform RL step in the env
-            # print(f"action dict inside of env:{action_dict}")
             (
                 self.previous_obs,
                 reward,
@@ -395,6 +385,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 truncated,
                 info,
             ) = self.env_gym.step(action_dict["value_reinforcement_learning_agent"])
+
+            self.perform_prio_update(terminated)
 
             # reward the RL agent for this step, go back to HL agent
             rewards = {"value_reinforcement_learning_agent": reward}
@@ -417,6 +409,21 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         Not implemented.
         """
         raise NotImplementedError
+
+    def perform_prio_update(self, terminated: bool) -> None:
+        """
+        Update the priority of the environment.
+
+        Args:
+            terminated (bool): Flag indicating whether the environment has terminated.
+
+        Returns:
+            None
+        """
+        if self.prio and self.stage == "train":
+            self.step_surv += 1
+            if terminated:
+                self.chron_prios.update_prios(self.step_surv)
 
     def perform_high_level_action(self, action_dict: dict[str, int]) -> dict[str, Any]:
         """
@@ -449,6 +456,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 "An invalid action is selected by the high_level_agent in step()."
             )
         return observations
+
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)
 
@@ -713,10 +721,12 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         if substation_id in (-1, len(self.proposed_actions) - 1):
             action = 0
         else:
-            if not self.is_capa:
+            if self.is_capa:
+                action = self.proposed_actions[substation_id]
+            else:
                 substation_id = self.middle_to_substation_map[substation_id]
-            local_action = self.proposed_actions[substation_id]
-            action = self.local_to_global_action_map[substation_id][local_action]
+                local_action = self.proposed_actions[substation_id]
+                action = self.local_to_global_action_map[substation_id][local_action]
         return action
 
     def extract_proposed_actions_values(
@@ -759,11 +769,14 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         Extract all proposed actions from the action_dict.
         """
         proposed_actions: dict[int, int] = {}
-        for key, action in action_dict.items():
+        for key, local_action in action_dict.items():
             if not key == "do_nothing_agent":
                 # extract integer at end of key
                 agent_id = int(key.split("_")[-1])
-                proposed_actions[agent_id] = int(action)
+
+                # convert action back to global
+                global_action = self.local_to_global_action_map[agent_id][local_action]
+                proposed_actions[agent_id] = int(global_action)
             else:
                 proposed_actions[-1] = 0
 
@@ -803,211 +816,4 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
 register_env(
     "HierarchicalCustomizedGrid2OpEnvironment",
     HierarchicalCustomizedGrid2OpEnvironment,
-)
-
-
-class GreedyHierarchicalCustomizedGrid2OpEnvironment(
-    HierarchicalCustomizedGrid2OpEnvironment
-):
-    """
-    Implement step function for hierarchical environment. This is made to work with greedy-agent lower
-    level agents. Their action is built into the environment.
-    """
-
-    def __init__(self, env_config: dict[str, Any]):
-        super().__init__(env_config)
-
-        # create greedy agents for each substation
-        if env_config["action_space"].startswith("asymmetry"):
-            _, _, controllable_substations = calculate_action_space_asymmetry(
-                self.grid2op_env
-            )
-        elif env_config["action_space"].startswith("medha"):
-            _, _, controllable_substations = calculate_action_space_medha(
-                self.grid2op_env
-            )
-        elif env_config["action_space"].startswith("tennet"):
-            _, _, controllable_substations = calculate_action_space_tennet(
-                self.grid2op_env
-            )
-        else:
-            raise ValueError("No action valid space is defined.")
-
-        self.agents = create_greedy_agent_per_substation(
-            self.grid2op_env,
-            env_config,
-            controllable_substations,
-            self.possible_substation_actions,
-        )
-
-        # determine the acting agents
-        self._agent_ids = [
-            "high_level_agent",
-            "choose_substation_agent",
-            "do_nothing_agent",
-        ]
-
-        self.reset_capa_idx = 1
-        self.is_greedy = True
-        self.g2op_obs = None
-
-    def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        options: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[MultiAgentDict, MultiAgentDict]:
-        """
-        This function resets the environment.
-        """
-        # Adjusted reset to also get g2op_obs
-        self.reset_capa_idx = 1
-        self.g2op_obs = self.grid2op_env.reset()
-        self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
-        observations = {"high_level_agent": max(self.previous_obs["rho"])}
-        return observations, {}
-
-    def step(
-        self, action_dict: MultiAgentDict
-    ) -> Tuple[
-        MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict
-    ]:
-        """
-        This function performs a single step in the environment.
-        """
-
-        # build basic dicts, that are overwritten by acting agents
-        observations: Dict[str, Any] = {}
-        rewards: Dict[str, Any] = {}
-        terminateds = {
-            "__all__": False,
-        }
-        truncateds = {
-            "__all__": False,
-        }
-        infos: Dict[str, Any] = {}
-
-        if "high_level_agent" in action_dict.keys():
-            action = action_dict["high_level_agent"]
-            if action == 0:  # do something
-                self.proposed_actions = {
-                    sub_id: self.get_local_from_global(
-                        self.env_gym.action_space.to_gym(
-                            agent.act(self.g2op_obs, reward=None)
-                        )
-                    )
-                    for sub_id, agent in self.agents.items()
-                }
-
-                # also propose do nothing action
-                self.proposed_actions[-1] = 0
-
-                # observation_for_middle_agent = OrderedDict(
-                #     {
-                #         "proposed_actions": {
-                #             str(sub_id): action
-                #             for sub_id, action in self.proposed_actions.items()
-                #         },
-                #     }
-                # )
-                observation_for_middle_agent = OrderedDict(
-                    {
-                        "previous_obs": self.previous_obs,
-                        "proposed_actions": {
-                            str(sub_id): action
-                            for sub_id, action in self.proposed_actions.items()
-                        },
-                    }
-                )
-
-                if self.is_capa:
-                    if isinstance(observations["choose_substation_agent"], OrderedDict):
-                        # add reset_capa_idx to observations
-                        observations["choose_substation_agent"][
-                            "reset_capa_idx"
-                        ] = self.reset_capa_idx
-                        # observations["choose_substation_agent"][
-                        #     "previous_obs"
-                        # ] = self.previous_obs
-                    else:
-                        raise ValueError("Capa observations is not an OrderedDict.")
-
-                observations = {"choose_substation_agent": observation_for_middle_agent}
-                self.reset_capa_idx = 0
-            elif action == 1:  # do nothing
-                self.reset_capa_idx = 1
-                observations = {"do_nothing_agent": 0}
-            else:
-                raise ValueError(
-                    "An invalid action is selected by the high_level_agent in step()."
-                )
-        elif "do_nothing_agent" in action_dict.keys():
-            # step do nothing in environment
-            self.g2op_obs, reward, terminated, info = self.grid2op_env.step(
-                self.grid2op_env.action_space({})
-            )
-            self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
-
-            # reward the RL agent for this step, go back to HL agent
-            rewards = {"choose_substation_agent": reward}
-            observations = {"high_level_agent": max(self.previous_obs["rho"])}
-            terminateds = {"__all__": terminated}
-            truncateds = {"__all__": False}
-            infos = {"__common__": info}
-        elif "choose_substation_agent" in action_dict.keys():
-            substation_id = action_dict["choose_substation_agent"]
-
-            gym_action = self.extract_substation_to_act(substation_id)
-
-            g2op_action = self.converter.convert_act(gym_action)
-
-            self.g2op_obs, reward, terminated, info = self.grid2op_env.step(g2op_action)
-            self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
-
-            # reward the RL agent for this step, go back to HL agent
-            observations = {"high_level_agent": max(self.previous_obs["rho"])}
-            rewards = {"choose_substation_agent": reward}
-            terminateds = {"__all__": terminated}
-            truncateds = {"__all__": False}
-            infos = {"__common__": info}
-        elif bool(action_dict) is False:
-            pass
-            # print("Caution: Empty action dictionary!")
-        else:
-            raise ValueError("No agent found in action dictionary in step().")
-        return observations, rewards, terminateds, truncateds, infos
-
-    def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
-        """
-        Not implemented.
-        """
-        raise NotImplementedError
-
-    def get_local_from_global(self, global_action: int) -> int:
-        """
-        Converts a global action to its corresponding local action.
-
-        Parameters:
-            global_action (int): The global action to be converted.
-
-        Returns:
-            int: The corresponding local action.
-
-        Raises:
-            ValueError: If the global action is not found in the inner dictionary.
-        """
-        # return the do-nothing action if asked
-        if global_action == 0:
-            return 0
-        # otherwise get the local action
-        for _, sub_dict in self.local_to_global_action_map.items():
-            for local_action, value in sub_dict.items():
-                if value == global_action:
-                    return local_action
-        raise ValueError("Value not found in inner dict.")
-
-
-register_env(
-    "GreedyHierarchicalCustomizedGrid2OpEnvironment",
-    GreedyHierarchicalCustomizedGrid2OpEnvironment,
 )

@@ -21,8 +21,10 @@ from mahrl.experiments.utils import (
 )
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import (
-    GreedyHierarchicalCustomizedGrid2OpEnvironment,
     HierarchicalCustomizedGrid2OpEnvironment,
+)
+from mahrl.grid2op_env.greedy_environment import (
+    GreedyHierarchicalCustomizedGrid2OpEnvironment,
 )
 from mahrl.multi_agent.policy import (
     ArgMaxPolicy,

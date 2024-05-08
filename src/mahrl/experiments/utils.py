@@ -147,34 +147,41 @@ def get_capa_substation_id(
     connected_rhos: dict[int, list[float]] = {agent: [] for agent in line_info}
     for sub_idx in line_info:
         for line_idx in line_info[sub_idx]:
+            # extract rho
             if isinstance(obs_batch, OrderedDict):
-                connected_rhos[sub_idx].append(
-                    obs_batch["previous_obs"]["rho"][0][line_idx]
-                    # obs_batch["original_obs"]["rho"][0][line_idx]
-                )
+                rho = obs_batch["previous_obs"]["rho"][0][line_idx]
             elif isinstance(obs_batch, dict):
-                connected_rhos[sub_idx].append(
-                    obs_batch["previous_obs"]["rho"][line_idx]
-                    # obs_batch["original_obs"]["rho"][line_idx]
-                )
+                rho = obs_batch["previous_obs"]["rho"][line_idx]
             else:
                 raise ValueError("The observation batch is not supported.")
+
+            # add rho to sub
+            if rho > 0:
+                connected_rhos[sub_idx].append(rho)
+            else:  # line is disconnected, set to 3
+                connected_rhos[sub_idx].append(3.0)
+
     for sub_idx in connected_rhos:
-        connected_rhos[sub_idx] = [float(np.mean(connected_rhos[sub_idx]))]
+        # connected_rhos[sub_idx] = [float(np.mean(connected_rhos[sub_idx]))]
+        connected_rhos[sub_idx] = [
+            float(np.max(connected_rhos[sub_idx])),
+            float(np.min(connected_rhos[sub_idx])),
+        ]
 
     # set non-controllable substations to 0
     for sub_idx in connected_rhos:
         if sub_idx not in list(controllable_substations.keys()):
             connected_rhos[sub_idx] = [0.0]
 
-    # order the substations by the mean rho, maximum first
-    connected_rhos = dict(
-        sorted(connected_rhos.items(), key=lambda item: item[1], reverse=True)
+    # order the substations by the max rho, using min rho as tiebreaker
+    ordered_keys = sorted(
+        connected_rhos.keys(),
+        key=lambda x: (connected_rhos[x][0], connected_rhos[x][1]),
+        reverse=True,
     )
 
     # return the ordered entries
-    # NOTE: When there are two equal max values, the first one is returned first
-    return list(connected_rhos.keys())
+    return list(ordered_keys)
 
 
 def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[int, int]:
