@@ -65,11 +65,13 @@ environment:
     # seed: *seed
     rho_threshold: 0.95
     shuffle_scenarios: True
+    in_evaluation: False
 
 env_config_val: &env_config_val
   <<: *env_config_train
   env_name: l2rpn_case14_sandbox_val
   shuffle_scenarios: False
+  in_evaluation: True
 
 evaluation:
   evaluation_interval: 2

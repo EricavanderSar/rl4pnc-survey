@@ -27,6 +27,7 @@ from mahrl.experiments.utils import (
     find_list_of_agents,
 )
 from mahrl.grid2op_env.utils import (
+    ChronPrioMatrix,
     CustomDiscreteActions,
     load_action_space,
     make_g2op_env,
@@ -111,11 +112,19 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         # create the grid2op environment
         self.grid2op_env = make_g2op_env(env_config)
 
+        self.stage = env_config["stage"]
+
         # create the gym environment
-        if env_config["shuffle_scenarios"]:
-            self.env_gym = ReconnectingGymEnv(self.grid2op_env, shuffle_chronics=True)
-        else:  # ensure the evaluation chronics are not shuffled
+        if (
+            self.stage == "val"
+            or not env_config["shuffle_scenarios"]
+            or env_config.get("prio", True)
+        ):  # ensure the evaluation chronics are not shuffled
             self.env_gym = ReconnectingGymEnv(self.grid2op_env, shuffle_chronics=False)
+        elif env_config["shuffle_scenarios"]:
+            self.env_gym = ReconnectingGymEnv(self.grid2op_env, shuffle_chronics=True)
+        else:
+            raise ValueError("No valid shuffle scenario is defined.")
 
         # setting up custom action space
         path = os.path.join(
@@ -193,6 +202,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         # setup shared parameters
         self.previous_obs: OrderedDict[str, Any] = OrderedDict()
 
+        # initialize training chronic sampling weights
+        self.prio = env_config.get("prio", True)  # NOTE: Default is now set to true
+        self.chron_prios = ChronPrioMatrix(self.grid2op_env)
+        self.step_surv = 0
+
     def no_shunt_reset(
         self,
         seed: Optional[int] = None,
@@ -249,9 +263,54 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             Tuple[MultiAgentDict, MultiAgentDict]: Tuple containing the initial observations and info.
 
         """
-        # self.previous_obs, info = self.no_shunt_reset()
-        self.previous_obs, info = self.env_gym.reset()
+        if self.prio and self.stage == "train":
+            self.previous_obs, info = self.prio_reset()
+        else:
+            self.previous_obs, info = self.env_gym.reset()
+            # self.previous_obs, info = self.no_shunt_reset() #TODO: Integrate shunt reset in others?
+
         return {"high_level_agent": max(self.previous_obs["rho"])}, {"__common__": info}
+
+    def prio_reset(
+        self,
+        seed: Optional[int] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[OrderedDict[str, Any], dict[str, Any]]:
+        """
+        This function resets the environment with prio sampling.
+        """
+        # TODO: CHeck if it doesn't sample the wrong one because of shuffling. Force shuffle off?
+        # adapted from the internal GymEnv _aux_reset method
+        if self.env_gym._shuffle_chronics and isinstance(
+            self.env_gym.init_env.chronics_handler.real_data, Multifolder
+        ):
+            self.env_gym.init_env.chronics_handler.sample_next_chronics()
+
+        ############################################################################
+        # use chronic priority
+        sampled_chron = self.chron_prios.sample_chron()
+        self.env_gym.init_env.set_id(sampled_chron)
+        self.step_surv = 0
+
+        ############################################################################
+
+        super().reset(seed=seed)
+        if seed is not None:
+            self.env_gym._aux_seed_spaces()
+            seed, next_seed, underlying_env_seeds = self.env_gym._aux_seed_g2op(seed)
+
+        g2op_obs = self.env_gym.init_env.reset()
+
+        gym_obs = self.env_gym.observation_space.to_gym(g2op_obs)
+
+        chron_id = self.env_gym.init_env.chronics_handler.get_id()
+        info = {"time serie id": chron_id}
+        if seed is not None:
+            info["seed"] = seed
+            info["grid2op_env_seed"] = next_seed
+            info["underlying_env_seeds"] = underlying_env_seeds
+
+        return gym_obs, info
 
     def step(
         self, action_dict: MultiAgentDict
@@ -292,6 +351,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 truncated,
                 info,
             ) = self.env_gym.step(action_dict["do_nothing_agent"])
+            if self.prio and self.stage == "train":
+                self.step_surv += 1
+                if terminated:
+                    self.chron_prios.update_prios(self.step_surv)
 
             # reward the RL agent for this step, go back to HL agent
             if self.is_value_rl:
@@ -311,6 +374,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 truncated,
                 info,
             ) = self.env_gym.step(action_dict["reinforcement_learning_agent"])
+            if self.prio and self.stage == "train":
+                self.step_surv += 1
+                if terminated:
+                    self.chron_prios.update_prios(self.step_surv)
 
             # reward the RL agent for this step, go back to HL agent
             rewards = {"reinforcement_learning_agent": reward}
@@ -348,10 +415,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
     def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
         """
         Not implemented.
-
-        Returns:
-            RENDERFRAME | list[RENDERFRAME] | None: Rendered frame(s) or None.
-
         """
         raise NotImplementedError
 
@@ -386,7 +449,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 "An invalid action is selected by the high_level_agent in step()."
             )
         return observations
-
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)
 

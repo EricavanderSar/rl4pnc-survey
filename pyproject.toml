@@ -67,6 +67,7 @@ dependencies = [
   "typeguard==4.0.0",
   "fsspec==2023.10.0",
   "mlflow==2.10.2",
+  "grpcio==1.62.2",
 ]
 
 [project.optional-dependencies]
