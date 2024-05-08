@@ -91,6 +91,7 @@ def custom_synchronous_parallel_sample(
     all_sample_batches: List[SampleBatchType] = []
 
     policies_to_train = worker_set.local_worker().get_policies_to_train()
+    steps_per_policy = np.zeros(len(policies_to_train))
     worker_set.local_worker()
     # Stop collecting batches as soon as one criterium is met.
     while (max_agent_or_env_steps is None and agent_or_env_steps == 0) or (
@@ -125,11 +126,13 @@ def custom_synchronous_parallel_sample(
                     )
                 )
             sample_batches = new_batches
-            # print('sample_batches: ', sample_batches)
+            # print('sample_batches: ', for batch in sample_batches)
 
         for batch in sample_batches:
             if max_agent_steps:
-                agent_or_env_steps += batch.agent_steps()
+                steps_per_policy += np.array([batch.count for batch in batch.policy_batches.values()])
+                # print('agent steps per trainable policy: ', steps_per_policy)
+                agent_or_env_steps = np.min(steps_per_policy)
             else:
                 agent_or_env_steps += batch.env_steps()
         all_sample_batches.extend(sample_batches)
@@ -172,7 +175,8 @@ class CustomPPO(PPO):
                 )
             else:
                 train_batch = custom_synchronous_parallel_sample(
-                    worker_set=self.workers, max_env_steps=self.config.train_batch_size
+                    worker_set=self.workers,
+                    max_env_steps=self.config.train_batch_size
                 )
         # print("policies", train_batch.policy_batches.keys())
         # print("train_batch_size: ", train_batch.count)
@@ -181,6 +185,7 @@ class CustomPPO(PPO):
         train_batch = train_batch.as_multi_agent()
         self._counters[NUM_AGENT_STEPS_SAMPLED] += train_batch.agent_steps()
         self._counters[NUM_ENV_STEPS_SAMPLED] += train_batch.env_steps()
+
 
         # Standardize advantages
         train_batch = standardize_fields(train_batch, ["advantages"])
