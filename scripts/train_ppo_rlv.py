@@ -49,16 +49,25 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     #     "dim_topo": setup_env.dim_topo,
     # }
 
-    obs2 = gym.spaces.Box(-1.0, 1.0, (58,), np.float32)
-
     # Make model to be shared by both value and action rl agent
+    # medha DN 14-bus # TODO: Check if obs2 is correct?
+    obs2 = gym.spaces.Box(-1.0, 1.0, (152,), np.float32)
     shared_model = CustomFCN(
         obs_space=obs2,
-        action_space=gym.spaces.Discrete(24),
-        num_outputs=24,
+        action_space=gym.spaces.Discrete(112),
+        num_outputs=112,
         model_config=custom_config,
         name="shared_model",
     )
+    # tennet 5-bus
+    # obs2 = gym.spaces.Box(-1.0, 1.0, (58,), np.float32)
+    # shared_model = CustomFCN(
+    #     obs_space=obs2,
+    #     action_space=gym.spaces.Discrete(24),
+    #     num_outputs=24,
+    #     model_config=custom_config,
+    #     name="shared_model",
+    # )
 
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
