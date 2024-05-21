@@ -120,16 +120,20 @@ def custom_synchronous_parallel_sample(
                     for pid, batch in batch.policy_batches.items()
                     if pid in policies_to_train
                 }
-                new_batches.append(
-                    MultiAgentBatch.wrap_as_needed(
-                        filtered_policy_batches, batch.env_steps()
+                # print('filtered policy batches: ', filtered_policy_batches)
+                if len(filtered_policy_batches):
+                    new_batches.append(
+                        MultiAgentBatch.wrap_as_needed(
+                            filtered_policy_batches, batch.env_steps()
+                        )
                     )
-                )
             sample_batches = new_batches
-            # print('sample_batches: ', for batch in sample_batches)
+            # print('sample_batches: ', [batch.policy_batches.values() for batch in sample_batches])
 
         for batch in sample_batches:
             if max_agent_steps:
+                # print('agent steps per trainable policy: ', steps_per_policy)
+                # print('adding steps: ', [batch.count for batch in batch.policy_batches.values()])
                 steps_per_policy += np.array([batch.count for batch in batch.policy_batches.values()])
                 # print('agent steps per trainable policy: ', steps_per_policy)
                 agent_or_env_steps = np.min(steps_per_policy)
