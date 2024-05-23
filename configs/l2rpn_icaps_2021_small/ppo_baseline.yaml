@@ -1,6 +1,6 @@
 setup:
   max_ep_len: 8062
-  nb_timesteps: &nb_timesteps 1_000
+  nb_timesteps: &nb_timesteps 200
   checkpoint_freq: 2
   verbose: 0
   my_log_level: 1
@@ -32,8 +32,8 @@ training:
   vf_clip_param: 10
   use_kl_loss: False # setting this similar to orig EVDS implementation
   num_sgd_iter: 4 #spec.config.train_batch_size / spec.config.sgd_minibatch_size !quniform [4, 16, 4] #
-  sgd_minibatch_size: 32 #!choice [32, 64, 128] #
-  train_batch_size: 128 #80 #!choice [128, 256, 512] #
+  sgd_minibatch_size: 8 #!choice [32, 64, 128] #
+  train_batch_size: 16 #80 #!choice [128, 256, 512] #
   batch_mode: complete_episodes
   model:
 #    custom_model : linfcn
@@ -65,7 +65,7 @@ environment:
     env_type: old_env #new_env #
     shuffle_scenarios: True
     env_name: l2rpn_icaps_2021_small_train
-    action_space: medha_DN
+    action_space: tennet
     mask: 5
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/
     grid2op_kwargs:

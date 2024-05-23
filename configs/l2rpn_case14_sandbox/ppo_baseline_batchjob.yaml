@@ -68,10 +68,10 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_type: old_env #new_env #
+    env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha_DN_rev
+    action_space: medha_optshunt
     mask: 3
     lib_dir: !workdir
     grid2op_kwargs:

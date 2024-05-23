@@ -51,6 +51,10 @@ def create_action_spaces(
 
         file_path = os.path.join(save_path, "medha.json")
         save_to_json(possible_actions, file_path)
+    if "medha_optshunt" in action_spaces_to_create:
+        possible_actions = get_medha_action_space(env, opt_shunt=True)
+        file_path = os.path.join(save_path, "medha_optshunt.json")
+        save_to_json(possible_actions, file_path)
     if "medha_dn" in action_spaces_to_create:
         possible_actions = get_medha_dn_action_space(env)
         file_path = os.path.join(save_path, "medha_DN.json")
@@ -81,7 +85,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-e",
         "--environment",
-        default="rte_case14_realistic",
+        default="l2rpn_case14_sandbox",
         type=str,
         help="Name of the environment to be used.",
     )
@@ -90,7 +94,7 @@ if __name__ == "__main__":
         "--action_space",
         type=str,
         help="Action space to be used.",
-        default="medha_dn_optshunt",
+        default="medha_optshunt",
     )
     parser.add_argument(
         "-s",
