@@ -208,13 +208,13 @@ def find_substation_per_lines(
     """
     line_info: dict[str, list[int]] = {agent: [] for agent in list_of_agents}
     for sub_idx in list_of_agents:
-        for or_id in env.observation_space.get_obj_connect_to(substation_id=sub_idx)[
-            "lines_or_id"
-        ]:
+        for or_id in env.observation_space.get_obj_connect_to(
+            substation_id=int(sub_idx)
+        )["lines_or_id"]:
             line_info[sub_idx].append(or_id)
-        for ex_id in env.observation_space.get_obj_connect_to(substation_id=sub_idx)[
-            "lines_ex_id"
-        ]:
+        for ex_id in env.observation_space.get_obj_connect_to(
+            substation_id=int(sub_idx)
+        )["lines_ex_id"]:
             line_info[sub_idx].append(ex_id)
 
     return line_info

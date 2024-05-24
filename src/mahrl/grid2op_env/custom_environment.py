@@ -731,10 +731,10 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             action = 0
         else:
             if self.is_capa or self.is_rulebased:
-                action = self.proposed_actions[substation_id]
+                action = self.proposed_actions[str(substation_id)]
             else:
-                substation_id = self.middle_to_substation_map[substation_id]
-                local_action = self.proposed_actions[substation_id]
+                substation_id = self.middle_to_substation_map[str(substation_id)]
+                local_action = self.proposed_actions[str(substation_id)]
                 action = self.local_to_global_action_map[str(substation_id)][
                     local_action
                 ]
