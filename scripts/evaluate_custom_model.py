@@ -132,29 +132,29 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         backend=LightSimBackend(),
     )
 
-    thermal_limits = [  # TODO: Remove?
-        1000,
-        1000,
-        1000,
-        1000,
-        1000,
-        1000,
-        1000,
-        760,
-        450,
-        760,
-        380,
-        380,
-        760,
-        380,
-        760,
-        380,
-        380,
-        380,
-        2000,
-        2000,
-    ]
-    env.set_thermal_limit(thermal_limits)
+    # thermal_limits = [  # TODO: Remove?
+    #     1000,
+    #     1000,
+    #     1000,
+    #     1000,
+    #     1000,
+    #     1000,
+    #     1000,
+    #     760,
+    #     450,
+    #     760,
+    #     380,
+    #     380,
+    #     760,
+    #     380,
+    #     760,
+    #     380,
+    #     380,
+    #     380,
+    #     2000,
+    #     2000,
+    # ]
+    # env.set_thermal_limit(thermal_limits)
 
     params = env.get_params_for_runner()
     params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
@@ -200,7 +200,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             agentInstance=agent_instance,
         ).run(
             path_save=os.path.abspath(
-                f"{store_trajectories_folder}/{env_config['env_name']}/{env_config['action_space']}"
+                f"{store_trajectories_folder}/{env_config['env_name']}/{env_config['action_space']}/{i}"
             ),
             # nb_episode=1,
             nb_episode=len(env.chronics_handler.subpaths),

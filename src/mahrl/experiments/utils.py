@@ -22,7 +22,7 @@ from ray.tune.search.bohb import TuneBOHB
 
 def calculate_action_space_asymmetry(
     env: BaseEnv, add_dn: bool = False
-) -> tuple[int, int, dict[int, int]]:
+) -> tuple[int, int, dict[str, int]]:
     """
     Function prints and returns the number of legal actions and topologies without symmetries.
     """
@@ -45,7 +45,7 @@ def calculate_action_space_asymmetry(
         action_space += alpha if alpha > 1 else 0
         # if alpha > 1:  # without do nothings for single substations
         if (add_dn and alpha > 0) or (alpha > 1):
-            controllable_substations[sub] = alpha
+            controllable_substations[str(sub)] = alpha
         possible_topologies *= max(alpha, 1)
 
     logging.info(f"actions {action_space}")
@@ -56,7 +56,7 @@ def calculate_action_space_asymmetry(
 
 def calculate_action_space_medha(
     env: BaseEnv, add_dn: bool = False
-) -> tuple[int, int, dict[int, int]]:
+) -> tuple[int, int, dict[str, int]]:
     """
     Function prints and returns the number of legal actions and topologies following Subrahamian (2021).
     """
@@ -79,7 +79,7 @@ def calculate_action_space_medha(
         combined = alpha - beta - gamma
         action_space += combined if combined > 1 else 0
         if (add_dn and combined > 0) or (combined > 1):
-            controllable_substations[sub] = combined
+            controllable_substations[str(sub)] = combined
         possible_topologies *= max(combined, 1)
 
     return action_space, possible_topologies, controllable_substations
@@ -87,7 +87,7 @@ def calculate_action_space_medha(
 
 def calculate_action_space_tennet(
     env: BaseEnv, add_dn: bool = False
-) -> tuple[int, int, dict[int, int]]:
+) -> tuple[int, int, dict[str, int]]:
     """
     Function prints and returns the number of legal actions and topologies following the proposed action space.
     """
@@ -129,22 +129,22 @@ def calculate_action_space_tennet(
 
         action_space += int(combined) if combined > 1 else 0
         if (add_dn and combined > 0) or (combined > 1):
-            controllable_substations[sub] = combined
+            controllable_substations[str(sub)] = combined
         possible_topologies *= max(combined, 1)
 
     return action_space, possible_topologies, controllable_substations
 
 
 def get_capa_substation_id(
-    line_info: dict[int, list[int]],
+    line_info: dict[str, list[int]],
     obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
-    controllable_substations: dict[int, int],
-) -> list[int]:
+    controllable_substations: dict[str, int],
+) -> list[str]:
     """
     Returns the substation id of the substation to act on according to CAPA.
     """
     # calculate the mean rho per substation
-    connected_rhos: dict[int, list[float]] = {agent: [] for agent in line_info}
+    connected_rhos: dict[str, list[float]] = {agent: [] for agent in line_info}
     for sub_idx in line_info:
         for line_idx in line_info[sub_idx]:
             # extract rho
@@ -170,7 +170,7 @@ def get_capa_substation_id(
 
     # set non-controllable substations to 0
     for sub_idx in connected_rhos:
-        if sub_idx not in list(controllable_substations.keys()):
+        if str(sub_idx) not in list(controllable_substations.keys()):
             connected_rhos[sub_idx] = [0.0]
 
     # order the substations by the max rho, using min rho as tiebreaker
@@ -184,7 +184,7 @@ def get_capa_substation_id(
     return list(ordered_keys)
 
 
-def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[int, int]:
+def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[str, int]:
     """
     Function that returns the number of controllable substations.
     """
@@ -201,12 +201,12 @@ def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[int, int]:
 
 
 def find_substation_per_lines(
-    env: BaseEnv, list_of_agents: list[int]
-) -> dict[int, list[int]]:
+    env: BaseEnv, list_of_agents: list[str]
+) -> dict[str, list[int]]:
     """
     Returns a dictionary connecting line ids to substations.
     """
-    line_info: dict[int, list[int]] = {agent: [] for agent in list_of_agents}
+    line_info: dict[str, list[int]] = {agent: [] for agent in list_of_agents}
     for sub_idx in list_of_agents:
         for or_id in env.observation_space.get_obj_connect_to(substation_id=sub_idx)[
             "lines_or_id"
@@ -295,7 +295,7 @@ def get_gridsearch_tuner(
                 checkpoint_frequency=setup["checkpoint_freq"],
                 checkpoint_at_end=setup["checkpoint_at_end"],
                 checkpoint_score_attribute=setup["checkpoint_score_attr"],
-                num_to_keep=setup["keep_checkpoints_num"],
+                # num_to_keep=setup["keep_checkpoints_num"],
             ),
             verbose=setup["verbose"],
         ),

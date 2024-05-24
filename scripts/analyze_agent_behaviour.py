@@ -5,6 +5,8 @@ Has to be run after the evaluation of agents is run.
 
 import argparse
 import logging
+import os
+import shutil
 
 import numpy as np
 from grid2op.Episode import EpisodeData
@@ -63,7 +65,7 @@ def run_statistics(path: str, episode_list: list[EpisodeData]) -> None:
         global_action_sequences.append(action_sequences)
         global_topology_list.append(topology_list)
         save_scenario_statistics(
-            path, episode.name, grid_objects_types, action_sequences, topology_list
+            path, episode, grid_objects_types, action_sequences, topology_list
         )
 
     save_global_statistics(
@@ -86,11 +88,45 @@ if __name__ == "__main__":
         help="Path to the scenarios to be evaluated.",
     )
 
+    # Define command-line arguments for two possibilities: greedy and rllib model
+    parser.add_argument(
+        "-o",
+        "--opponent",
+        action="store_true",
+        help="If the scenario is with opponent and has 10 subfolders.",
+    )
+
     # Parse the command-line arguments
     args = parser.parse_args()
 
     # Access the parsed arguments
     input_file_path = args.file_path
+
+    if args.opponent:
+        # flatten the input_file_path directory
+        # Iterate over all directories
+        for dir_name in range(10):
+            dir_path = os.path.join(input_file_path, str(dir_name))
+
+            # Iterate over all subdirectories
+            for root, dirs, files in os.walk(dir_path):
+                for cur_dir in dirs:
+                    # Construct full directory path
+                    source = os.path.join(root, cur_dir)
+                    destination = os.path.join(input_file_path, f"{dir_name}_{cur_dir}")
+
+                    # Move directory to parent directory and rename
+                    shutil.move(source, destination)
+
+                for file in files:
+                    # Construct full file path
+                    source = os.path.join(root, file)
+                    destination = os.path.join(input_file_path, file)
+
+                    # Move file to parent directory
+                    shutil.move(source, destination)
+
+            shutil.rmtree(dir_path)
 
     if not input_file_path:
         parser.print_help()

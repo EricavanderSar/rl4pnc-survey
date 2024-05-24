@@ -89,7 +89,7 @@ def save_global_statistics(
 
 def save_scenario_statistics(
     path: str,
-    episode_name: str,
+    episode: EpisodeData,
     grid_objects_types: list[list[int]],
     action_sequences: list[list[dict[str, Any]]],
     topology_list: list[list[int]],
@@ -110,7 +110,8 @@ def save_scenario_statistics(
         os.path.join(path, "scenario_statistics.txt"), mode, encoding="utf-8"
     ) as file:
         # - topologies
-        file.write(f"Episode: {episode_name}\n")
+        file.write(f"Episode: {episode.name}\n")
+        file.write(f"Number of steps: {len(episode.actions)}\n")
         file.write(
             f"Number of topologies: {evaluation_metrics.get_number_of_topologies(topology_list)}\n"
         )

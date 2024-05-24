@@ -19,9 +19,6 @@ from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
 
 from mahrl.experiments.utils import (
-    calculate_action_space_asymmetry,
-    calculate_action_space_medha,
-    calculate_action_space_tennet,
     find_list_of_agents,
     find_substation_per_lines,
     get_capa_substation_id,
@@ -373,21 +370,10 @@ class CapaAndGreedyAgent(GreedyAgent):
 
         setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
 
-        # get changeable substations
-        if env_config["action_space"] == "asymmetry":
-            _, _, self.controllable_substations = calculate_action_space_asymmetry(
-                setup_env
-            )
-        elif env_config["action_space"] == "medha":
-            _, _, self.controllable_substations = calculate_action_space_medha(
-                setup_env
-            )
-        elif env_config["action_space"] == "tennet":
-            _, _, self.controllable_substations = calculate_action_space_tennet(
-                setup_env
-            )
-        else:
-            raise ValueError("No action valid space is defined.")
+        self.controllable_substations = find_list_of_agents(
+            setup_env,
+            env_config["action_space"],
+        )
 
         # set up greedy agents
         self.agents = create_greedy_agent_per_substation(
@@ -401,7 +387,7 @@ class CapaAndGreedyAgent(GreedyAgent):
         )
 
         self.idx = 0
-        self.substation_to_act_on: list[int] = []
+        self.substation_to_act_on: list[str] = []
 
     def act(
         self,
@@ -451,7 +437,7 @@ class CapaAndGreedyAgent(GreedyAgent):
                 ]
 
                 self.idx += 1
-                chosen_action = self.agents[single_substation].act(
+                chosen_action = self.agents[str(single_substation)].act(
                     observation, reward=None
                 )
 
@@ -499,36 +485,15 @@ class RandomAndGreedyAgent(GreedyAgent):
 
         setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
 
-        # get changeable substations
-        if env_config["action_space"] == "asymmetry":
-            _, _, controllable_substations = calculate_action_space_asymmetry(setup_env)
-        elif env_config["action_space"] == "medha":
-            _, _, controllable_substations = calculate_action_space_medha(setup_env)
-        elif env_config["action_space"] == "tennet":
-            _, _, controllable_substations = calculate_action_space_tennet(setup_env)
-        else:
-            raise ValueError("No action valid space is defined.")
+        self.controllable_substations = find_list_of_agents(
+            setup_env,
+            env_config["action_space"],
+        )
 
         # set up greedy agents
         self.agents = create_greedy_agent_per_substation(
-            setup_env, env_config, controllable_substations, possible_actions
+            setup_env, env_config, self.controllable_substations, possible_actions
         )
-
-        # get changeable substations
-        if env_config["action_space"] == "asymmetry":
-            _, _, self.controllable_substations = calculate_action_space_asymmetry(
-                setup_env
-            )
-        elif env_config["action_space"] == "medha":
-            _, _, self.controllable_substations = calculate_action_space_medha(
-                setup_env
-            )
-        elif env_config["action_space"] == "tennet":
-            _, _, self.controllable_substations = calculate_action_space_tennet(
-                setup_env
-            )
-        else:
-            raise ValueError("No action valid space is defined.")
 
     def act(
         self,
@@ -560,7 +525,9 @@ class RandomAndGreedyAgent(GreedyAgent):
             The action chosen by the bot / controller / agent.
 
         """
-        substation_to_act_on = np.random.choice(self.controllable_substations)
+        substation_to_act_on = np.random.choice(
+            list(self.controllable_substations.keys())
+        )
 
         return self.agents[substation_to_act_on].act(observation, reward=None)
 
@@ -578,20 +545,56 @@ class RandomAndGreedyAgent(GreedyAgent):
 
 
 def get_actions_per_substation(
-    controllable_substations: dict[int, int],
     possible_substation_actions: list[BaseAction],
-) -> dict[int, list[BaseAction]]:
+    agent_per_substation: dict[str, int],
+) -> dict[str, list[BaseAction]]:
     """
     Get the actions per substation.
     """
-    actions_per_substation: dict[int, list[BaseAction]] = {
-        substation: [] for substation in list(controllable_substations.keys())
-    }
+    actions_per_substation: dict[str, list[BaseAction]] = {}
 
+    # determine possible hubs
+    hubs = {}
+
+    # enumerate over dict to find the hub agent (over 1000 possible configurations)
+    for sub_idx, num_actions in agent_per_substation.items():
+        if num_actions > 1000:  # there exists a hub
+            # determine how many agents and their average action size
+            max_sub_actions = max(v for v in agent_per_substation.values() if v <= 1000)
+            num_agents = num_actions // max_sub_actions
+            avg_actions_per_hub = int(num_actions / num_agents)
+            leftover_actions = num_actions % num_agents
+            hubs[sub_idx] = {
+                "avg_num_actions": avg_actions_per_hub,
+                "num_agents": num_agents,
+                "num_agents_extra_action": leftover_actions,
+            }
+
+    hub_count = 0
+    action_count = 0
     # get possible actions related to that substation actions_per_substation
     for action in possible_substation_actions[1:]:  # exclude the DoNothing action
-        sub_id = int(action.as_dict()["set_bus_vect"]["modif_subs_id"][-1])
-        actions_per_substation[sub_id].append(action)
+        sub_id = str(action.as_dict()["set_bus_vect"]["modif_subs_id"][-1])
+        if sub_id in hubs:
+            # move to next sub-agent, give some an extra action
+            if hub_count < hubs[sub_id]["num_agents_extra_action"]:
+                if action_count == hubs[sub_id]["avg_num_actions"] + 1:
+                    hub_count += 1
+                    action_count = 0
+            else:
+                if action_count == hubs[sub_id]["avg_num_actions"]:
+                    hub_count += 1
+                    action_count = 0
+
+            if f"{sub_id}_{hub_count}" not in actions_per_substation:
+                actions_per_substation[f"{sub_id}_{hub_count}"] = []
+            actions_per_substation[f"{sub_id}_{hub_count}"].append(action)
+            action_count += 1
+        else:  # treat normally
+            if str(sub_id) not in actions_per_substation:
+                actions_per_substation[str(sub_id)] = []
+
+            actions_per_substation[str(sub_id)].append(action)
 
     return actions_per_substation
 
@@ -599,19 +602,19 @@ def get_actions_per_substation(
 def create_greedy_agent_per_substation(
     env: BaseEnv,
     env_config: dict[str, Any],
-    controllable_substations: dict[int, int],
+    agent_per_substation: dict[str, int],
     possible_substation_actions: list[BaseAction],
-) -> dict[int, TopologyGreedyAgent]:
+) -> dict[str, TopologyGreedyAgent]:
     """
     Create a greedy agent for each substation.
     """
     actions_per_substation = get_actions_per_substation(
-        controllable_substations, possible_substation_actions
+        possible_substation_actions, agent_per_substation
     )
 
     # initialize greedy agents for all controllable substations
     agents = {}
-    for sub_id in list(controllable_substations.keys()):
+    for sub_id in list(agent_per_substation.keys()):
         agents[sub_id] = TopologyGreedyAgent(
             env.action_space, env_config, actions_per_substation[sub_id]
         )

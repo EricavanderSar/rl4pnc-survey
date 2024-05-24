@@ -11,7 +11,7 @@ setup:
   num_samples: 1
 
 debugging:
-  seed: &seed 14
+  seed: &seed !randint [0, 100000]
 
 training:
   # tunable parameters
@@ -59,7 +59,6 @@ environment:
     grid2op_kwargs:
       # general kwargs
       reward_class: !ScaledL2RPNReward
-    seed: *seed
     rho_threshold: 0.95
     stage: train
     prio: True

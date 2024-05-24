@@ -5,7 +5,6 @@ Trains PPO baseline agent.
 import argparse
 import logging
 
-import grid2op
 import gymnasium as gym
 import numpy as np
 from ray.rllib.algorithms import ppo  # import the type of agents
@@ -39,32 +38,22 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
         if key != "setup":
             ppo_config.update(custom_config[key])
 
-    # load in information about the environment
-    grid2op.make(custom_config["environment"]["env_config"]["env_name"])
-
-    # env_info = {
-    #     "num_load": setup_env.n_load,
-    #     "num_gen": setup_env.n_gen,
-    #     "num_line": setup_env.n_line,
-    #     "dim_topo": setup_env.dim_topo,
-    # }
-
     # Make model to be shared by both value and action rl agent
-    # medha DN 14-bus # TODO: Check if obs2 is correct?
+    # medha DN 14-bus
     obs2 = gym.spaces.Box(-1.0, 1.0, (152,), np.float32)
     shared_model = CustomFCN(
         obs_space=obs2,
-        action_space=gym.spaces.Discrete(112),
-        num_outputs=112,
-        model_config=custom_config,
+        action_space=gym.spaces.Discrete(113),
+        num_outputs=113,
+        model_config=ppo_config["model"],
         name="shared_model",
     )
     # tennet 5-bus
     # obs2 = gym.spaces.Box(-1.0, 1.0, (58,), np.float32)
     # shared_model = CustomFCN(
     #     obs_space=obs2,
-    #     action_space=gym.spaces.Discrete(24),
-    #     num_outputs=24,
+    #     action_space=gym.spaces.Discrete(25),
+    #     num_outputs=25,
     #     model_config=custom_config,
     #     name="shared_model",
     # )
@@ -125,9 +114,6 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     # load environment and agents manually
     ppo_config.update({"policies": policies})
     ppo_config.update({"env": CustomizedGrid2OpEnvironment})
-    # ppo_config.update(
-    #     {"model": {"custom_model": shared_model, "custom_model_config": ppo_config}}
-    # )
 
     run_training(ppo_config, custom_config["setup"], CustomPPO)
 

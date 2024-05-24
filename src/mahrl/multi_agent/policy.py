@@ -417,7 +417,7 @@ class CapaPolicy(Policy):
                 str(substation_to_act_on[idx % len(self.controllable_substations)])
             ]
 
-            # if it's not the do nothing action, return action index (similar to NN)
+            # if it's not the do nothing action, return action index
             # if it's the do nothing action, continue the loop
             if chosen_action:
                 return (
@@ -688,12 +688,9 @@ class RandomPolicy(Policy):
             action_keys = list(obs_batch["proposed_actions"].keys())
         else:
             action_keys = list(obs_batch[0]["proposed_actions"].keys())
-        random_sub_id = random.randrange(len(action_keys))
+        random_sub_id = random.choice(action_keys)
 
-        # if the last agent is chosen, return -1 to do nothing
-        if random_sub_id == len(action_keys):
-            random_sub_id = -1
-        return [random_sub_id], [], {}
+        return [int(random_sub_id)], [], {}
 
     def get_weights(self) -> ModelWeights:
         """No weights to save."""
@@ -778,8 +775,9 @@ class ArgMaxPolicy(Policy):
         else:
             proposed_confidences = obs_batch[0]["proposed_confidences"]
 
-        sub_id = np.argmax(proposed_confidences)
-        return [sub_id], [], {}
+        sub_id = max(proposed_confidences, key=proposed_confidences.get)
+
+        return [int(sub_id)], [], {}
 
     def get_weights(self) -> ModelWeights:
         """No weights to save."""
@@ -864,14 +862,22 @@ class SampleValuePolicy(Policy):
         else:
             proposed_confidences = obs_batch[0]["proposed_confidences"]
 
+        # make all weights positive
+        weights = list(proposed_confidences.values())
+        min_value = min(weights)
+
+        if min_value < 0:
+            shift_value = abs(min_value) + 1e-9  # small constant to ensure positivity
+            weights = [value + shift_value for value in weights]
+
         # take the sub_id based on a uniform sample of proposed_confidences
         sub_id = random.choices(
             list(proposed_confidences.keys()),
-            weights=list(proposed_confidences.values()),
+            weights=weights,
             k=1,
         )[0]
 
-        return [sub_id], [], {}
+        return [int(sub_id)], [], {}
 
     def get_weights(self) -> ModelWeights:
         """No weights to save."""

@@ -17,12 +17,7 @@ from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
 from mahrl.evaluation.evaluation_agents import get_actions_per_substation
-from mahrl.experiments.utils import (
-    calculate_action_space_asymmetry,
-    calculate_action_space_medha,
-    calculate_action_space_tennet,
-    find_list_of_agents,
-)
+from mahrl.experiments.utils import find_list_of_agents
 from mahrl.grid2op_env.utils import (
     ChronPrioMatrix,
     CustomDiscreteActions,
@@ -102,8 +97,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
     """
 
     def __init__(self, env_config: dict[str, Any]):
+        # print("Before original init")
         super().__init__()
 
+        # print(f"Make ENV")
         # create the grid2op environment
         self.grid2op_env = make_g2op_env(env_config)
 
@@ -128,6 +125,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         )
         self.possible_substation_actions = load_action_space(path, self.grid2op_env)
 
+        # print(f"Actions loaded")
         # add the do-nothing action at index 0
         do_nothing_action = self.grid2op_env.action_space({})
         self.possible_substation_actions.insert(0, do_nothing_action)
@@ -162,8 +160,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         if "vf_rl" in env_config:
             self.is_value_rl = True
 
-            #########################################
-            # Experiment with grouping
+            # Group the value function and reinforcement policy
             self._agent_ids = [
                 "high_level_agent",
                 "vf_group",
@@ -178,14 +175,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                     ]
                 },
             )
-
-            #########################################
-            # self._agent_ids = [
-            #     "high_level_agent",
-            #     "value_reinforcement_learning_agent",
-            #     "value_function_agent",
-            #     "do_nothing_agent",
-            # ]
         else:
             self.is_value_rl = False
             self._agent_ids = [
@@ -442,13 +431,13 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         observations: dict[str, Union[int, OrderedDict[str, Any]]] = {}
 
         if action_dict["high_level_agent"] == 0:  # do something
-            if not self.is_value_rl:
-                observations = {"reinforcement_learning_agent": self.previous_obs}
-            else:
+            if self.is_value_rl:
                 observations = {
                     "value_reinforcement_learning_agent": self.previous_obs,
                     "value_function_agent": self.previous_obs,
                 }
+            else:
+                observations = {"reinforcement_learning_agent": self.previous_obs}
         elif action_dict["high_level_agent"] == 1:  # do nothing
             observations = {"do_nothing_agent": 0}
         else:
@@ -469,37 +458,23 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
     """
 
     def __init__(self, env_config: dict[str, Any]):
+        # print("Start init")
         super().__init__(env_config)
+        # print("End super init")
 
         # add all RL agents
-        list_of_substations = list(
-            find_list_of_agents(
-                self.grid2op_env,
-                env_config["action_space"],
-            ).keys()
+        self.agent_per_substation = find_list_of_agents(
+            self.grid2op_env,
+            env_config["action_space"],
         )
+        list_of_substations = list(self.agent_per_substation.keys())
 
         self.rl_agent_ids = []
-
-        # get changeable substations
-        if env_config["action_space"].startswith("asymmetry"):
-            _, _, controllable_substations = calculate_action_space_asymmetry(
-                self.grid2op_env
-            )
-        elif env_config["action_space"].startswith("medha"):
-            _, _, controllable_substations = calculate_action_space_medha(
-                self.grid2op_env
-            )
-        elif env_config["action_space"].startswith("tennet"):
-            _, _, controllable_substations = calculate_action_space_tennet(
-                self.grid2op_env
-            )
-        else:
-            raise ValueError("No action valid space is defined.")
+        rl_agent_groups = {}
 
         actions_per_substations = get_actions_per_substation(
-            controllable_substations=controllable_substations,
             possible_substation_actions=self.possible_substation_actions,
+            agent_per_substation=self.agent_per_substation,
         )
 
         # map individual substation action to global action space
@@ -512,7 +487,9 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             }
 
         # map the middle output substation to the substation id
-        self.middle_to_substation_map = dict(enumerate(list_of_substations))
+        self.middle_to_substation_map = {
+            str(i): v for i, v in enumerate(list_of_substations)
+        }
 
         if self.is_value_rl:
             for sub_idx in list_of_substations:
@@ -521,23 +498,41 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                     f"value_reinforcement_learning_agent_{sub_idx}"
                 )
                 self.rl_agent_ids.append(f"value_function_agent_{sub_idx}")
+
+                rl_agent_groups[f"vf_group_{sub_idx}"] = [
+                    f"value_reinforcement_learning_agent_{sub_idx}",
+                    f"value_function_agent_{sub_idx}",
+                ]
+
+            self.env = self.with_agent_groups(
+                groups=rl_agent_groups,
+            )
+
+            # determine the acting agents
+            self._agent_ids = list(rl_agent_groups.keys()) + [
+                "high_level_agent",
+                "choose_substation_agent",
+                "do_nothing_agent",
+            ]
         else:
             for sub_idx in list_of_substations:
                 # add agent
                 self.rl_agent_ids.append(f"reinforcement_learning_agent_{sub_idx}")
 
-        # determine the acting agents
-        self._agent_ids = self.rl_agent_ids + [
-            "high_level_agent",
-            "choose_substation_agent",
-            "do_nothing_agent",
-        ]
+            # determine the acting agents
+            self._agent_ids = self.rl_agent_ids + [
+                "high_level_agent",
+                "choose_substation_agent",
+                "do_nothing_agent",
+            ]
 
         self.is_greedy = False
         self.is_capa = "capa" in env_config.keys()
+        self.is_rulebased = "rulebased" in env_config.keys()
         self.reset_capa_idx = 1
-        self.proposed_actions: dict[int, int] = {}
-        self.proposed_confidences: dict[int, float] = {}
+        self.proposed_actions: dict[str, int] = {}
+        self.proposed_confidences: dict[str, float] = {}
+        self.last_action_agent: Union[str, None] = None
 
     def reset(
         self,
@@ -553,6 +548,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         observations = {"high_level_agent": max(self.previous_obs["rho"])}
         return observations, {}
 
+    # pylint: disable=too-many-branches
     def step(
         self, action_dict: MultiAgentDict
     ) -> Tuple[
@@ -573,6 +569,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         }
         infos: Dict[str, Any] = {}
 
+        # print(action_dict)
         if "high_level_agent" in action_dict.keys():
             observations = self.perform_high_level_action(action_dict)
         elif (
@@ -595,8 +592,11 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                 0
             )
 
-            # reward the RL agent for this step, go back to HL agent
-            rewards = {"choose_substation_agent": reward}
+            if self.last_action_agent:
+                rewards = self.assign_multi_agent_rewards(
+                    self.last_action_agent, reward
+                )
+
             observations = {"high_level_agent": max(self.previous_obs["rho"])}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
@@ -656,7 +656,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                 self.proposed_actions,
                 self.proposed_confidences,
             ) = self.extract_proposed_actions_values(action_dict)
-            # print(f"Proposed confidences: {self.proposed_confidences}")
+
             observations = {
                 "choose_substation_agent": OrderedDict(
                     {
@@ -675,7 +675,6 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             }
             self.reset_capa_idx = 0
         elif bool(action_dict) is False:
-            # print("Caution: Empty action dictionary!")
             pass
         else:
             raise ValueError("No agent found in action dictionary in step().")
@@ -683,7 +682,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         return observations, rewards, terminateds, truncateds, infos
 
     def assign_multi_agent_rewards(
-        self, substation_id: int, reward: float
+        self, substation_id: str, reward: float
     ) -> dict[str, float]:
         """
         Assigns rewards to multiple agents in the environment.
@@ -696,16 +695,26 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         Returns:
             dict[str, float]: A dictionary containing the assigned rewards for each agent.
         """
-        if substation_id == -1:
-            rewards = {"choose_substation_agent": reward}
+        # Do not reward do-nothing
+        if substation_id in (-1, "-1", len(self.proposed_actions) - 1):
+            rewards = {}
         else:
-            rewards = {
-                "choose_substation_agent": reward,
-                f"reinforcement_learning_agent_{substation_id}": reward,
-            }
+            if self.is_value_rl:
+                rewards = {
+                    f"value_reinforcement_learning_agent_{substation_id}": reward,
+                }
+            else:
+                rewards = {
+                    f"reinforcement_learning_agent_{substation_id}": reward,
+                }
+
+        # if the middle agent is not learned, award it
+        if not self.is_capa and not self.is_rulebased:
+            rewards["choose_substation_agent"] = reward
+
         return rewards
 
-    def extract_substation_to_act(self, substation_id: int) -> int:
+    def extract_substation_to_act(self, substation_id: str) -> int:
         """
         Extracts the action corresponding to the given substation ID.
 
@@ -718,20 +727,24 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         Raises:
             ValueError: If the substation ID is not an integer.
         """
-        if substation_id in (-1, len(self.proposed_actions) - 1):
+        if substation_id in ("-1", -1, len(self.proposed_actions) - 1):
             action = 0
         else:
-            if self.is_capa:
+            if self.is_capa or self.is_rulebased:
                 action = self.proposed_actions[substation_id]
             else:
                 substation_id = self.middle_to_substation_map[substation_id]
                 local_action = self.proposed_actions[substation_id]
-                action = self.local_to_global_action_map[substation_id][local_action]
+                action = self.local_to_global_action_map[str(substation_id)][
+                    local_action
+                ]
+
+        self.last_action_agent = str(substation_id)
         return action
 
     def extract_proposed_actions_values(
         self, action_dict: MultiAgentDict
-    ) -> tuple[dict[int, int], dict[int, float]]:
+    ) -> tuple[dict[str, int], dict[str, float]]:
         """
         Extract all proposed actions and vluesfrom the action_dict.
         """
@@ -751,34 +764,44 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             ]
         )
 
-        proposed_actions: dict[int, int] = {}
-        proposed_confidences: dict[int, float] = {}
-        # TODO: Add possibility for do nothing, what should confidene be?
+        proposed_actions: dict[str, int] = {}
+        proposed_confidences: dict[str, float] = {}
+
         for key, action in action_dict.items():
-            # extract integer at end of key
-            agent_id = int(key.split("_")[-1])
-            if key.startswith("value_reinforcement_learning_agent"):
-                proposed_actions[agent_id] = int(action["action"])
-            if key.startswith("value_function_agent"):
-                proposed_confidences[agent_id] = float(action["value"])
+            if not key == "do_nothing_agent":
+                # extract integer at end of key
+                agent_id = str(key.split("_")[-1])
+                if key.startswith("value_reinforcement_learning_agent"):
+                    proposed_actions[agent_id] = int(action)
+                if key.startswith("value_function_agent"):
+                    proposed_confidences[agent_id] = float(action)
+            else:
+                # NOTE: The confidence for the do-nothing action is set to 0
+                proposed_actions["-1"] = 0
+                proposed_confidences["-1"] = 0.0
 
         return proposed_actions, proposed_confidences
 
-    def extract_proposed_actions(self, action_dict: MultiAgentDict) -> dict[int, int]:
+    def extract_proposed_actions(self, action_dict: MultiAgentDict) -> dict[str, int]:
         """
         Extract all proposed actions from the action_dict.
         """
-        proposed_actions: dict[int, int] = {}
+        proposed_actions: dict[str, int] = {}
         for key, local_action in action_dict.items():
             if not key == "do_nothing_agent":
                 # extract integer at end of key
-                agent_id = int(key.split("_")[-1])
+                agent_id = str(key.split("_")[-1])
 
-                # convert action back to global
-                global_action = self.local_to_global_action_map[agent_id][local_action]
-                proposed_actions[agent_id] = int(global_action)
+                if self.is_rulebased or self.is_capa:
+                    # convert action back to global
+                    global_action = self.local_to_global_action_map[agent_id][
+                        local_action
+                    ]
+                    proposed_actions[agent_id] = int(global_action)
+                else:
+                    proposed_actions[agent_id] = int(local_action)
             else:
-                proposed_actions[-1] = 0
+                proposed_actions["-1"] = 0
 
         return proposed_actions
 

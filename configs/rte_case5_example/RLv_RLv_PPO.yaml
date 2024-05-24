@@ -1,17 +1,17 @@
 setup:
   nb_timesteps: &nb_timesteps 10000
-  checkpoint_freq: 10
-  checkpoint_at_end: True
-  keep_checkpoints_num: 5
+  checkpoint_freq: 0
+  checkpoint_at_end: False
+  # keep_checkpoints_num: 0
   checkpoint_score_attr: evaluation/episode_reward_mean
   verbose: 1
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
   experiment_name: rte_case5_example/RLv_RLv
   save_artifact: True
-  num_samples: 20
+  num_samples: 1
 
 debugging:
-  seed: &seed 14
+  seed: &seed !randint [0, 100000]
 
 training:
   # tunable parameters
@@ -59,7 +59,6 @@ environment:
     grid2op_kwargs:
       # general kwargs
       reward_class: !ScaledL2RPNReward
-    seed: *seed
     rho_threshold: 0.95
     stage: train
     prio: True
