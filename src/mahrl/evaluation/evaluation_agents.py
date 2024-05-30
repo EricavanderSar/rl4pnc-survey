@@ -17,6 +17,7 @@ from grid2op.gym_compat import GymEnv
 from grid2op.Observation import BaseObservation
 from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
+from ray.rllib.policy.policy import Policy
 
 from mahrl.experiments.utils import (
     calculate_action_space_asymmetry,
@@ -31,6 +32,10 @@ from mahrl.experiments.utils import (
 class RllibAgent(BaseAgent):
     """
     Class that runs a RLlib model in the Grid2Op environment.
+    EVDS Additions (24-05-2024):
+        - Load only rl policy instead of entire algorithm (no training is needed)
+        - Add line reconnections
+        - Make compatible with changes in custom environment
     """
 
     def __init__(
@@ -46,10 +51,11 @@ class RllibAgent(BaseAgent):
         BaseAgent.__init__(self, action_space)
 
         # load neural network of (eg) PPO agent.
-        checkpoint_path = os.path.join(file_path, checkpoint_name)
-        self._rllib_agent = algorithm.from_checkpoint(
-            checkpoint_path, policy_ids=[policy_name]
-        )
+        checkpoint_path = os.path.join(file_path, checkpoint_name, "policies", policy_name)
+        self._rllib_agent = Policy.from_checkpoint(checkpoint_path)
+        # self._rllib_agent = algorithm.from_checkpoint(
+        #     checkpoint_path, policy_ids=[policy_name]
+        # )
 
         # setup env
         self.gym_wrapper = gym_wrapper
@@ -65,21 +71,32 @@ class RllibAgent(BaseAgent):
         """
 
         # Grid2Op to RLlib observation
-        gym_obs = self.gym_wrapper.env_gym.observation_space.to_gym(observation)
-        gym_obs = OrderedDict(
-            (k, gym_obs[k]) for k in self.gym_wrapper.observation_space.spaces
-        )
-
-        if np.max(gym_obs["rho"]) > self.threshold:
+        self.gym_wrapper.update_obs(observation)
+        if False in observation.line_status:
+            disc_lines = np.where(observation.line_status == False)[0]
+            for i in disc_lines:
+                act = None
+                # Reconnecting the line when cooldown and maintenance is over:
+                if (observation.time_next_maintenance[i] != 0) & (observation.time_before_cooldown_line[i] == 0):
+                    status = np.arange(observation.n_line) == i
+                    act = self.action_space({"change_line_status": status})
+                    if act is not None:
+                        return act
+        elif observation.rho.max() > self.threshold:
             # get action as int
-            action = self._rllib_agent.compute_single_action(
-                gym_obs, policy_id="reinforcement_learning_policy"
+            # compute_single_action returns:
+            #   - Tuple consisting of the action,
+            #   - the list of RNN state outputs (if any), and
+            #   - a dictionary of extra features (if any).
+            # print("current obs:", self.gym_wrapper.cur_obs)
+            gym_action, state_out, info = self._rllib_agent.compute_single_action(
+                self.gym_wrapper.cur_obs,
+                policy_id="reinforcement_learning_policy"
             )
             # convert Rllib action to grid2op
-            return self.gym_wrapper.env_gym.action_space.from_gym(action)
-        # else
-        action = self.gym_wrapper.env_glop.action_space({})
-        return action
+            return self.gym_wrapper.env_gym.action_space.from_gym(gym_action)
+        else:
+            return self.action_space({})
 
 
 class LargeTopologyGreedyAgent(GreedyAgent):

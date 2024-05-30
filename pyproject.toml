@@ -68,6 +68,7 @@ dependencies = [
   "wandb",
   "optuna",
   "typer",
+  "ipykernel",
 ]
 
 [project.optional-dependencies]

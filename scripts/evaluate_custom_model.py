@@ -15,7 +15,6 @@ from typing import Any
 import grid2op
 from grid2op.Agent import BaseAgent, DoNothingAgent
 from grid2op.Environment import BaseEnv
-from grid2op.Reward import BaseReward
 from grid2op.Runner import Runner
 from ray.rllib.algorithms import ppo
 from ray.rllib.algorithms import Algorithm
@@ -25,6 +24,7 @@ from mahrl.evaluation.evaluation_agents import (
     RllibAgent,
     TopologyGreedyAgent,
 )
+from mahrl.evaluation.utils import instantiate_reward_class
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.grid2op_env.utils import load_actions
@@ -35,6 +35,7 @@ def get_algorithm(alg_name) -> Algorithm:
         "ppo": ppo.PPO,
     }
     return AGENT[alg_name]
+
 
 def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
     """
@@ -90,24 +91,6 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
     )
 
     return parser.parse_args()
-
-
-def instantiate_reward_class(class_name: str) -> Any:
-    """
-    Instantiates the Reward class from json string.
-    """
-    # Split the class name into module and class
-    class_name = class_name.replace("<", "")
-    module_name, class_name = class_name.rsplit(".", 1)
-    class_name = class_name.split(" ", 1)[0]
-    # Import the module dynamically
-    module = importlib.import_module(module_name)
-    # Get the class from the module
-    reward_class: BaseReward = getattr(module, class_name)
-    # Instantiate the class
-    if reward_class:
-        return reward_class()
-    raise ValueError("Problem instantiating reward class for evaluation.")
 
 
 def instantiate_opponent_classes(class_name: str) -> Any:
