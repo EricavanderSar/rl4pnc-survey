@@ -9,23 +9,24 @@ from typing import Any, Optional
 
 import grid2op
 import numpy as np
+import gymnasium as gym
 from grid2op.Action import ActionSpace, BaseAction
 from grid2op.Agent import BaseAgent, GreedyAgent
 from grid2op.dtypes import dt_float
 from grid2op.Environment import BaseEnv
-from grid2op.gym_compat import GymEnv
 from grid2op.Observation import BaseObservation
 from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
-
+from grid2op.gym_compat.gymenv import GymEnv_Modern
 from mahrl.experiments.utils import (
     find_list_of_agents,
     find_substation_per_lines,
     get_capa_substation_id,
 )
+from mahrl.multi_agent.utils import argmax_logic, sample_logic
 
 
-class RllibAgent(BaseAgent):
+class SingleRllibAgent(BaseAgent):
     """
     Class that runs a RLlib model in the Grid2Op environment.
     """
@@ -38,7 +39,7 @@ class RllibAgent(BaseAgent):
         policy_name: str,
         algorithm: Algorithm,
         checkpoint_name: str,
-        gym_wrapper: GymEnv,
+        gym_wrapper: GymEnv_Modern,
     ):
         BaseAgent.__init__(self, action_space)
 
@@ -77,6 +78,232 @@ class RllibAgent(BaseAgent):
         # else
         action = self.gym_wrapper.grid2op_env.action_space({})
         return action
+
+
+class MultiRllibAgents(BaseAgent):
+    """
+    Class that runs a multi-agent RLlib model in the Grid2Op environment.
+    """
+
+    def __init__(
+        self,
+        action_space: ActionSpace,
+        env_config: dict[str, Any],
+        file_path: str,
+        lower_policy_name: str,
+        middle_policy_name: str,
+        algorithm: Algorithm,
+        checkpoint_name: str,
+        gym_wrapper: GymEnv_Modern,
+    ):
+        BaseAgent.__init__(self, action_space)
+
+        self.lower_policy_name = lower_policy_name
+        self.middle_policy_name = middle_policy_name
+        self.policy_names: list[str] = []
+
+        # load PPO
+        checkpoint_path = os.path.join(file_path, checkpoint_name)
+
+        if self.lower_policy_name == "rl":
+            # find all folders in checkpoint path that start with reinforcement learning
+            self.policy_names = [
+                name
+                for name in os.listdir(os.path.join(checkpoint_path, "policies"))
+                if name.startswith("reinforcement_learning")
+            ]
+        elif self.lower_policy_name == "rl_v":
+            self.policy_names = [
+                name
+                for name in os.listdir(os.path.join(checkpoint_path, "policies"))
+                if name.startswith("value_reinforcement_learning")
+                or name.startswith("value_function")
+            ]
+
+        if self.middle_policy_name not in ("capa", "random", "argmax", "sample"):
+            # learned middle agent, also load this
+            self.policy_names.append("choose_substation_policy")
+
+        # load all the agents
+        self._rllib_agents = algorithm.from_checkpoint(
+            checkpoint_path, policy_ids=self.policy_names
+        )
+
+        # setup env
+        self.gym_wrapper = gym_wrapper
+
+        # setup threshold
+        self.threshold = env_config["rho_threshold"]
+        self.reconnect_line = []
+
+    def act(
+        self, observation: BaseObservation, reward: BaseReward, done: bool = False
+    ) -> BaseAction:
+        """
+        Returns a grid2op action based on a RLlib observation.
+        """
+        # TODO: Implement env extras such as automatic reconnection
+
+        # Grid2Op to RLlib observation
+        gym_obs = self.gym_wrapper.env_gym.observation_space.to_gym(observation)
+        gym_obs = OrderedDict(
+            (k, gym_obs[k]) for k in self.gym_wrapper.observation_space.spaces
+        )
+
+        # setup environment loop
+        if np.max(gym_obs["rho"]) > self.threshold:
+            # collect proposed actions
+            proposed_actions = self.get_proposed_actions(gym_obs)
+
+            # determine which agent has to act
+            if self.middle_policy_name == "capa":
+                assert self.lower_policy_name != "rl_v"
+                # TODO: Implement CAPA based on CapaGreedy Agent
+                raise NotImplementedError("Not implemented.")
+            elif self.middle_policy_name == "random":
+                assert self.lower_policy_name != "rl_v"
+                # take a random item in self.policy_names and extract the last int
+                sub_id = random.choice(self.policy_names).split("_")[-1]
+            elif self.middle_policy_name == "rl":
+                assert self.lower_policy_name != "rl_v"
+                # give appropriate observation
+                mid_rl_obs = OrderedDict(
+                    {
+                        "proposed_actions": proposed_actions,
+                    }
+                )
+                sub_id = self._rllib_agents.compute_single_action(
+                    mid_rl_obs, policy_id="choose_substation_policy"
+                )
+
+                # map Sub_ID to global
+                sub_id = self.gym_wrapper.middle_to_substation_map[str(sub_id)]
+            elif self.middle_policy_name == "rl_v":
+                assert self.lower_policy_name == "rl_v"
+                # collect proposed confidences as well
+                proposed_confidences = self.get_proposed_confidences(gym_obs)
+
+                # give appropriate observation
+                mid_rlv_obs = OrderedDict(
+                    {
+                        "proposed_actions": proposed_actions,
+                        "proposed_confidences": proposed_confidences,
+                    }
+                )
+                sub_id = self._rllib_agents.compute_single_action(
+                    mid_rlv_obs, policy_id="choose_substation_policy"
+                )
+
+                # map Sub_ID to global
+                sub_id = self.gym_wrapper.middle_to_substation_map[str(sub_id)]
+
+            elif self.middle_policy_name == "argmax":
+                assert self.lower_policy_name == "rl_v"
+
+                # collect proposed confidences
+                proposed_confidences = self.get_proposed_confidences(gym_obs)
+
+                # select sub_id with argmax
+                sub_id = argmax_logic(proposed_confidences)
+            elif self.middle_policy_name == "sample":
+                assert self.lower_policy_name == "rl_v"
+                # collect proposed confidences
+                proposed_confidences = self.get_proposed_confidences(gym_obs)
+
+                # sample sub_id
+                sub_id = sample_logic(proposed_confidences)
+            else:
+                raise ValueError("Invalid middle policy name.")
+
+            print(f"Proposed sub_id: {sub_id}")
+
+            # call correct agent, get action as int
+            policy_id = [
+                name
+                for name in self.policy_names
+                if name.endswith(sub_id)
+                and (
+                    name.startswith("reinforcement_learning")
+                    or name.startswith("value_reinforcement_learning")
+                )
+            ]
+            assert len(policy_id) == 1
+
+            # convert local action to global action through mapping
+            action = self.gym_wrapper.local_to_global_action_map[sub_id][
+                proposed_actions[sub_id]
+            ]
+
+            # convert Rllib action to grid2op
+            g2op_action = self.gym_wrapper.env_gym.action_space.from_gym(action)
+        else:
+            # stable, do nothing
+            g2op_action = self.gym_wrapper.grid2op_env.action_space({})
+
+        # add reconnecting action, if needed
+        if self.reconnect_line:
+            for line in self.reconnect_line:
+                g2op_action = g2op_action + line
+                print(f"total act: {g2op_action}")
+            self.reconnect_line = []
+
+        # find which lines to reconnect next iteration
+        to_reco = ~observation.line_status
+        if np.any(to_reco):  # TODO: Check if there's a difference between info and obs
+            reco_id = np.where(to_reco)[0]
+            for line_id in reco_id:
+                reconnect_act = self.gym_wrapper.grid2op_env.action_space(
+                    {"set_line_status": [(line_id, +1)]}
+                )
+                self.reconnect_line.append(reconnect_act)
+
+        # print(f"Action: {g2op_action.to_dict()}")
+
+        return g2op_action
+
+    def get_proposed_confidences(self, gym_obs: dict[str, Any]) -> dict[str, float]:
+        """
+        Get the proposed confidences for each policy.
+
+        Args:
+            gym_obs (dict[str, Any]): The observation from the OpenAI Gym environment.
+
+        Returns:
+            dict[str, float]: A dictionary mapping policy names to their proposed confidences.
+        """
+        # collect proposed confidences
+        proposed_confidences: dict[str, float] = {}
+        for name in self.policy_names:
+            if name.startswith("value_function"):
+                proposed_confidences[name.split("_")[-1]] = float(
+                    self._rllib_agents.compute_single_action(gym_obs, policy_id=name)
+                )
+        return proposed_confidences
+
+    def get_proposed_actions(self, gym_obs: dict[str, Any]) -> dict[str, int]:
+        """
+        Get the proposed actions for the given gym observation.
+
+        Args:
+            gym_obs (dict[str, Any]): The gym observation.
+
+        Returns:
+            dict[str, int]: A dictionary mapping policy names to proposed actions.
+
+        """
+        # collect proposed actions
+        proposed_actions: dict[str, int] = {}
+        for name in self.policy_names:
+            if name.startswith("reinforcement_learning") or name.startswith(
+                "value_reinforcement_learning"
+            ):
+                proposed_actions[name.split("_")[-1]] = (
+                    self._rllib_agents.compute_single_action(gym_obs, policy_id=name)
+                )
+        return proposed_actions
+
+
+# TODO: Make GreedyAgent with RL middle agent
 
 
 class LargeTopologyGreedyAgent(GreedyAgent):
@@ -421,6 +648,8 @@ class CapaAndGreedyAgent(GreedyAgent):
         """
         obs_batch = observation.to_dict()
         if np.max(obs_batch["rho"]) > self.threshold:
+            # TODO: Check if this still matches the policy implementation one-to-one
+
             # if no list is created yet, do so
             if self.idx == 0:
                 self.substation_to_act_on = get_capa_substation_id(
@@ -547,6 +776,7 @@ class RandomAndGreedyAgent(GreedyAgent):
 def get_actions_per_substation(
     possible_substation_actions: list[BaseAction],
     agent_per_substation: dict[str, int],
+    add_dn_action_per_agent: bool = False,
 ) -> dict[str, list[BaseAction]]:
     """
     Get the actions per substation.
@@ -587,12 +817,22 @@ def get_actions_per_substation(
                     action_count = 0
 
             if f"{sub_id}_{hub_count}" not in actions_per_substation:
-                actions_per_substation[f"{sub_id}_{hub_count}"] = []
+                if add_dn_action_per_agent:
+                    actions_per_substation[f"{sub_id}_{hub_count}"] = [
+                        possible_substation_actions[0]
+                    ]
+                else:
+                    actions_per_substation[f"{sub_id}_{hub_count}"] = []
             actions_per_substation[f"{sub_id}_{hub_count}"].append(action)
             action_count += 1
         else:  # treat normally
             if str(sub_id) not in actions_per_substation:
-                actions_per_substation[str(sub_id)] = []
+                if add_dn_action_per_agent:
+                    actions_per_substation[str(sub_id)] = [
+                        possible_substation_actions[0]
+                    ]
+                else:
+                    actions_per_substation[str(sub_id)] = []
 
             actions_per_substation[str(sub_id)].append(action)
 

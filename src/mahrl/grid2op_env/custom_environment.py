@@ -97,10 +97,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
     """
 
     def __init__(self, env_config: dict[str, Any]):
-        # print("Before original init")
         super().__init__()
 
-        # print(f"Make ENV")
         # create the grid2op environment
         self.grid2op_env = make_g2op_env(env_config)
 
@@ -458,23 +456,25 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
     """
 
     def __init__(self, env_config: dict[str, Any]):
-        # print("Start init")
         super().__init__(env_config)
-        # print("End super init")
 
         # add all RL agents
         self.agent_per_substation = find_list_of_agents(
-            self.grid2op_env,
-            env_config["action_space"],
+            env=self.grid2op_env,
+            action_space=env_config["action_space"],
+            add_dn_agents=False,
+            add_dn_action_per_agent=True,
         )
         list_of_substations = list(self.agent_per_substation.keys())
 
         self.rl_agent_ids = []
         rl_agent_groups = {}
 
+        # NOTE: All agents also have the explicit do-nothing action available
         actions_per_substations = get_actions_per_substation(
             possible_substation_actions=self.possible_substation_actions,
             agent_per_substation=self.agent_per_substation,
+            add_dn_action_per_agent=True,
         )
 
         # map individual substation action to global action space
@@ -490,6 +490,12 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         self.middle_to_substation_map = {
             str(i): v for i, v in enumerate(list_of_substations)
         }
+
+        base_agents = [
+            "high_level_agent",
+            "choose_substation_agent",
+            "do_nothing_agent",
+        ]
 
         if self.is_value_rl:
             for sub_idx in list_of_substations:
@@ -509,22 +515,14 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             )
 
             # determine the acting agents
-            self._agent_ids = list(rl_agent_groups.keys()) + [
-                "high_level_agent",
-                "choose_substation_agent",
-                "do_nothing_agent",
-            ]
+            self._agent_ids = list(rl_agent_groups.keys()) + base_agents
         else:
             for sub_idx in list_of_substations:
                 # add agent
                 self.rl_agent_ids.append(f"reinforcement_learning_agent_{sub_idx}")
 
             # determine the acting agents
-            self._agent_ids = self.rl_agent_ids + [
-                "high_level_agent",
-                "choose_substation_agent",
-                "do_nothing_agent",
-            ]
+            self._agent_ids = self.rl_agent_ids + base_agents
 
         self.is_greedy = False
         self.is_capa = "capa" in env_config.keys()
@@ -533,20 +531,6 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         self.proposed_actions: dict[str, int] = {}
         self.proposed_confidences: dict[str, float] = {}
         self.last_action_agent: Union[str, None] = None
-
-    def reset(
-        self,
-        *,
-        seed: Optional[int] = None,
-        options: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[MultiAgentDict, MultiAgentDict]:
-        """
-        This function resets the environment.
-        """
-        self.reset_capa_idx = 1
-        self.previous_obs, _ = self.env_gym.reset()
-        observations = {"high_level_agent": max(self.previous_obs["rho"])}
-        return observations, {}
 
     # pylint: disable=too-many-branches
     def step(
@@ -592,6 +576,8 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                 0
             )
 
+            self.perform_prio_update(terminated)
+
             if self.last_action_agent:
                 rewards = self.assign_multi_agent_rewards(
                     self.last_action_agent, reward
@@ -612,6 +598,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             self.previous_obs, reward, terminated, truncated, info = self.env_gym.step(
                 action
             )
+            self.perform_prio_update(terminated)
 
             # reward the RL agent for this step, go back to HL agent
             observations = {"high_level_agent": max(self.previous_obs["rho"])}
@@ -696,17 +683,19 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             dict[str, float]: A dictionary containing the assigned rewards for each agent.
         """
         # Do not reward do-nothing
-        if substation_id in (-1, "-1", len(self.proposed_actions) - 1):
-            rewards = {}
+        # if substation_id == "-1":
+        #     rewards = {}
+        # else:
+        if self.is_value_rl:
+            rewards = {
+                f"value_reinforcement_learning_agent_{substation_id}": reward,
+            }
         else:
-            if self.is_value_rl:
-                rewards = {
-                    f"value_reinforcement_learning_agent_{substation_id}": reward,
-                }
-            else:
-                rewards = {
-                    f"reinforcement_learning_agent_{substation_id}": reward,
-                }
+            rewards = {
+                f"reinforcement_learning_agent_{substation_id}": reward,
+            }
+
+        print(f"Rewarded subid: {substation_id} with {reward}")
 
         # if the middle agent is not learned, award it
         if not self.is_capa and not self.is_rulebased:
@@ -727,17 +716,15 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         Raises:
             ValueError: If the substation ID is not an integer.
         """
-        if substation_id in ("-1", -1, len(self.proposed_actions) - 1):
-            action = 0
+        # if substation_id == "-1":
+        #     action = 0
+        # else:
+        if self.is_capa or self.is_rulebased:
+            action = self.proposed_actions[str(substation_id)]
         else:
-            if self.is_capa or self.is_rulebased:
-                action = self.proposed_actions[str(substation_id)]
-            else:
-                substation_id = self.middle_to_substation_map[str(substation_id)]
-                local_action = self.proposed_actions[str(substation_id)]
-                action = self.local_to_global_action_map[str(substation_id)][
-                    local_action
-                ]
+            substation_id = self.middle_to_substation_map[str(substation_id)]
+            local_action = self.proposed_actions[str(substation_id)]
+            action = self.local_to_global_action_map[str(substation_id)][local_action]
 
         self.last_action_agent = str(substation_id)
         return action
@@ -775,10 +762,10 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                     proposed_actions[agent_id] = int(action)
                 if key.startswith("value_function_agent"):
                     proposed_confidences[agent_id] = float(action)
-            else:
-                # NOTE: The confidence for the do-nothing action is set to 0
-                proposed_actions["-1"] = 0
-                proposed_confidences["-1"] = 0.0
+            # else:
+            #     # NOTE: The confidence for the do-nothing action is set to 0
+            #     proposed_actions["-1"] = 0
+            #     proposed_confidences["-1"] = 0.0
 
         return proposed_actions, proposed_confidences
 
@@ -800,8 +787,8 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                     proposed_actions[agent_id] = int(global_action)
                 else:
                     proposed_actions[agent_id] = int(local_action)
-            else:
-                proposed_actions["-1"] = 0
+            # else:
+            #     proposed_actions["-1"] = 0
 
         return proposed_actions
 
@@ -818,8 +805,8 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                 # observations[agent_id] = gym.spaces.Dict(self.previous_obs) # NOTE For the vf only?
                 observations[agent_id] = self.previous_obs
 
-            # also add do nothing agent
-            observations["do_nothing_agent"] = 0
+            # # also add do nothing agent
+            # observations["do_nothing_agent"] = 0
         elif action == 1:  # do nothing
             observations = {"do_nothing_agent": 0}
         else:

@@ -94,7 +94,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
                 }
 
                 # also propose do nothing action
-                self.proposed_actions["-1"] = 0
+                # self.proposed_actions["-1"] = 0
 
                 # observation_for_middle_agent = OrderedDict(
                 #     {

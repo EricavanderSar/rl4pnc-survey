@@ -38,6 +38,7 @@ from mahrl.experiments.utils import (
     get_capa_substation_id,
 )
 from mahrl.grid2op_env.utils import load_action_space, setup_converter
+from mahrl.multi_agent.utils import sample_logic
 
 
 # pylint: disable=too-many-return-statements
@@ -862,22 +863,9 @@ class SampleValuePolicy(Policy):
         else:
             proposed_confidences = obs_batch[0]["proposed_confidences"]
 
-        # make all weights positive
-        weights = list(proposed_confidences.values())
-        min_value = min(weights)
+        sub_id = sample_logic(proposed_confidences)
 
-        if min_value < 0:
-            shift_value = abs(min_value) + 1e-9  # small constant to ensure positivity
-            weights = [value + shift_value for value in weights]
-
-        # take the sub_id based on a uniform sample of proposed_confidences
-        sub_id = random.choices(
-            list(proposed_confidences.keys()),
-            weights=weights,
-            k=1,
-        )[0]
-
-        return [int(sub_id)], [], {}
+        return [sub_id], [], {}
 
     def get_weights(self) -> ModelWeights:
         """No weights to save."""

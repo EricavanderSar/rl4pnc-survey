@@ -21,10 +21,14 @@ from ray.rllib.algorithms import ppo
 from mahrl.evaluation.evaluation_agents import (
     CapaAndGreedyAgent,
     LargeTopologyGreedyAgent,
-    RllibAgent,
+    MultiRllibAgents,
+    SingleRllibAgent,
 )
 from mahrl.experiments.yaml import load_config
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from mahrl.grid2op_env.custom_environment import (
+    HierarchicalCustomizedGrid2OpEnvironment,
+    CustomizedGrid2OpEnvironment,
+)
 from mahrl.grid2op_env.utils import get_original_env_name, load_actions
 
 
@@ -71,10 +75,17 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
         help="Path to the input file, only for the Rllib agent.",
     )
     parser.add_argument(
-        "-p",
+        "-cp",
         "--checkpoint_name",
         type=str,
         help="Name of the checkpoint, only for the Rllib agent.",
+    )
+
+    parser.add_argument(
+        "-ma",
+        "--multi_agent",
+        action="store_true",
+        help="Flag if the loaded model is a multi-agent model.",
     )
 
     return parser.parse_args()
@@ -175,6 +186,10 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
     if not os.path.exists(store_trajectories_folder):
         # if not, create the folder
         os.makedirs(store_trajectories_folder)
+
+    # set seed if not done yet
+    if "seed" not in env_config:
+        env_config["seed"] = 14  # TODO: Make randint and log number
 
     # run the environment 10 times if an opponent is active, with different seeds
     for i in range(10 if "opponent_kwargs" in env_config["grid2op_kwargs"] else 1):
@@ -278,7 +293,9 @@ def setup_do_nothing_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) 
     )
 
 
-def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
+def setup_rllib_evaluation(
+    file_path: str, checkpoint_name: str, is_multi_agent: bool = False
+) -> None:
     """
     Set up the evaluation of a custom RLlib model.
 
@@ -294,7 +311,7 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
     config = load_config(config_path)
     env_config = config["env_config"]
     # change the env_name from _train to _test
-    env_config["env_name"] = env_config["env_name"].replace("_train", "_test")
+    env_config["env_name"] = get_original_env_name(env_config["env_name"])
 
     env_config["grid2op_kwargs"]["reward_class"] = instantiate_reward_class(
         env_config["grid2op_kwargs"]["reward_class"]
@@ -302,32 +319,47 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
 
     # check if "opponent_action_class" is part of env_config["grid2op_kwargs"]
     if "opponent_action_class" in env_config["grid2op_kwargs"]:
-        env_config["grid2op_kwargs"][
-            "opponent_action_class"
-        ] = instantiate_opponent_classes(
-            env_config["grid2op_kwargs"]["opponent_action_class"]
+        env_config["grid2op_kwargs"]["opponent_action_class"] = (
+            instantiate_opponent_classes(
+                env_config["grid2op_kwargs"]["opponent_action_class"]
+            )
         )
-        env_config["grid2op_kwargs"][
-            "opponent_budget_class"
-        ] = instantiate_opponent_classes(
-            env_config["grid2op_kwargs"]["opponent_budget_class"]
+        env_config["grid2op_kwargs"]["opponent_budget_class"] = (
+            instantiate_opponent_classes(
+                env_config["grid2op_kwargs"]["opponent_budget_class"]
+            )
         )
         env_config["grid2op_kwargs"]["opponent_class"] = instantiate_opponent_classes(
             env_config["grid2op_kwargs"]["opponent_class"]
         )
 
-    run_runner(
-        env_config=env_config,
-        agent_instance=RllibAgent(
-            action_space=None,
+    if is_multi_agent:
+        run_runner(
             env_config=env_config,
-            file_path=file_path,
-            policy_name="default_policy",
-            algorithm=ppo.PPO,
-            checkpoint_name=checkpoint_name,
-            gym_wrapper=CustomizedGrid2OpEnvironment(env_config),
-        ),
-    )
+            agent_instance=MultiRllibAgents(
+                action_space=None,
+                env_config=env_config,
+                file_path=file_path,
+                lower_policy_name="rl",
+                middle_policy_name="random",
+                algorithm=ppo.PPO,
+                checkpoint_name=checkpoint_name,
+                gym_wrapper=HierarchicalCustomizedGrid2OpEnvironment(env_config),
+            ),
+        )
+    else:
+        run_runner(
+            env_config=env_config,
+            agent_instance=SingleRllibAgent(
+                action_space=None,
+                env_config=env_config,
+                file_path=file_path,
+                policy_name="default_policy",
+                algorithm=ppo.PPO,
+                checkpoint_name=checkpoint_name,
+                gym_wrapper=CustomizedGrid2OpEnvironment(env_config),
+            ),
+        )
 
 
 def setup_capa_greedy_evaluation(
@@ -398,9 +430,11 @@ if __name__ == "__main__":
                 setup_rllib_evaluation(
                     file_path=args.file_path,
                     checkpoint_name=CHECKPOINT_NAME,
+                    is_multi_agent=args.multi_agent,
                 )
             else:
                 setup_rllib_evaluation(
                     file_path=args.file_path,
                     checkpoint_name=args.checkpoint_name,
+                    is_multi_agent=args.multi_agent,
                 )

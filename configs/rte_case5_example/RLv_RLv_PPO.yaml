@@ -1,7 +1,7 @@
 setup:
-  nb_timesteps: &nb_timesteps 10000
+  nb_timesteps: &nb_timesteps 1000
   checkpoint_freq: 0
-  checkpoint_at_end: False
+  checkpoint_at_end: True
   # keep_checkpoints_num: 0
   checkpoint_score_attr: evaluation/episode_reward_mean
   verbose: 1

@@ -1,4 +1,5 @@
 """
+DEPRICATED/UNUSED. 
 Class that defines the custom Grid2op to gym environment with the set observation and action spaces.
 """
 

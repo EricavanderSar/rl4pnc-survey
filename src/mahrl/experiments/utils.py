@@ -21,7 +21,7 @@ from ray.tune.search.bohb import TuneBOHB
 
 
 def calculate_action_space_asymmetry(
-    env: BaseEnv, add_dn: bool = False
+    env: BaseEnv, add_dn_agents: bool = False, add_dn_action_per_agent: bool = False
 ) -> tuple[int, int, dict[str, int]]:
     """
     Function prints and returns the number of legal actions and topologies without symmetries.
@@ -44,8 +44,10 @@ def calculate_action_space_asymmetry(
         alpha = 2 ** (nr_elements - 1) - (2**nr_non_lines - 1)
         action_space += alpha if alpha > 1 else 0
         # if alpha > 1:  # without do nothings for single substations
-        if (add_dn and alpha > 0) or (alpha > 1):
+        if (add_dn_agents and alpha > 0) or (alpha > 1):
             controllable_substations[str(sub)] = alpha
+            if add_dn_action_per_agent:
+                controllable_substations[str(sub)] += 1
         possible_topologies *= max(alpha, 1)
 
     logging.info(f"actions {action_space}")
@@ -55,7 +57,7 @@ def calculate_action_space_asymmetry(
 
 
 def calculate_action_space_medha(
-    env: BaseEnv, add_dn: bool = False
+    env: BaseEnv, add_dn_agents: bool = False, add_dn_action_per_agent: bool = False
 ) -> tuple[int, int, dict[str, int]]:
     """
     Function prints and returns the number of legal actions and topologies following Subrahamian (2021).
@@ -78,15 +80,18 @@ def calculate_action_space_medha(
         gamma = 2**nr_non_lines - 1 - nr_non_lines
         combined = alpha - beta - gamma
         action_space += combined if combined > 1 else 0
-        if (add_dn and combined > 0) or (combined > 1):
+        if (add_dn_agents and combined > 0) or (combined > 1):
             controllable_substations[str(sub)] = combined
+            if add_dn_action_per_agent:
+                controllable_substations[str(sub)] += 1
+
         possible_topologies *= max(combined, 1)
 
     return action_space, possible_topologies, controllable_substations
 
 
 def calculate_action_space_tennet(
-    env: BaseEnv, add_dn: bool = False
+    env: BaseEnv, add_dn_agents: bool = False, add_dn_action_per_agent: bool = False
 ) -> tuple[int, int, dict[str, int]]:
     """
     Function prints and returns the number of legal actions and topologies following the proposed action space.
@@ -128,8 +133,11 @@ def calculate_action_space_tennet(
         ) / 2  # remove symmetries
 
         action_space += int(combined) if combined > 1 else 0
-        if (add_dn and combined > 0) or (combined > 1):
+        if (add_dn_agents and combined > 0) or (combined > 1):
             controllable_substations[str(sub)] = combined
+            if add_dn_action_per_agent:
+                controllable_substations[str(sub)] += 1
+
         possible_topologies *= max(combined, 1)
 
     return action_space, possible_topologies, controllable_substations
@@ -184,18 +192,29 @@ def get_capa_substation_id(
     return list(ordered_keys)
 
 
-def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[str, int]:
+def find_list_of_agents(
+    env: BaseEnv,
+    action_space: str,
+    add_dn_agents: bool = False,
+    add_dn_action_per_agent: bool = False,
+) -> dict[str, int]:
     """
     Function that returns the number of controllable substations.
     """
     if action_space.startswith("asymmetry"):
-        _, _, list_of_agents = calculate_action_space_asymmetry(env)
+        _, _, list_of_agents = calculate_action_space_asymmetry(
+            env, add_dn_agents, add_dn_action_per_agent
+        )
         return list_of_agents
     if action_space.startswith("medha"):
-        _, _, list_of_agents = calculate_action_space_medha(env)
+        _, _, list_of_agents = calculate_action_space_medha(
+            env, add_dn_agents, add_dn_action_per_agent
+        )
         return list_of_agents
     if action_space.startswith("tennet"):
-        _, _, list_of_agents = calculate_action_space_tennet(env)
+        _, _, list_of_agents = calculate_action_space_tennet(
+            env, add_dn_agents, add_dn_action_per_agent
+        )
         return list_of_agents
     raise ValueError("The action space is not supported.")
 

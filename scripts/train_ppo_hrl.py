@@ -84,7 +84,7 @@ def setup_gym_spaces(
                 str(i): gym.spaces.Discrete(int(agent_per_substation[i]))
                 for i in list(agent_per_substation.keys())
             },
-            "-1": gym.spaces.Discrete(1),
+            # "-1": gym.spaces.Discrete(1),
         }
     )
 
@@ -98,7 +98,7 @@ def setup_gym_spaces(
                 str(i): gym.spaces.Discrete(num_all_actions)
                 for i in list(agent_per_substation.keys())
             },
-            "-1": gym.spaces.Discrete(1),
+            # "-1": gym.spaces.Discrete(1),
         }
     )
 
@@ -108,7 +108,7 @@ def setup_gym_spaces(
                 str(i): gym.spaces.Box(-np.inf, np.inf, tuple(), np.float32)
                 for i in list(agent_per_substation.keys())
             },
-            "-1": gym.spaces.Box(-np.inf, np.inf, tuple(), np.float32),
+            # "-1": gym.spaces.Box(-np.inf, np.inf, tuple(), np.float32),
         }
     )
 
@@ -179,7 +179,8 @@ def select_mid_level_policy(
             }
         )
 
-    act_space = gym.spaces.Discrete(len(list(agent_per_substation.keys())) + 1)
+    act_space = gym.spaces.Discrete(len(list(agent_per_substation.keys())))
+    # act_space = gym.spaces.Discrete(len(list(agent_per_substation.keys())) + 1) #NOTE: With DN agent as possible chosen agent
 
     if middle_agent_type == "capa":
         custom_config["environment"]["env_config"]["capa"] = True
@@ -368,9 +369,9 @@ def split_hub_into_agents(agent_per_substation: dict[str, int]) -> dict[str, int
                         avg_actions_per_hub + 1
                     )
                 else:
-                    new_agent_per_substation[
-                        str(f"{sub_idx}_{i}")
-                    ] = avg_actions_per_hub
+                    new_agent_per_substation[str(f"{sub_idx}_{i}")] = (
+                        avg_actions_per_hub
+                    )
 
         else:
             # keep as is
@@ -504,6 +505,8 @@ def setup_config(
     agent_per_substation = find_list_of_agents(
         setup_env,
         custom_config["environment"]["env_config"]["action_space"],
+        add_dn_agents=False,
+        add_dn_action_per_agent=True,
     )
     agent_per_substation = split_hub_into_agents(agent_per_substation)
 
