@@ -590,10 +590,8 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
 
             self.reset_capa_idx = 1
         elif "choose_substation_agent" in action_dict.keys():
-            substation_id = action_dict["choose_substation_agent"]
-            action = self.extract_substation_to_act(
-                action_dict["choose_substation_agent"]
-            )
+            output_substation_id = action_dict["choose_substation_agent"]
+            substation_id, action = self.extract_substation_to_act(output_substation_id)
 
             self.previous_obs, reward, terminated, truncated, info = self.env_gym.step(
                 action
@@ -602,10 +600,14 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
 
             # reward the RL agent for this step, go back to HL agent
             observations = {"high_level_agent": max(self.previous_obs["rho"])}
+
+            # get the last action agent as ID, possibly convertable by middle_to_substation_map
+            self.last_action_agent = substation_id
             rewards = self.assign_multi_agent_rewards(substation_id, reward)
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {"__common__": info}
+
         elif any(
             key.startswith("reinforcement_learning_agent") for key in action_dict.keys()
         ):
@@ -695,7 +697,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                 f"reinforcement_learning_agent_{substation_id}": reward,
             }
 
-        print(f"Rewarded subid: {substation_id} with {reward}")
+        # print(f"Rewarded subid: {rewards}")
 
         # if the middle agent is not learned, award it
         if not self.is_capa and not self.is_rulebased:
@@ -703,7 +705,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
 
         return rewards
 
-    def extract_substation_to_act(self, substation_id: str) -> int:
+    def extract_substation_to_act(self, substation_id: str) -> tuple[str, int]:
         """
         Extracts the action corresponding to the given substation ID.
 
@@ -716,18 +718,13 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         Raises:
             ValueError: If the substation ID is not an integer.
         """
-        # if substation_id == "-1":
-        #     action = 0
-        # else:
         if self.is_capa or self.is_rulebased:
             action = self.proposed_actions[str(substation_id)]
         else:
             substation_id = self.middle_to_substation_map[str(substation_id)]
             local_action = self.proposed_actions[str(substation_id)]
             action = self.local_to_global_action_map[str(substation_id)][local_action]
-
-        self.last_action_agent = str(substation_id)
-        return action
+        return substation_id, action
 
     def extract_proposed_actions_values(
         self, action_dict: MultiAgentDict

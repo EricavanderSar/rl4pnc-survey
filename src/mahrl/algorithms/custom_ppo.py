@@ -76,18 +76,12 @@ class CustomPPO(PPO):
                 )
 
         train_batch = train_batch.as_multi_agent()  # type: ignore
+
+        # divide the number of training steps by the number of trainable policies, as all trainable policies act one within one timestep
         self._counters[NUM_AGENT_STEPS_SAMPLED] += int(
             train_batch.agent_steps()
             / len(self.workers.local_worker().get_policies_to_train())
         )
-
-        cur_count = int(
-            train_batch.agent_steps()
-            / len(self.workers.local_worker().get_policies_to_train())
-        )
-        print(f"How steps are now counted: {cur_count}")
-
-        print(f"How steps should be counted: {sum(self.steps_per_policy.values())}")
 
         self._counters[NUM_ENV_STEPS_SAMPLED] += train_batch.env_steps()
 
@@ -283,15 +277,10 @@ class CustomPPO(PPO):
 
         policies_to_train = worker_set.local_worker().get_policies_to_train()
 
-        # TODO: Remove
-        policies_to_train.add("high_level_policy")
-        policies_to_train.add("do_nothing_policy")
-
         # count the steps per policy but ignore the middle agent,
         # as this is always counted whenever the lower level agents are counted
         self.steps_per_policy = {
-            pid: 0
-            for pid in policies_to_train  # TODO add back if pid != "choose_substation_policy"
+            pid: 0 for pid in policies_to_train if pid != "choose_substation_policy"
         }
 
         worker_set.local_worker()
@@ -322,15 +311,8 @@ class CustomPPO(PPO):
                     filtered_batches = {
                         pid: batch
                         for pid, batch in batch.policy_batches.items()
-                        # if pid in policies_to_train  # and any(batch["rewards"])
+                        if pid in policies_to_train and any(batch["rewards"])
                     }
-
-                    # Print results
-                    # if list(filtered_batches.values()):
-                    #     for idx, item in enumerate(list(filtered_batches.values())):
-                    #         print(
-                    #             f"Key: {list(filtered_batches.keys())[idx]} policy batches: {item['rewards']}"
-                    #         )
 
                     new_batches.append(
                         MultiAgentBatch.wrap_as_needed(
@@ -345,18 +327,12 @@ class CustomPPO(PPO):
                     if len(policies_to_train) > 1:
                         # if there is at least one trainable batch
                         if batch.policy_batches.values():
-                            # print(f"All values: {batch.policy_batches.values()}")
                             for policy_id, batch_values in batch.policy_batches.items():
-                                # print(f"Agent indices {batch_values['agent_index']}")
-                                print(
-                                    f"Policy id: {policy_id} with rewards ({batch_values.count}) = {batch_values['rewards']}"
-                                )
-                                # breakpoint()
                                 if policy_id != "choose_substation_policy":
                                     self.steps_per_policy[
                                         policy_id
                                     ] += np.count_nonzero(batch_values["rewards"])
-                        # print(f"Steps per policy: {self.steps_per_policy}")
+
                         list_steps_per_policy = list(self.steps_per_policy.values())
 
                         # train whenever all agents have the min batch size,

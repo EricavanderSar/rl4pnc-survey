@@ -2,6 +2,9 @@
 Describes classes of agents that can be evaluated.
 """
 
+# pylint: disable=all TODO
+# flake8: noqa
+
 import os
 import random
 from collections import Counter, OrderedDict
@@ -9,15 +12,15 @@ from typing import Any, Optional
 
 import grid2op
 import numpy as np
-import gymnasium as gym
 from grid2op.Action import ActionSpace, BaseAction
 from grid2op.Agent import BaseAgent, GreedyAgent
 from grid2op.dtypes import dt_float
 from grid2op.Environment import BaseEnv
+from grid2op.gym_compat.gymenv import GymEnv_Modern
 from grid2op.Observation import BaseObservation
 from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
-from grid2op.gym_compat.gymenv import GymEnv_Modern
+
 from mahrl.experiments.utils import (
     find_list_of_agents,
     find_substation_per_lines,
@@ -134,7 +137,7 @@ class MultiRllibAgents(BaseAgent):
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]
-        self.reconnect_line = []
+        self.reconnect_line: list[BaseAction] = []
 
     def act(
         self, observation: BaseObservation, reward: BaseReward, done: bool = False
@@ -215,8 +218,6 @@ class MultiRllibAgents(BaseAgent):
             else:
                 raise ValueError("Invalid middle policy name.")
 
-            print(f"Proposed sub_id: {sub_id}")
-
             # call correct agent, get action as int
             policy_id = [
                 name
@@ -244,7 +245,6 @@ class MultiRllibAgents(BaseAgent):
         if self.reconnect_line:
             for line in self.reconnect_line:
                 g2op_action = g2op_action + line
-                print(f"total act: {g2op_action}")
             self.reconnect_line = []
 
         # find which lines to reconnect next iteration
@@ -297,9 +297,9 @@ class MultiRllibAgents(BaseAgent):
             if name.startswith("reinforcement_learning") or name.startswith(
                 "value_reinforcement_learning"
             ):
-                proposed_actions[name.split("_")[-1]] = (
-                    self._rllib_agents.compute_single_action(gym_obs, policy_id=name)
-                )
+                proposed_actions[
+                    name.split("_")[-1]
+                ] = self._rllib_agents.compute_single_action(gym_obs, policy_id=name)
         return proposed_actions
 
 
@@ -781,6 +781,7 @@ def get_actions_per_substation(
     """
     Get the actions per substation.
     """
+
     actions_per_substation: dict[str, list[BaseAction]] = {}
 
     # determine possible hubs

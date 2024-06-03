@@ -264,18 +264,18 @@ def run_training(
         # Close ray instance
         ray.shutdown()
 
-    # save config to params.json in the runs file that is created
-    with open(
-        os.path.join(
-            setup["storage_path"],
-            # "mlruns",
-            # "configs",
-            "params.json",
-        ),
-        "w",
-        encoding="utf-8",
-    ) as config_file:
-        config_file.write(str(config))
+    # # save config to params.json in the runs file that is created
+    # with open(
+    #     os.path.join(
+    #         setup["storage_path"],
+    #         # "mlruns",
+    #         # "configs",
+    #         "params.json",
+    #     ),
+    #     "w",
+    #     encoding="utf-8",
+    # ) as config_file:
+    #     config_file.write(str(config))
 
 
 def get_gridsearch_tuner(

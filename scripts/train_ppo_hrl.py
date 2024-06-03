@@ -131,7 +131,7 @@ def select_mid_level_policy(
     Specifies the policy for the middle level agent.
 
     Args:
-        middle_agent_type (str): The type of middle level agent. Possible values are 'capa', 'random', 'argmax', 'rl_v',
+        middle_agent_type (str): The type of middle level agent. Possible values are 'capa', 'random', 'argmax', 'rlv',
             'sample', or 'rl'.
         agent_per_substation (dict[int, int]): A dictionary mapping substation IDs to the number of agents per substation.
         line_info (dict[int, list[int]]): A dictionary mapping line IDs to the list of connected substations.
@@ -168,7 +168,7 @@ def select_mid_level_policy(
             }
         )
     elif middle_agent_type in (
-        "rl_v",
+        "rlv",
         "argmax",
         "sample",
     ):
@@ -179,15 +179,19 @@ def select_mid_level_policy(
             }
         )
 
-    act_space = gym.spaces.Discrete(len(list(agent_per_substation.keys())))
-    # act_space = gym.spaces.Discrete(len(list(agent_per_substation.keys())) + 1) #NOTE: With DN agent as possible chosen agent
+    act_space_rl = gym.spaces.Discrete(len(list(agent_per_substation.keys())))
+
+    # get the highest key as integer and add 1 to get the number of agents
+    act_space_rulebased = gym.spaces.Discrete(
+        max(int(k) for k in agent_per_substation.keys()) + 1
+    )
 
     if middle_agent_type == "capa":
         custom_config["environment"]["env_config"]["capa"] = True
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=CapaPolicy,
             observation_space=mid_level_observation,  # information specifically for CAPA
-            action_space=act_space,  # choose one of agents
+            action_space=act_space_rulebased,  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -208,7 +212,7 @@ def select_mid_level_policy(
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=RandomPolicy,
             observation_space=mid_level_observation,  # NOTE: Observation space is redundant but needed in custom_env
-            action_space=act_space,  # choose one of agents
+            action_space=act_space_rulebased,  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
@@ -223,7 +227,7 @@ def select_mid_level_policy(
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=ArgMaxPolicy,
             observation_space=mid_level_observation,
-            action_space=act_space,  # choose one of agents
+            action_space=act_space_rulebased,  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
@@ -237,7 +241,7 @@ def select_mid_level_policy(
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=SampleValuePolicy,
             observation_space=mid_level_observation,
-            action_space=act_space,  # choose one of agents
+            action_space=act_space_rulebased,  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)
@@ -249,21 +253,21 @@ def select_mid_level_policy(
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=None,  # use default policy of PPO
             observation_space=mid_level_observation,
-            action_space=act_space,  # choose one of agents
+            action_space=act_space_rl,  # choose one of agents
             config=None,
         )
-    elif middle_agent_type == "rl_v":
+    elif middle_agent_type == "rlv":
         custom_config["environment"]["env_config"]["vf_rl"] = True
         mid_level_policy = PolicySpec(  # rule based substation selection
             policy_class=None,  # use default policy of PPO
             observation_space=mid_level_observation,
-            action_space=act_space,  # choose one of agents
+            action_space=act_space_rl,  # choose one of agents
             config=None,
         )
     else:
         raise ValueError(
             f"Middle agent type {middle_agent_type} not recognized. \
-            Please use 'capa', 'random', 'argmax', 'sample', 'rl_v' or 'rl'."
+            Please use 'capa', 'random', 'argmax', 'sample', 'rlv' or 'rl'."
         )
     return mid_level_policy, custom_config
 
@@ -280,7 +284,7 @@ def select_low_level_policy(
 
     Args:
         policies (dict[str, Any]): The dictionary to which the policies will be added.
-        lower_agent_type (str): The type of the lower agent. Can be "rl" or "rl_v".
+        lower_agent_type (str): The type of the lower agent. Can be "rl" or "rlv".
         agent_per_substation (dict[int, int]): A dictionary mapping substation indices to the number of actions.
         ppo_config (dict[str, Any]): The PPO configuration.
         env_info (dict[str, int]): A dictionary containing information about the environment.
@@ -298,7 +302,7 @@ def select_low_level_policy(
                 config=None,
             )
     elif (
-        lower_agent_type == "rl_v"
+        lower_agent_type == "rlv"
     ):  # add a rl agent that outputs also the value function for each substation
         # Add reinforcement learning policies to the dictionary
         num_objects = (
@@ -369,9 +373,9 @@ def split_hub_into_agents(agent_per_substation: dict[str, int]) -> dict[str, int
                         avg_actions_per_hub + 1
                     )
                 else:
-                    new_agent_per_substation[str(f"{sub_idx}_{i}")] = (
-                        avg_actions_per_hub
-                    )
+                    new_agent_per_substation[
+                        str(f"{sub_idx}_{i}")
+                    ] = avg_actions_per_hub
 
         else:
             # keep as is
@@ -451,18 +455,18 @@ def add_trainable_policies(
         dict[str, Any]: The updated PPO configuration.
     """
     # if policy is rl, set an agent to train
-    if middle_agent_type in ("rl", "rl_v"):
+    if middle_agent_type in ("rl", "rlv"):
         ppo_config["policies_to_train"] = ["choose_substation_policy"]
     elif middle_agent_type in ("capa", "random", "argmax", "sample"):
         ppo_config["policies_to_train"] = []
 
-    if lower_agent_type in ("rl", "rl_v"):
+    if lower_agent_type in ("rl", "rlv"):
         if lower_agent_type == "rl":
             ppo_config["policies_to_train"] += [
                 f"reinforcement_learning_policy_{sub_idx}"
                 for sub_idx in list_of_substations
             ]
-        elif lower_agent_type == "rl_v":
+        elif lower_agent_type == "rlv":
             ppo_config["policies_to_train"] += [
                 f"value_reinforcement_learning_policy_{sub_idx}"
                 for sub_idx in list_of_substations
@@ -510,8 +514,6 @@ def setup_config(
     )
     agent_per_substation = split_hub_into_agents(agent_per_substation)
 
-    list_of_substations = list(agent_per_substation.keys())
-
     original_list_of_substations = []
     for sub_id in agent_per_substation:
         if int(sub_id.split("_")[0]) not in original_list_of_substations:
@@ -536,11 +538,23 @@ def setup_config(
     )
 
     ppo_config = add_trainable_policies(
-        middle_agent_type, lower_agent_type, list_of_substations, ppo_config
+        middle_agent_type,
+        lower_agent_type,
+        list(agent_per_substation.keys()),
+        ppo_config,
     )
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})
+
+    # add tags of agent types to config
+    ppo_config.update({"middle_agent_type": middle_agent_type})
+    ppo_config.update({"lower_agent_type": lower_agent_type})
+
+    specified_agent = f"{lower_agent_type}_{middle_agent_type}"
+
+    if specified_agent.lower() not in custom_config["setup"]["experiment_name"].lower():
+        raise ValueError("Probably using the wrong settings, check again.")
 
     run_training(ppo_config, custom_config["setup"], CustomPPO)
 

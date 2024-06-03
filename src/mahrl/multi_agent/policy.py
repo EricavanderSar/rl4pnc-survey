@@ -38,7 +38,7 @@ from mahrl.experiments.utils import (
     get_capa_substation_id,
 )
 from mahrl.grid2op_env.utils import load_action_space, setup_converter
-from mahrl.multi_agent.utils import sample_logic
+from mahrl.multi_agent.utils import argmax_logic, sample_logic
 
 
 # pylint: disable=too-many-return-statements
@@ -776,7 +776,7 @@ class ArgMaxPolicy(Policy):
         else:
             proposed_confidences = obs_batch[0]["proposed_confidences"]
 
-        sub_id = max(proposed_confidences, key=proposed_confidences.get)
+        sub_id = argmax_logic(proposed_confidences)
 
         return [int(sub_id)], [], {}
 
@@ -864,7 +864,6 @@ class SampleValuePolicy(Policy):
             proposed_confidences = obs_batch[0]["proposed_confidences"]
 
         sub_id = sample_logic(proposed_confidences)
-
         return [sub_id], [], {}
 
     def get_weights(self) -> ModelWeights:

@@ -33,7 +33,7 @@ training:
     - 256
     - 256
   _enable_learner_api: False
-  batch_mode: complete_episodes
+  batch_mode: truncate_episodes
 
 rl_module:
   _enable_rl_module_api: False

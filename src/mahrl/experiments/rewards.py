@@ -114,7 +114,7 @@ class ScaledL2RPNReward(L2RPNReward):
             # no more data to consider, no powerflow has been run, reward is what it is
             res = self.reward_min
         # print(f"\t env.backend.get_line_flow(): {env.backend.get_line_flow()}")
-        return res + 1 * 10**-6
+        return res
 
     @staticmethod
     def __get_lines_capacity_usage(env: BaseEnv) -> Any:
