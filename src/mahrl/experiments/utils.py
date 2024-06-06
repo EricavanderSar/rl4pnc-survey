@@ -21,6 +21,8 @@ from ray.tune.result_grid import ResultGrid
 from mahrl.algorithms.custom_ppo import CustomPPO
 from mahrl.algorithms.optuna_search import MyOptunaSearch
 from mahrl.experiments.callback import Style, TuneCallback
+from ray.tune.stopper.stopper import Stopper
+from ray.util.annotations import PublicAPI
 
 REPORT_END = False
 
@@ -191,7 +193,7 @@ def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[int, int]:
     """
     Function that returns the number of controllable substations.
     """
-    add_dn = action_space.endswith("dn")
+    add_dn = "dn" in action_space
     if action_space.startswith("asymmetry"):
         _, _, list_of_agents = calculate_action_space_asymmetry(env, add_dn)
         return list_of_agents
@@ -299,6 +301,27 @@ def delete_nested_key(d, path):
 #     ) as config_file:
 #         config_file.write(str(config))
 
+
+class MaxCustomMetricStopper(Stopper):
+    """Stop trials after reaching a maximum value for the custom metric
+
+    Args:
+        metric: Metric to use.
+        max_value: If custom metric reaches this value stop trials
+    """
+
+    def __init__(self, metric: str, max_value: int):
+        self._max_value = max_value
+        self._custom_Metric = metric
+
+    def __call__(self, trial_id: str, result: Dict):
+        print("current value custom metric: ", result["custom_metric"][self._custom_Metric])
+        return result["custom_metric"][self._custom_Metric] >= self._max_value
+
+    def stop_all(self):
+        return False
+
+
 def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) -> ResultGrid:
     """
     Function that runs the training script.
@@ -356,7 +379,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
         run_config=air.RunConfig(
             name=setup["folder_name"],
             # storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
-            stop={"timesteps_total": setup["nb_timesteps"]},
+            stop={"timesteps_total": setup["nb_timesteps"]}, #MaxCustomMetricStopper("total_agent_interact", setup["nb_timesteps"]), #
             # "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
             callbacks=[
                 WandbLoggerCallback(
