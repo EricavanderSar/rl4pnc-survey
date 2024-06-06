@@ -189,20 +189,25 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         # map individual substation action to global action space
         # for each possible substation action, match the action in self.possible_substation_actions
         self.local_to_global_action_map = {}
+        print("Create mapping local to global actions...")
         for sub_idx, actions in actions_per_substations.items():
-            # print(f"sub id {sub_idx} has {len(actions)} actions")
+            print(f"sub id {sub_idx} has {len(actions)} actions")
+            # TODO: Make more efficient mapping - when going to case 36 this will take veeeery long
             self.local_to_global_action_map[sub_idx] = {
                 local_idx: self.possible_substation_actions.index(global_action)
                 for local_idx, global_action in enumerate(actions)
             }
 
+
         # map the middle output substation to the substation id
+        print("Create mapping middle agent to substation...")
         self.middle_to_substation_map = dict(enumerate(list_of_substations))
 
         self.is_capa = "capa" in env_config.keys()
         self.reset_capa_idx = 1
         self.proposed_actions: dict[int, int] = {}
         self.proposed_confidences: dict[int, float] = {}
+        print("FINISHED creating Hierarchical Environment!")
 
     def define_agents(self, env_config: dict) -> list:
         controllable_substations = find_list_of_agents(self.env_g2op, env_config["action_space"])

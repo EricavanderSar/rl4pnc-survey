@@ -19,7 +19,7 @@ from mahrl.experiments.yaml import load_config
 from mahrl.evaluation.utils import instantiate_reward_class
 
 
-def get_env_config(studie_path, test_case):
+def get_env_config(studie_path, test_case, reset_topo):
     agent_path = os.path.join(studie_path, test_case)
     # load config
     config_path = os.path.join(agent_path, "params.json")
@@ -38,6 +38,7 @@ def get_env_config(studie_path, test_case):
     env_config["grid2op_kwargs"]["reward_class"] = instantiate_reward_class(
         env_config["grid2op_kwargs"]["reward_class"]
     )
+    env_config["reset_topo"] = reset_topo
 
     return env_config, agent_path
 
@@ -48,7 +49,8 @@ def run_evaluation(agent_path,
                    env_type,
                    chronics,
                    nb_episodes):
-    store_trajectories_folder = os.path.join(agent_path, "evaluation_episodes")
+    folder_name = "evaluation_episodes_testreset" if env_config["reset_topo"] else "evaluation_episodes"
+    store_trajectories_folder = os.path.join(agent_path, folder_name)
     env = grid2op.make(env_config["env_name"], backend=LightSimBackend())
     li_episode = EpisodeData.list_episode(store_trajectories_folder) if \
         os.path.exists(store_trajectories_folder) else []
@@ -223,43 +225,48 @@ def quick_overview(data_folder):
     pivot_table = df.pivot_table(index=['action_sub'], columns='action_topo', aggfunc='size',
                                  fill_value=0)
     # Plotting the data
-    ax = pivot_table.plot(kind='bar', figsize=(5, 4), width=0.8)
+    ax = pivot_table.plot(kind='bar', figsize=(10, 6), width=0.8)
     # Customize the plot
-    ax.set_title('Frequency Actions at substations')
+    ax.set_title('Frequency actions at substations')
     ax.set_xlabel('Substation')
     ax.set_ylabel('Frequency')
     ax.legend(title='Topology')
+    plt.savefig(os.path.join(data_folder, 'actions_at_substations.png'))
     plt.show()
 
     #
     pivot_table = df.pivot_table(index=['action_sub', 'action_topo'], columns='line_danger', aggfunc='size',
                                  fill_value=0)
-    ax = pivot_table.plot(kind='bar', figsize=(5, 4), width=0.8)
+    ax = pivot_table.plot(kind='bar', figsize=(10, 6), width=0.8)
     ax.set_title('Frequency actions per line in danger')
     ax.set_xlabel('Action')
     ax.set_ylabel('Frequency')
     ax.legend(title='Line in danger')
+    plt.tight_layout()
+    plt.savefig(os.path.join(data_folder, 'actions_per_line_danger.png'))
     plt.show()
 
     # Plat data
     for i in range(1, max_topo_depth+1):
         pivot_table = df[df["sub_topo_depth"] == i].pivot_table(index='action_sub', columns='action_topo',
                                                                 aggfunc='size', fill_value=0)
-        ax = pivot_table.plot(kind='bar', figsize=(5, 4), width=0.8)
+        ax = pivot_table.plot(kind='bar', figsize=(10, 6), width=0.8)
         ax.set_title(f'Frequency of {i}th topology action')
         ax.set_xlabel('Substation')
         ax.set_ylabel('Frequency')
         ax.legend(title='Topology')
+        plt.savefig(os.path.join(data_folder, f'topology_action_{i}.png'))
         plt.show()
 
     # Create a pivot table
     pivot_table = df.pivot_table(index=['line_danger'], columns='subs_changed', aggfunc='size', fill_value=0)
 
-    ax = pivot_table.plot(kind='bar', figsize=(5, 4), width=0.8)
+    ax = pivot_table.plot(kind='bar', figsize=(10, 6), width=0.8)
     ax.set_title('Frequency different changed subs')
     ax.set_xlabel('Line in danger')
     ax.set_ylabel('Frequency')
     ax.legend(title='Subs changed')
+    plt.savefig(os.path.join(data_folder, f'subs_changed_frequency.png'))
     plt.show()
 
 
@@ -267,14 +274,15 @@ if __name__ == "__main__":
     # chronics copied from test set in Snellius
     chronics = "0020  0047  0076  0129  0154  0164  0196  0230  0287  0332  0360  0391  0454  0504  0516  0539  0580  0614  0721  0770  0842  0868  0879  0925  0986 0023  0065  0103  0141  0156  0172  0206  0267  0292  0341  0369  0401  0474  0505  0529  0545  0595  0628  0757  0774  0844  0869  0891  0950  0993 0026  0066  0110  0144  0157  0179  0222  0274  0303  0348  0381  0417  0481  0511  0531  0547  0610  0636  0763  0779  0845  0870  0895  0954  0995 0030  0075  0128  0153  0162  0192  0228  0286  0319  0355  0387  0418  0486  0513  0533  0565  0612  0703  0766  0812  0852  0871  0924  0962  1000"
     test_chronics = chronics.split()
-    NB_EPISODE = 1 #len(test_chronics)
+    NB_EPISODE = 100 #len(test_chronics)
+    reset_topo_todefault = True
 
     # Get location of studied agent
     studie_path = "/Users/ericavandersar/surfdrive/Documents/Research/Result/Case14_Sandbox_ActSpaces/"
-    test_case = "CustomPPO_CustomizedGrid2OpEnvironment_aa43c_00000_0_2024-05-06_05-13-52" # "CustomPPO_CustomizedGrid2OpEnvironment_cc933_00000_0_2024-05-06_10-15-28"#"CustomPPO_RlGrid2OpEnv_736a5_00000_0_2024-05-06_03-10-39" #
-    checkpoint_name = "checkpoint_000031"
+    test_case = "CustomPPO_RlGrid2OpEnv_6fdf8_00000_0_2024-05-06_05-12-14" #"CustomPPO_CustomizedGrid2OpEnvironment_cc933_00000_0_2024-05-06_10-15-28"#
+    checkpoint_name = "checkpoint_000028"
 
-    env_config, agent_path = get_env_config(studie_path, test_case)
+    env_config, agent_path = get_env_config(studie_path, test_case, reset_topo_todefault)
     ENV_TYPE = RlGrid2OpEnv if env_config["env_type"] == "new_env" else CustomizedGrid2OpEnvironment
 
     print(f"Studying agent at {agent_path}")

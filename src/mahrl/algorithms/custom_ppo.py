@@ -91,6 +91,7 @@ def custom_synchronous_parallel_sample(
     all_sample_batches: List[SampleBatchType] = []
 
     policies_to_train = worker_set.local_worker().get_policies_to_train()
+    # print(f"policies to train {policies_to_train}")
     steps_per_policy = np.zeros(len(policies_to_train))
     worker_set.local_worker()
     # Stop collecting batches as soon as one criterium is met.
@@ -115,6 +116,7 @@ def custom_synchronous_parallel_sample(
         if max_agent_steps:
             new_batches = []
             for batch in sample_batches:
+                # print(f'batch {batch}')
                 filtered_policy_batches = {
                     pid: batch
                     for pid, batch in batch.policy_batches.items()

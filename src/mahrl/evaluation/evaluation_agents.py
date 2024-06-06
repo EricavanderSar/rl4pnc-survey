@@ -62,6 +62,7 @@ class RllibAgent(BaseAgent):
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]
+        self.reset_topo = env_config.get("reset_topo", True)
 
     def act(
         self, observation: BaseObservation, reward: BaseReward, done: bool = False
@@ -72,6 +73,29 @@ class RllibAgent(BaseAgent):
 
         # Grid2Op to RLlib observation
         self.gym_wrapper.update_obs(observation)
+
+        # The environment goes back to the reference topology when safe
+        if self.reset_topo and observation.rho.max() < 0.8:
+            # Get all subs that are not in default topology
+            subs_changed = np.unique(observation._topo_vect_to_sub[observation.topo_vect != 1])
+            if len(subs_changed):
+                action_options = []
+                max_rhos = np.zeros(len(subs_changed))
+                rewards = np.zeros(len(subs_changed))
+                for i, sub in enumerate(subs_changed):
+                    action = self.action_space(
+                        {"set_bus": {
+                            "substations_id":
+                                [(sub, np.ones(observation.sub_info[sub], dtype=int))]
+                        }
+                        })
+                    action_options.append(action)
+                    sim_obs, rw, done, info = observation.simulate(action)
+                    max_rhos[i] = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
+                    rewards[i] = rw
+                if max_rhos[np.argmax(rewards)] < 0.8:
+                    return action_options[np.argmax(rewards)]
+
         if False in observation.line_status:
             disc_lines = np.where(observation.line_status == False)[0]
             for i in disc_lines:

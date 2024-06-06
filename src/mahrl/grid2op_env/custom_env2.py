@@ -2,13 +2,10 @@
 Class that defines the custom Grid2op to gym environment with the set observation and action spaces.
 """
 
-import logging
-from typing import Any, Dict, List, Optional, Tuple, TypeVar
+from typing import Any
 import numpy as np
 import os
 import gymnasium as gym
-import grid2op
-from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
