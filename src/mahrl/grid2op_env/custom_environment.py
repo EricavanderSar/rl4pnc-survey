@@ -264,7 +264,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         if not terminated:
             g2op_obs, rw, terminated = self.reconnect_lines(g2op_obs)
             reward += rw
-            if self.reset_topo:
+            if self.reset_topo and not terminated:
                 g2op_obs, rw, terminated = self.reset_ref_topo(g2op_obs)
                 reward += rw
         if self.prio:
@@ -353,7 +353,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
     def reset_ref_topo(self, g2op_obs: grid2op.Observation):
         # The environment goes back to the reference topology when safe
-        if g2op_obs.rho.max() < 0.8:
+        if (g2op_obs.rho.max() < 0.8) and (g2op_obs.current_step < g2op_obs.max_step-1):
             # Get all subs that are not in default topology
             subs_changed = np.unique(g2op_obs._topo_vect_to_sub[g2op_obs.topo_vect != 1])
             if len(subs_changed):
