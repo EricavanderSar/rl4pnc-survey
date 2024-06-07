@@ -94,7 +94,7 @@ if __name__ == "__main__":
         "--action_space",
         type=str,
         help="Action space to be used.",
-        default="medha",
+        default="tennet",
         choices=["assym", "medha", "tennet"]
     )
     parser.add_argument(
@@ -108,16 +108,14 @@ if __name__ == "__main__":
     parser.add_argument('-dn', '--extra_donothing', default=True, action='store_true',
                         help="adding extra do nothing actions for subs that dont have any other config to action space"
                         )
-    parser.add_argument('-sh', "--adjust_shunt", type=str, default="", choices=["", "all", "opt"],
+    parser.add_argument('-sh', "--adjust_shunt", type=str, default="opt", choices=["", "all", "opt"],
                         help="For subs with shunt the reversed action can be better."
                              "options: - all will add also reversed actions to action space"
                              "         - opt will pick the best action reversed or normal"
                         )
-    parser.add_argument('-rf', "--rho_filter",  type=float, default=1.5,
-                        help="Filter all actions with rho value larger than -rf. If 2.0 no filtering is applied."
+    parser.add_argument('-rf', "--rho_filter",  type=float, default=0.9,
+                        help="Filter all actions with rho value larger than -rf. If >=2.0 no filtering is applied."
                         )
-
-
 
     args = parser.parse_args()
 

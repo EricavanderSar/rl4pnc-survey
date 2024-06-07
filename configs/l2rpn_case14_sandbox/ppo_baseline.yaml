@@ -65,7 +65,7 @@ environment:
     env_type: old_env #new_env #
     shuffle_scenarios: True
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha_optshunt
+    action_space: medha_dn_optshunt_maxrho1.0
     mask: 5
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/
     grid2op_kwargs:
@@ -79,7 +79,7 @@ environment:
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     prio: False
     normalize: maxmin
-    reset_topo: True
+    reset_topo: False
 
 evaluation:
   evaluation_interval: 1

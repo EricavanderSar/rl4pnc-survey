@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=rome
-#SBATCH --time=12:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=Create_action_space_%j.out
 
 
@@ -17,5 +17,5 @@ source activate mahrl_grid2op
 export PYTHONPATH=$PYTHONPATH:$PWD
 
 echo "Run code:"
-time srun python -u scripts/develop_action_spaces.py -e $ENVNAME -s $SAVE_PATH -a medha -dn -sh "opt" -rf 1.5
+time srun python -u scripts/develop_action_spaces.py -e $ENVNAME -s $SAVE_PATH -a medha -dn -sh "" -rf 1.0
 echo "Done"
