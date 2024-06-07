@@ -17,5 +17,5 @@ source activate mahrl_grid2op
 export PYTHONPATH=$PYTHONPATH:$PWD
 
 echo "Run code:"
-time srun python -u scripts/develop_action_spaces.py -e $ENVNAME -s $SAVE_PATH -a medha -dn -sh "" -rf 1.0
+time srun python -u scripts/develop_action_spaces.py -e $ENVNAME -s $SAVE_PATH -a tennet -dn -sh "" -rf 0.9 -w 16
 echo "Done"

@@ -12,11 +12,6 @@ from mahrl.experiments.action_spaces import (
     get_action_space,
     save_to_json,
 )
-from mahrl.experiments.utils import (
-    calculate_action_space_asymmetry,
-    calculate_action_space_medha,
-    calculate_action_space_tennet,
-)
 
 
 def create_action_spaces(
@@ -26,6 +21,7 @@ def create_action_spaces(
         extra_dn: bool = False,
         adjust_shunt: str = "",
         rho_filter: float = 2.0,
+        workers: int = 8,
 ) -> None:
     """
     Creates action spaces for a specified grid2op environment.
@@ -37,37 +33,9 @@ def create_action_spaces(
                                         action_space_to_create,
                                         incl_dn=extra_dn,
                                         adjust_shunt=adjust_shunt,
-                                        rho_filter=rho_filter
+                                        rho_filter=rho_filter,
+                                        workers=workers,
                                         )
-    # if "asymmetry" in action_space_to_create:
-    #     mathematically_possible_actions, _, _ = calculate_action_space_asymmetry(env)
-    #     possible_actions = get_asymmetrical_action_space(env)
-    #     if mathematically_possible_actions != len(possible_actions):
-    #         raise ValueError(
-    #             "The number of possible actions does not match the mathematically calculated number of actions."
-    #         )
-    # if "medha" in action_space_to_create:
-    #     mathematically_possible_actions, _, _ = calculate_action_space_medha(env)
-    #     possible_actions = get_medha_action_space(env, rho_filter = rho_filter)
-    #     if mathematically_possible_actions != len(possible_actions):
-    #         raise ValueError(
-    #             "The number of possible actions does not match the mathematically calculated number of actions."
-    #         )
-    # if "medha_optshunt" in action_space_to_create:
-    #     possible_actions = get_medha_action_space(env, opt_shunt=True, rho_filter = rho_filter)
-    # if "medha_dn" in action_space_to_create:
-    #     possible_actions = get_medha_dn_action_space(env, rho_filter = rho_filter)
-    # if "medha_dn_optshunt" in action_space_to_create:
-    #     possible_actions = get_medha_dn_action_space(env, opt_shunt=True, rho_filter=rho_filter)
-    # if "medha_dn_allshunt" in action_space_to_create:
-    #     possible_actions = get_medha_dn_action_space(env, all_shunt=True)
-    # if "tennet" in action_space_to_create:
-    #     mathematically_possible_actions, _, _ = calculate_action_space_tennet(env)
-    #     possible_actions = get_tennet_action_space(env)
-    #     if mathematically_possible_actions != len(possible_actions):
-    #         raise ValueError(
-    #             "The number of possible actions does not match the mathematically calculated number of actions."
-    #         )
     name = action_space_to_create
     if extra_dn:
         name += f"_dn"
@@ -82,6 +50,13 @@ def create_action_spaces(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
+    parser.add_argument(
+        "-w",
+        "--nb_workers",
+        default=8,
+        type=int,
+        help="Number of workers used to reduce the action space.",
+    )
     parser.add_argument(
         "-e",
         "--environment",
@@ -113,7 +88,7 @@ if __name__ == "__main__":
                              "options: - all will add also reversed actions to action space"
                              "         - opt will pick the best action reversed or normal"
                         )
-    parser.add_argument('-rf', "--rho_filter",  type=float, default=0.9,
+    parser.add_argument('-rf', "--rho_filter",  type=float, default=2.0,
                         help="Filter all actions with rho value larger than -rf. If >=2.0 no filtering is applied."
                         )
 
@@ -125,11 +100,13 @@ if __name__ == "__main__":
     extra_dn = args.extra_donothing
     adj_shunt = args.adjust_shunt
     rho_filter = args.rho_filter
+    nb_workers = args.nb_workers
 
     create_action_spaces(input_environment,
                          input_action_space,
                          input_save_path,
                          extra_dn,
                          adj_shunt,
-                         rho_filter=rho_filter
+                         rho_filter=rho_filter,
+                         workers=nb_workers
                          )
