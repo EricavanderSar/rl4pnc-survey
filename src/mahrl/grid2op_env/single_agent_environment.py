@@ -1,5 +1,5 @@
 """
-DEPRICATED/UNUSED. 
+DEPRICATED/UNUSED. Does not have all updates s.a. reconnecting and abbc.
 Class that defines the custom Grid2op to gym environment with the set observation and action spaces.
 """
 

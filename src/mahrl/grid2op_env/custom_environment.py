@@ -7,7 +7,6 @@ from collections import OrderedDict
 from typing import Any, Dict, Optional, Tuple, TypeVar, Union
 
 import gymnasium as gym
-import numpy as np
 from grid2op.Action import BaseAction
 from grid2op.Chronics import Multifolder
 from grid2op.Environment import BaseEnv
@@ -23,6 +22,7 @@ from mahrl.grid2op_env.utils import (
     CustomDiscreteActions,
     load_action_space,
     make_g2op_env,
+    reconnecting_and_abbc,
     rescale_observation_space,
     setup_converter,
 )
@@ -58,19 +58,15 @@ class ReconnectingGymEnv(GymEnv):
         if self.reconnect_line:
             for line in self.reconnect_line:
                 g2op_act = g2op_act + line
+            self.reconnect_line = []
 
         g2op_obs, reward, terminated, info = self.init_env.step(g2op_act)
 
-        to_reco = ~g2op_obs.line_status
-        self.reconnect_line = []
-        if np.any(to_reco):  # TODO: Check if there's a difference between info and obs
-            reco_id = np.where(to_reco)[0]
-            for line_id in reco_id:
-                g2op_act = self.init_env.action_space(
-                    {"set_line_status": [(line_id, +1)]}
-                )
-                self.reconnect_line.append(g2op_act)
+        self.reconnect_line, info = reconnecting_and_abbc(
+            self.init_env, g2op_obs, self.reconnect_line, info
+        )
 
+        print(f"Inside: {info} and {self.reconnect_line}")
         gym_obs = self.observation_space.to_gym(g2op_obs)
         truncated = False  # see https://github.com/openai/gym/pull/2752
         return gym_obs, float(reward), terminated, truncated, info
@@ -188,6 +184,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.prio = env_config.get("prio", True)  # NOTE: Default is now set to true
         self.chron_prios = ChronPrioMatrix(self.grid2op_env)
         self.step_surv = 0
+        self.pause_reward = False
 
     def no_shunt_reset(
         self,
@@ -337,15 +334,17 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             self.perform_prio_update(terminated)
 
             # reward the RL agent for this step, go back to HL agent
-            if self.is_value_rl:
-                rewards = {"value_reinforcement_learning_agent": reward}
-            else:
-                rewards = {"reinforcement_learning_agent": reward}
+            if not self.pause_reward:
+                if self.is_value_rl:
+                    rewards = {"value_reinforcement_learning_agent": reward}
+                else:
+                    rewards = {"reinforcement_learning_agent": reward}
             observations = {"high_level_agent": max(self.previous_obs["rho"])}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": truncated}
             infos = {"__common__": info}
         elif "reinforcement_learning_agent" in action_dict.keys():
+            self.pause_reward = False
             # perform RL step in the env
             (
                 self.previous_obs,
@@ -364,6 +363,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             truncateds = {"__all__": truncated}
             infos = {"__common__": info}
         elif "value_reinforcement_learning_agent" in action_dict.keys():
+            self.pause_reward = False
             # perform RL step in the env
             (
                 self.previous_obs,
@@ -388,6 +388,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             raise ValueError(
                 f"No valid agent found in action dictionary in step(): {action_dict}."
             )
+
+        if "__common__" in infos:
+            if "abbc_action" in infos["__common__"]:
+                self.pause_reward = True
 
         return observations, rewards, terminateds, truncateds, infos
 
@@ -615,7 +619,6 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             observations = {
                 "choose_substation_agent": OrderedDict(
                     {
-                        "previous_obs": self.previous_obs,
                         "proposed_actions": {
                             str(sub_id): action
                             for sub_id, action in self.proposed_actions.items()
@@ -624,15 +627,16 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                 )
             }
 
-            if self.is_capa:
+            if not self.is_rulebased:  # also provide additional informatoin
                 if isinstance(observations["choose_substation_agent"], OrderedDict):
-                    # add reset_capa_idx to observations
+                    if self.is_capa:
+                        # add reset_capa_idx to observations
+                        observations["choose_substation_agent"][
+                            "reset_capa_idx"
+                        ] = self.reset_capa_idx
                     observations["choose_substation_agent"][
-                        "reset_capa_idx"
-                    ] = self.reset_capa_idx
-                    # observations["choose_substation_agent"][
-                    #     "previous_obs"
-                    # ] = self.previous_obs
+                        "previous_obs"
+                    ] = self.previous_obs
                 else:
                     raise ValueError("Capa observations is not an OrderedDict.")
 
@@ -646,27 +650,52 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                 self.proposed_confidences,
             ) = self.extract_proposed_actions_values(action_dict)
 
-            observations = {
-                "choose_substation_agent": OrderedDict(
-                    {
-                        # "previous_obs": self.previous_obs,
-                        "proposed_actions": {
-                            str(sub_id): action
-                            for sub_id, action in self.proposed_actions.items()
-                        },
-                        "proposed_confidences": {
-                            str(sub_id): confidence
-                            for sub_id, confidence in self.proposed_confidences.items()
-                        },
-                        # "reset_capa_idx": self.reset_capa_idx,
-                    }
-                )
-            }
-            self.reset_capa_idx = 0
+            if (
+                not self.is_rulebased
+            ):  # also provide additional information, obs need to be first, otherwise ray breaks
+                observations = {
+                    "choose_substation_agent": OrderedDict(
+                        {
+                            "previous_obs": self.previous_obs,
+                        }
+                    )
+                }
+
+            # obs already exists
+            if isinstance(observations["choose_substation_agent"], OrderedDict):
+                observations["choose_substation_agent"]["proposed_actions"] = {
+                    str(sub_id): action
+                    for sub_id, action in self.proposed_actions.items()
+                }
+                observations["choose_substation_agent"]["proposed_confidences"] = {
+                    str(sub_id): confidence
+                    for sub_id, confidence in self.proposed_confidences.items()
+                }
+            else:
+                observations = {
+                    "choose_substation_agent": OrderedDict(
+                        {
+                            "proposed_actions": {
+                                str(sub_id): action
+                                for sub_id, action in self.proposed_actions.items()
+                            },
+                            "proposed_confidences": {
+                                str(sub_id): confidence
+                                for sub_id, confidence in self.proposed_confidences.items()
+                            },
+                        }
+                    )
+                }
+
         elif bool(action_dict) is False:
             pass
         else:
             raise ValueError("No agent found in action dictionary in step().")
+
+        if "__common__" in infos:
+            if "abbc_action" in infos["__common__"]:
+                # print(f"Info in rllib: {infos['__common__']}")
+                self.last_action_agent = None
 
         return observations, rewards, terminateds, truncateds, infos
 

@@ -26,7 +26,8 @@ from mahrl.experiments.utils import (
     find_substation_per_lines,
     get_capa_substation_id,
 )
-from mahrl.multi_agent.utils import argmax_logic, sample_logic
+from mahrl.grid2op_env.utils import reconnecting_and_abbc
+from mahrl.multi_agent.utils import argmax_logic, capa_logic, sample_logic
 
 
 class SingleRllibAgent(BaseAgent):
@@ -58,6 +59,9 @@ class SingleRllibAgent(BaseAgent):
         # setup threshold
         self.threshold = env_config["rho_threshold"]
 
+        # setup reconnecting line
+        self.reconnect_line: list[BaseAction] = []
+
     def act(
         self, observation: BaseObservation, reward: BaseReward, done: bool = False
     ) -> BaseAction:
@@ -77,10 +81,22 @@ class SingleRllibAgent(BaseAgent):
                 gym_obs, policy_id="default_policy"
             )
             # convert Rllib action to grid2op
-            return self.gym_wrapper.env_gym.action_space.from_gym(action)
-        # else
-        action = self.gym_wrapper.grid2op_env.action_space({})
-        return action
+            g2op_action = self.gym_wrapper.env_gym.action_space.from_gym(action)
+
+        else:
+            g2op_action = self.gym_wrapper.grid2op_env.action_space({})
+
+        # add reconnecting action, if needed
+        if self.reconnect_line:
+            for line in self.reconnect_line:
+                g2op_action = g2op_action + line
+            self.reconnect_line = []
+
+        self.reconnect_line, _ = reconnecting_and_abbc(
+            self.gym_wrapper.grid2op_env, observation, self.reconnect_line
+        )
+
+        return g2op_action
 
 
 class MultiRllibAgents(BaseAgent):
@@ -139,14 +155,31 @@ class MultiRllibAgents(BaseAgent):
         self.threshold = env_config["rho_threshold"]
         self.reconnect_line: list[BaseAction] = []
 
+        if self.middle_policy_name == "capa":
+            setup_env = grid2op.make(
+                env_config["env_name"], **env_config["grid2op_kwargs"]
+            )
+
+            self.controllable_substations = find_list_of_agents(
+                setup_env,
+                env_config["action_space"],
+            )
+
+            # extract line and substation information
+            self.line_info = find_substation_per_lines(
+                setup_env,
+                list(find_list_of_agents(setup_env, env_config["action_space"]).keys()),
+            )
+
+            self.idx = 0
+            self.substation_to_act_on: list[str] = []
+
     def act(
         self, observation: BaseObservation, reward: BaseReward, done: bool = False
     ) -> BaseAction:
         """
         Returns a grid2op action based on a RLlib observation.
         """
-        # TODO: Implement env extras such as automatic reconnection
-
         # Grid2Op to RLlib observation
         gym_obs = self.gym_wrapper.env_gym.observation_space.to_gym(observation)
         gym_obs = OrderedDict(
@@ -161,8 +194,25 @@ class MultiRllibAgents(BaseAgent):
             # determine which agent has to act
             if self.middle_policy_name == "capa":
                 assert self.lower_policy_name != "rl_v"
-                # TODO: Implement CAPA based on CapaGreedy Agent
-                raise NotImplementedError("Not implemented.")
+
+                # turn proposed actions into grid2op actions
+                g2op_proposed_actions = {
+                    sub_id: self.gym_wrapper.local_to_global_action_map[sub_id][
+                        proposed_actions[sub_id]
+                    ]
+                    for sub_id in proposed_actions.keys()
+                }
+
+                # TODO: Check if works
+                self.idx, sub_id = capa_logic(
+                    g2op_proposed_actions,
+                    gym_obs,
+                    self.controllable_substations,
+                    self.line_info,
+                    self.substation_to_act_on,
+                    self.idx,
+                )
+                self.idx += 1
             elif self.middle_policy_name == "random":
                 assert self.lower_policy_name != "rl_v"
                 # take a random item in self.policy_names and extract the last int
@@ -172,6 +222,7 @@ class MultiRllibAgents(BaseAgent):
                 # give appropriate observation
                 mid_rl_obs = OrderedDict(
                     {
+                        "previous_obs": gym_obs,
                         "proposed_actions": proposed_actions,
                     }
                 )
@@ -231,14 +282,18 @@ class MultiRllibAgents(BaseAgent):
             assert len(policy_id) == 1
 
             # convert local action to global action through mapping
-            action = self.gym_wrapper.local_to_global_action_map[sub_id][
-                proposed_actions[sub_id]
-            ]
+            if not sub_id == "-1":
+                action = self.gym_wrapper.local_to_global_action_map[sub_id][
+                    proposed_actions[sub_id]
+                ]
+            else:
+                action = 0  # do nothing
 
             # convert Rllib action to grid2op
             g2op_action = self.gym_wrapper.env_gym.action_space.from_gym(action)
         else:
             # stable, do nothing
+            self.idx = 0
             g2op_action = self.gym_wrapper.grid2op_env.action_space({})
 
         # add reconnecting action, if needed
@@ -247,17 +302,9 @@ class MultiRllibAgents(BaseAgent):
                 g2op_action = g2op_action + line
             self.reconnect_line = []
 
-        # find which lines to reconnect next iteration
-        to_reco = ~observation.line_status
-        if np.any(to_reco):  # TODO: Check if there's a difference between info and obs
-            reco_id = np.where(to_reco)[0]
-            for line_id in reco_id:
-                reconnect_act = self.gym_wrapper.grid2op_env.action_space(
-                    {"set_line_status": [(line_id, +1)]}
-                )
-                self.reconnect_line.append(reconnect_act)
-
-        # print(f"Action: {g2op_action.to_dict()}")
+        self.reconnect_line, _ = reconnecting_and_abbc(
+            self.gym_wrapper.grid2op_env, observation, self.reconnect_line
+        )
 
         return g2op_action
 
@@ -320,11 +367,13 @@ class LargeTopologyGreedyAgent(GreedyAgent):
         action_space: ActionSpace,
         env_config: dict[str, Any],
         possible_actions: list[BaseAction],
+        gym_wrapper: GymEnv_Modern,
     ):
         GreedyAgent.__init__(self, action_space)
         self.tested_action: list[BaseAction] = []
         self.action_space = action_space
         self.possible_actions = possible_actions
+        self.gym_wrapper = gym_wrapper
 
         # Assuming self.tested_action is your list of dictionaries
         counts = Counter(
@@ -352,7 +401,7 @@ class LargeTopologyGreedyAgent(GreedyAgent):
         if "seed" in env_config:
             random.seed(env_config["seed"])
 
-        # self.timesteps_saved = 0
+        self.reconnect_line: list[BaseAction] = []
 
     def act(
         self,
@@ -404,7 +453,8 @@ class LargeTopologyGreedyAgent(GreedyAgent):
                     min_other_rho < self.threshold
                     or np.max(observation.to_dict()["rho"]) - min_other_rho > 0.05
                 ):
-                    return self.tested_action[best_other_action_idx]
+                    return self.reconnect_and_return(best_other_action_idx, observation)
+                    # return self.tested_action[best_other_action_idx]
 
             # simulate randomized hub actions
             if len(self.hub_actions) > 1:
@@ -413,18 +463,21 @@ class LargeTopologyGreedyAgent(GreedyAgent):
                 )
 
                 if action_found is not None:
-                    return action_found
+                    return self.reconnect_and_return(best_hub_action_idx, observation)
+                    # return action_found
 
                 # Compare the minimum values and print the result
                 if min_other_rho < min_hub_rho:
                     # Best action was found in non-hub actions
-                    return self.tested_action[best_other_action_idx]
+                    # return self.tested_action[best_other_action_idx]
+                    return self.reconnect_and_return(best_other_action_idx, observation)
 
                 # Best action was found in hub actions
-                return self.hub_actions[best_hub_action_idx]
+                # return self.hub_actions[best_hub_action_idx]
+                return self.reconnect_and_return(best_hub_action_idx, observation)
 
         # if the threshold is not exceeded, do nothing
-        return self.tested_action[0]
+        return self.reconnect_and_return(0, observation)
 
     def check_hub_actions(
         self, observation: BaseObservation
@@ -470,6 +523,22 @@ class LargeTopologyGreedyAgent(GreedyAgent):
         Adds all possible actions to be tested.
         """
         raise NotImplementedError("Not implemented.")
+
+    def reconnect_and_return(
+        self, action_idx: int, observation: BaseObservation
+    ) -> BaseAction:
+        g2op_action = self.tested_action[action_idx]
+        # add reconnecting action, if needed
+        if self.reconnect_line:
+            for line in self.reconnect_line:
+                g2op_action = g2op_action + line
+            self.reconnect_line = []
+
+        self.reconnect_line, _ = reconnecting_and_abbc(
+            self.gym_wrapper.grid2op_env, observation, self.reconnect_line
+        )
+
+        return g2op_action
 
 
 class TopologyGreedyAgent(GreedyAgent):
@@ -651,7 +720,8 @@ class CapaAndGreedyAgent(GreedyAgent):
             # TODO: Check if this still matches the policy implementation one-to-one
 
             # if no list is created yet, do so
-            if self.idx == 0:
+            if self.idx == 0 or not self.substation_to_act_on:
+                self.idx = 0
                 self.substation_to_act_on = get_capa_substation_id(
                     self.line_info, obs_batch, self.controllable_substations
                 )
@@ -664,11 +734,10 @@ class CapaAndGreedyAgent(GreedyAgent):
                 single_substation = self.substation_to_act_on[
                     self.idx % len(self.controllable_substations)
                 ]
-
-                self.idx += 1
                 chosen_action = self.agents[str(single_substation)].act(
                     observation, reward=None
                 )
+                self.idx += 1
 
                 # if it's not the do nothing action, return action
                 # if it's the do nothing action, continue the loop

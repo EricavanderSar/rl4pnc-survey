@@ -173,7 +173,7 @@ def get_capa_substation_id(
         # connected_rhos[sub_idx] = [float(np.mean(connected_rhos[sub_idx]))]
         connected_rhos[sub_idx] = [
             float(np.max(connected_rhos[sub_idx])),
-            float(np.min(connected_rhos[sub_idx])),
+            float(np.mean(connected_rhos[sub_idx])),
         ]
 
     # set non-controllable substations to 0

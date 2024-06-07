@@ -93,17 +93,6 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
                     for sub_id, agent in self.agents.items()
                 }
 
-                # also propose do nothing action
-                # self.proposed_actions["-1"] = 0
-
-                # observation_for_middle_agent = OrderedDict(
-                #     {
-                #         "proposed_actions": {
-                #             str(sub_id): action
-                #             for sub_id, action in self.proposed_actions.items()
-                #         },
-                #     }
-                # )
                 observation_for_middle_agent = OrderedDict(
                     {
                         "previous_obs": self.previous_obs,
@@ -120,9 +109,6 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
                         observations["choose_substation_agent"][
                             "reset_capa_idx"
                         ] = self.reset_capa_idx
-                        # observations["choose_substation_agent"][
-                        #     "previous_obs"
-                        # ] = self.previous_obs
                     else:
                         raise ValueError("Capa observations is not an OrderedDict.")
 
@@ -143,15 +129,17 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
             self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
 
             # reward the RL agent for this step, go back to HL agent
-            rewards = {"choose_substation_agent": reward}
+            if not self.pause_reward:
+                rewards = {"choose_substation_agent": reward}
             observations = {"high_level_agent": max(self.previous_obs["rho"])}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": False}
             infos = {"__common__": info}
         elif "choose_substation_agent" in action_dict.keys():
+            self.pause_reward = False
             substation_id = action_dict["choose_substation_agent"]
 
-            gym_action = self.extract_substation_to_act(substation_id)
+            substation_id, gym_action = self.extract_substation_to_act(substation_id)
 
             g2op_action = self.converter.convert_act(gym_action)
 
@@ -166,9 +154,15 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
             infos = {"__common__": info}
         elif bool(action_dict) is False:
             pass
-            # print("Caution: Empty action dictionary!")
         else:
             raise ValueError("No agent found in action dictionary in step().")
+
+        if "__common__" in infos:
+            # print(f"Infos: {infos['__common__']}")
+            if "abbc_action" in infos["__common__"]:
+                print(f"Pause reward succesful")
+                self.pause_reward = True
+
         return observations, rewards, terminateds, truncateds, infos
 
     def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:

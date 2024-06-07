@@ -160,15 +160,20 @@ def select_mid_level_policy(
                 "proposed_actions": capa_gym_proposed_actions,
             }
         )
-    elif middle_agent_type in ("random", "rl"):
+    elif middle_agent_type in ("rl"):
         mid_level_observation = gym.spaces.Dict(
             {
                 "previous_obs": gym_previous_obs,
                 "proposed_actions": gym_proposed_actions,
             }
         )
+    elif middle_agent_type in ("random"):
+        mid_level_observation = gym.spaces.Dict(
+            {
+                "proposed_actions": gym_proposed_actions,
+            }
+        )
     elif middle_agent_type in (
-        "rlv",
         "argmax",
         "sample",
     ):
@@ -176,6 +181,14 @@ def select_mid_level_policy(
             {
                 "proposed_actions": gym_proposed_actions,
                 "proposed_confidences": gym_proposed_confidences,
+            }
+        )
+    elif middle_agent_type in ("rlv",):
+        mid_level_observation = gym.spaces.Dict(
+            {
+                "proposed_actions": gym_proposed_actions,
+                "proposed_confidences": gym_proposed_confidences,
+                "previous_obs": gym_previous_obs,
             }
         )
 

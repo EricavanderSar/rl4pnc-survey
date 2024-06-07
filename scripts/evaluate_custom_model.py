@@ -26,10 +26,10 @@ from mahrl.evaluation.evaluation_agents import (
 )
 from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.custom_environment import (
-    HierarchicalCustomizedGrid2OpEnvironment,
     CustomizedGrid2OpEnvironment,
+    HierarchicalCustomizedGrid2OpEnvironment,
 )
-from mahrl.grid2op_env.utils import get_original_env_name, load_actions
+from mahrl.grid2op_env.utils import get_original_env_name, load_actions, make_g2op_env
 
 
 def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
@@ -137,35 +137,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         # if not, create the folder
         os.makedirs(results_folder)
 
-    env = grid2op.make(
-        env_config["env_name"],
-        **env_config["grid2op_kwargs"],
-        backend=LightSimBackend(),
-    )
-
-    # thermal_limits = [  # TODO: Remove?
-    #     1000,
-    #     1000,
-    #     1000,
-    #     1000,
-    #     1000,
-    #     1000,
-    #     1000,
-    #     760,
-    #     450,
-    #     760,
-    #     380,
-    #     380,
-    #     760,
-    #     380,
-    #     760,
-    #     380,
-    #     380,
-    #     380,
-    #     2000,
-    #     2000,
-    # ]
-    # env.set_thermal_limit(thermal_limits)
+    env = make_g2op_env(env_config)
 
     params = env.get_params_for_runner()
     params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
@@ -272,6 +244,7 @@ def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> N
             action_space=setup_env.action_space,
             env_config=env_config,
             possible_actions=possible_actions,
+            gym_wrapper=CustomizedGrid2OpEnvironment(env_config),
         ),
     )
 
@@ -319,15 +292,15 @@ def setup_rllib_evaluation(
 
     # check if "opponent_action_class" is part of env_config["grid2op_kwargs"]
     if "opponent_action_class" in env_config["grid2op_kwargs"]:
-        env_config["grid2op_kwargs"]["opponent_action_class"] = (
-            instantiate_opponent_classes(
-                env_config["grid2op_kwargs"]["opponent_action_class"]
-            )
+        env_config["grid2op_kwargs"][
+            "opponent_action_class"
+        ] = instantiate_opponent_classes(
+            env_config["grid2op_kwargs"]["opponent_action_class"]
         )
-        env_config["grid2op_kwargs"]["opponent_budget_class"] = (
-            instantiate_opponent_classes(
-                env_config["grid2op_kwargs"]["opponent_budget_class"]
-            )
+        env_config["grid2op_kwargs"][
+            "opponent_budget_class"
+        ] = instantiate_opponent_classes(
+            env_config["grid2op_kwargs"]["opponent_budget_class"]
         )
         env_config["grid2op_kwargs"]["opponent_class"] = instantiate_opponent_classes(
             env_config["grid2op_kwargs"]["opponent_class"]
@@ -340,8 +313,8 @@ def setup_rllib_evaluation(
                 action_space=None,
                 env_config=env_config,
                 file_path=file_path,
-                lower_policy_name="rl",
-                middle_policy_name="random",
+                lower_policy_name=config["lower_agent_type"],
+                middle_policy_name=config["middle_agent_type"],
                 algorithm=ppo.PPO,
                 checkpoint_name=checkpoint_name,
                 gym_wrapper=HierarchicalCustomizedGrid2OpEnvironment(env_config),

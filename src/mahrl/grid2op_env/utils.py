@@ -4,7 +4,7 @@ Utilities in the grid2op and gym convertion.
 
 import json
 import os
-from typing import Any, List
+from typing import Any, List, Optional
 
 import grid2op
 import gymnasium
@@ -15,6 +15,7 @@ from grid2op.Converter import IdToAct
 from grid2op.Environment import BaseEnv
 from grid2op.gym_compat import ScalerAttrConverter
 from grid2op.gym_compat.gym_obs_space import GymnasiumObservationSpace
+from grid2op.Observation import BaseObservation
 from grid2op.Parameters import Parameters
 from lightsim2grid import LightSimBackend
 
@@ -300,10 +301,27 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
         BaseEnv: The created grid2op environment.
 
     """
+    # enable acting on all subs to go back to base topology
+    p = Parameters()
+    if env_config["env_name"].startswith("rte_case5_example"):
+        p.MAX_SUB_CHANGED = 5
+        p.MAX_LINE_STATUS_CHANGED = 8
+    elif env_config["env_name"].startswith("rte_case14_realistic") or env_config[
+        "env_name"
+    ].startswith("l2rpn_case14_sandbox"):
+        p.MAX_SUB_CHANGED = 14
+        p.MAX_LINE_STATUS_CHANGED = 20
+    elif env_config["env_name"].startswith("l2rpn_icaps_2021_large"):
+        p.MAX_SUB_CHANGED = 36
+        p.MAX_LINE_STATUS_CHANGED = 59
+    else:
+        raise ValueError("Please specify the number of subs in this env.")
+
     env = grid2op.make(
         env_config["env_name"],
         **env_config["grid2op_kwargs"],
         backend=LightSimBackend(),
+        param=p,
     )
 
     if "seed" in env_config:
@@ -335,6 +353,151 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
             ]
         )
     return env
+
+
+def go_to_abbc(
+    env: BaseEnv,
+    g2op_obs: BaseObservation,
+    reconnect_line: list[BaseAction],
+    on_cooldown: set[int],
+    info: Optional[dict[str, Any]] = {},
+) -> tuple[list[BaseAction], dict[str, Any]]:
+    changed_busses = [
+        i for i, x in enumerate(g2op_obs.topo_vect) if x != 1 and i not in on_cooldown
+    ]
+    # If we are no longer in base toplogy
+    if changed_busses:
+        new_status = [1] * len(changed_busses)
+
+        # Get action that sets everything to ABBC
+        g2op_act = env.action_space(
+            {
+                "set_bus": [
+                    (l_id, status) for l_id, status in zip(changed_busses, new_status)
+                ]
+            }
+        )
+
+        try:
+            # Simulate action to see that it doesn't cause the rho outside 0-1
+            simul_obs, _, _, _ = g2op_obs.simulate(g2op_act)
+            rho_values = simul_obs.to_dict()["rho"]
+            # NOTE: Only do it if it's predicted to be in a 'very' safe state
+            if all(0 <= value <= 0.9 for value in rho_values):
+                # If succeeded, set to perform at next ts
+                reconnect_line.append(g2op_act)
+
+                # add info in reset to stop rewarding the last agent for this action
+                info["abbc_action"] = True
+        except:
+            pass
+            # print(f"No forecast at {g2op_obs.get_time_stamp()} available, skipping.")
+
+    return reconnect_line, info
+
+
+def reconnecting_and_abbc(
+    env: BaseEnv,
+    g2op_obs: BaseObservation,
+    reconnect_line: list[BaseAction],
+    info: dict[str, Any] = {},
+) -> tuple[list[BaseAction], dict[str, Any]]:
+    # TODO: Change st if there is a cooldown at one line or at a substation, ignore that entire sub
+    # This should avoid converging power flows
+    on_cooldown, cooldown_lines = ignore_cooldowns(env, g2op_obs)
+
+    if g2op_obs.hour_of_day > 2 and g2op_obs.hour_of_day < 6:
+        reconnect_line, info = go_to_abbc(
+            env, g2op_obs, reconnect_line, on_cooldown, info
+        )
+
+    if any(g2op_obs.time_before_cooldown_sub):
+        for i, t in enumerate(g2op_obs.time_before_cooldown_sub):
+            if t > 0:
+                # print(f"Sub {i} has {t} ts left")
+                connected_elements = env.observation_space.get_obj_connect_to(
+                    substation_id=i
+                )
+                for el in connected_elements:
+                    if el == "lines_or_id" or "lines_ex_id":
+                        for l_id in connected_elements[el]:
+                            cooldown_lines.add(l_id)
+
+    to_reco = ~g2op_obs.line_status
+    if np.any(to_reco):
+        reco_id = np.where(to_reco)[0]
+        for line_id in reco_id:
+            if line_id not in cooldown_lines:
+                g2op_act = env.action_space({"set_line_status": [(line_id, +1)]})
+                reconnect_line.append(g2op_act)
+
+    return reconnect_line, info
+
+
+def ignore_cooldowns(env: BaseEnv, obs: BaseObservation) -> tuple[set[int], set[int]]:
+    elements_on_cooldown = set()
+    substation_on_cooldown = set()
+    lines_on_cooldown = set()
+    if any(obs.time_before_cooldown_line):
+        # print(obs.time_before_cooldown_line)
+        for line_id, t in enumerate(obs.time_before_cooldown_line):
+            if t > 0:
+                lines_on_cooldown.add(line_id)
+                elements_on_cooldown.add(obs.line_or_pos_topo_vect[line_id])
+                elements_on_cooldown.add(obs.line_ex_pos_topo_vect[line_id])
+
+                # manually add cooldown to other elements related to connected substations
+                substation_on_cooldown.add(obs.line_or_to_subid[line_id])
+                substation_on_cooldown.add(obs.line_ex_to_subid[line_id])
+                for sub_id in substation_on_cooldown:
+                    connected_elements = env.observation_space.get_obj_connect_to(
+                        substation_id=sub_id
+                    )
+                    for el in env.observation_space.get_obj_connect_to(
+                        substation_id=sub_id
+                    ):
+                        if el == "loads_id":
+                            for l_id in connected_elements[el]:
+                                elements_on_cooldown.add(obs.load_pos_topo_vect[l_id])
+                        elif el == "lines_or_id":
+                            for l_id in connected_elements[el]:
+                                elements_on_cooldown.add(
+                                    obs.line_or_pos_topo_vect[l_id]
+                                )
+                                lines_on_cooldown.add(l_id)
+                        elif el == "lines_ex_id":
+                            for l_id in connected_elements[el]:
+                                elements_on_cooldown.add(
+                                    obs.line_ex_pos_topo_vect[l_id]
+                                )
+                                lines_on_cooldown.add(l_id)
+                        elif el == "generators_id":
+                            for l_id in connected_elements[el]:
+                                elements_on_cooldown.add(obs.gen_pos_topo_vect[l_id])
+
+    # find related elements to substation that is nonzero
+    if any(obs.time_before_cooldown_sub):
+        # print(obs.time_before_cooldown_sub)
+        for sub_id, t in enumerate(obs.time_before_cooldown_sub):
+            if t > 0:
+                connected_elements = env.observation_space.get_obj_connect_to(
+                    substation_id=sub_id
+                )
+                for el in connected_elements:
+                    if el == "loads_id":
+                        for l_id in connected_elements[el]:
+                            elements_on_cooldown.add(obs.load_pos_topo_vect[l_id])
+                    elif el == "lines_or_id":
+                        for l_id in connected_elements[el]:
+                            elements_on_cooldown.add(obs.line_or_pos_topo_vect[l_id])
+                    elif el == "lines_ex_id":
+                        for l_id in connected_elements[el]:
+                            elements_on_cooldown.add(obs.line_ex_pos_topo_vect[l_id])
+                    elif el == "generators_id":
+                        for l_id in connected_elements[el]:
+                            elements_on_cooldown.add(obs.gen_pos_topo_vect[l_id])
+        # print(on_cooldown)
+    return elements_on_cooldown, lines_on_cooldown
 
 
 class ChronPrioMatrix:
