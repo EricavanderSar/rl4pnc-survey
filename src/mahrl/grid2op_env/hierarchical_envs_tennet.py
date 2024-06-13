@@ -183,7 +183,6 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
 
         print(" ENVIRONMENT : HierarchicalCustomizedGrid2OpEnvironment")
         actions_per_substations = get_actions_per_substation(
-            controllable_substations=controllable_substations,
             possible_substation_actions=self.possible_substation_actions,
         )
         # map individual substation action to global action space

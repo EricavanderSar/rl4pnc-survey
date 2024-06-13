@@ -5,9 +5,9 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Tune2_Sub36_2021"
-  experiment_name: "Tune2_Sub36_2021"
-  optimize: True
+  folder_name: "TuneBinBin_Sub36_2021"
+  experiment_name: "TuneBinBin_Sub36_2021"
+  optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
   grace_period: 10_000 # First 10_000 steps of training before stopping
@@ -28,24 +28,24 @@ debugging:
 
 training:
   checkpoint_trainable_policies_only: True
-  gamma: !quniform [0.97, 0.999, 0.001] #0.975 #
-  lr: !qloguniform [0.00005, 0.005, 0.00001] #0.0001 #
+  gamma: 0.975 #!quniform [0.97, 0.999, 0.001] #
+  lr: 0.0001 #!qloguniform [0.00005, 0.005, 0.00001] #
 #  use_kl_loss: False # setting this similar to orig EVDS implementation
   kl_coeff: 0.2
   entropy_coeff: 0.0
-  clip_param: !choice [0.2, 0.3] # epsilon #0.3 #
+  clip_param: 0.3 #!choice [0.2, 0.3] # epsilon #
   lambda: 0.95
   vf_loss_coeff: 0.5
   vf_clip_param: 100
-  num_sgd_iter: !quniform [4, 16, 4] #4 #
-  sgd_minibatch_size: !choice [64, 128, 256] # 128 #
-  train_batch_size: !choice [256, 512, 1024] #256 # 128 #
+  num_sgd_iter: 4 #!quniform [4, 16, 4] #
+  sgd_minibatch_size: 128 #!choice [64, 128, 256] #
+  train_batch_size: 256 # 128 #!choice [256, 512, 1024] #
   batch_mode: complete_episodes
   model:
 #    custom_model : linfcn
-    fcnet_hiddens:  !choice [[256, 256], [128,128,128], [256,256,256]]  # [128,128,128] #[256,256,256] #
+    fcnet_hiddens:  [256,256,256] #!choice [[256, 256], [128,128,128], [256,256,256]]  # [128,128,128] #
     fcnet_activation: relu #!choice [relu, tanh] #
-    post_fcnet_hiddens: !choice [[],[128], [256], [256,256], [512]] #[256] #
+    post_fcnet_hiddens: [256] #!choice [[],[128], [256], [256,256], [512]] #
   _enable_learner_api: False
 
 rl_module:
@@ -71,7 +71,7 @@ environment:
     env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: l2rpn_icaps_2021_large_train
-    action_space: medha_DN
+    action_space: binbinchen
     mask: 3
     lib_dir: !workdir
     grid2op_kwargs:

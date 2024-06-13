@@ -10,6 +10,7 @@ import grid2op
 
 from mahrl.experiments.action_spaces import (
     get_action_space,
+    get_space_numpy,
     save_to_json,
 )
 
@@ -27,15 +28,24 @@ def create_action_spaces(
     Creates action spaces for a specified grid2op environment.
     """
     env = grid2op.make(env_name)
-    save_path = os.path.join(save_path, env_name)
+    save_path = os.path.join(save_path, env_name.replace("_large", "").replace("_small", ""))
     os.makedirs(save_path, exist_ok=True)
-    possible_actions = get_action_space(env,
-                                        action_space_to_create,
-                                        incl_dn=extra_dn,
-                                        adjust_shunt=adjust_shunt,
-                                        rho_filter=rho_filter,
-                                        workers=workers,
-                                        )
+    if action_space_to_create in ["binbinchen", "curriculumagent", "alphazero"]:
+        possible_actions = get_space_numpy(env,
+                                           action_space_to_create,
+                                           path=save_path,
+                                           incl_dn=extra_dn,
+                                           rho_filter=rho_filter,
+                                           workers=workers,
+                                           )
+    else:
+        possible_actions = get_action_space(env,
+                                            action_space_to_create,
+                                            incl_dn=extra_dn,
+                                            adjust_shunt=adjust_shunt,
+                                            rho_filter=rho_filter,
+                                            workers=workers,
+                                            )
     name = action_space_to_create
     if extra_dn:
         name += f"_dn"
@@ -43,6 +53,8 @@ def create_action_spaces(
         name += f"_{adjust_shunt}shunt"
     if rho_filter < 2.0:
         name += f"_maxrho{rho_filter}"
+    print(f"Action space of size {len(possible_actions)} created. "
+          f"\nActions will be saved at {save_path}/{name}.json")
     file_path = os.path.join(save_path, f"{name}.json")
     save_to_json(possible_actions, file_path)
 
@@ -60,7 +72,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-e",
         "--environment",
-        default="l2rpn_case14_sandbox",
+        default="l2rpn_wcci_2022", # "l2rpn_neurips_2020_track1_small", #"l2rpn_icaps_2021_small", #"l2rpn_case14_sandbox",
         type=str,
         help="Name of the environment to be used.",
     )
@@ -69,8 +81,8 @@ if __name__ == "__main__":
         "--action_space",
         type=str,
         help="Action space to be used.",
-        default="tennet",
-        choices=["assym", "medha", "tennet"]
+        default="alphazero",
+        choices=["assym", "medha", "tennet", "binbinchen", "curriculumagent", "alphazero"]
     )
     parser.add_argument(
         "-s",
@@ -80,10 +92,10 @@ if __name__ == "__main__":
         help="Path the action spaces must be saved.",
     )
     # Extra options to adjust the action_space
-    parser.add_argument('-dn', '--extra_donothing', default=True, action='store_true',
+    parser.add_argument('-dn', '--extra_donothing', default=False, action='store_true',
                         help="adding extra do nothing actions for subs that dont have any other config to action space"
                         )
-    parser.add_argument('-sh', "--adjust_shunt", type=str, default="opt", choices=["", "all", "opt"],
+    parser.add_argument('-sh', "--adjust_shunt", type=str, default="", choices=["", "all", "opt"],
                         help="For subs with shunt the reversed action can be better."
                              "options: - all will add also reversed actions to action space"
                              "         - opt will pick the best action reversed or normal"

@@ -10,7 +10,7 @@
 
 
 ENVNAME=l2rpn_icaps_2021_large #rte_case14_realistic #
-SAVE_PATH=$HOME/mahrl_grid2op/action_spaces/$ENVNAME
+SAVE_PATH=$HOME/mahrl_grid2op/data/action_spaces/
 
 echo "Activate envirnonment"
 source activate mahrl_grid2op

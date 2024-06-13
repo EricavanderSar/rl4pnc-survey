@@ -88,7 +88,7 @@ def calculate_action_space_medha(env: BaseEnv, add_dn: bool = False) -> tuple[in
 
     logging.info(f"actions {action_space}")
     logging.info(f"topologies {possible_topologies}")
-    logging.info(f"controllable substations {controllable_substations}")
+    print(f"controllable substations {controllable_substations}")
     return action_space, possible_topologies, controllable_substations
 
 
@@ -241,65 +241,6 @@ def delete_nested_key(d, path):
     last_key = keys[-1]
     if last_key in current:
         del current[last_key]
-
-
-# def run_training(
-#     config: dict[str, Any], setup: dict[str, Any], algorithm: Algorithm
-# ) -> None:
-#     """
-#     Function that runs the training script.
-#     """
-#     # init ray
-#     # ray.shutdown()
-#     ray.init(ignore_reinit_error=False)
-#
-#     ModelCatalog.register_custom_model("fcn", SimpleMlp)
-#
-#     # Create tuner
-#     tuner = tune.Tuner(
-#         algorithm,
-#         param_space=config,
-#         tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
-#         run_config=air.RunConfig(
-#             name="mlflow",
-#             callbacks=[
-#                 MLflowLoggerCallback(
-#                     tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
-#                     experiment_name=setup["experiment_name"],
-#                     save_artifact=setup["save_artifact"],
-#                 )
-#             ],
-#             stop={"timesteps_total": setup["nb_timesteps"]},
-#             storage_path=os.path.abspath(setup["storage_path"]),
-#             checkpoint_config=air.CheckpointConfig(
-#                 checkpoint_frequency=setup["checkpoint_freq"],
-#                 checkpoint_at_end=setup["checkpoint_at_end"],
-#                 checkpoint_score_attribute=setup["checkpoint_score_attr"],
-#                 num_to_keep=setup["keep_checkpoints_num"],
-#             ),
-#             verbose=setup["verbose"],
-#         ),
-#     )
-#
-#     # Launch tuning
-#     try:
-#         tuner.fit()
-#     finally:
-#         # Close ray instance
-#         ray.shutdown()
-#
-#     # save config to params.json in the runs file that is created
-#     with open(
-#         os.path.join(
-#             setup["storage_path"],
-#             # "mlruns",
-#             # "configs",
-#             "params.json",
-#         ),
-#         "w",
-#         encoding="utf-8",
-#     ) as config_file:
-#         config_file.write(str(config))
 
 
 class MaxCustomMetricStopper(Stopper):

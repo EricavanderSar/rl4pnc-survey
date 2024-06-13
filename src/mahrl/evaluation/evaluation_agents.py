@@ -4,7 +4,7 @@ Describes classes of agents that can be evaluated.
 
 import os
 import random
-from collections import Counter, OrderedDict
+from collections import Counter, OrderedDict, defaultdict
 from typing import Any, Optional
 
 import grid2op
@@ -607,22 +607,22 @@ class RandomAndGreedyAgent(GreedyAgent):
 
 
 def get_actions_per_substation(
-    controllable_substations: dict[int, int],
     possible_substation_actions: list[BaseAction],
-) -> dict[int, list[BaseAction]]:
+) -> defaultdict[int, list[BaseAction]]:
     """
     Get the actions per substation.
     """
-    actions_per_substation: dict[int, list[BaseAction]] = {
-        substation: [] for substation in list(controllable_substations.keys())
-    }
-
-    # print(f"empty actions_per_substation {actions_per_substation}")
+    actions_per_substation = defaultdict(list)
 
     # get possible actions related to that substation actions_per_substation
-    for action in possible_substation_actions[1:]:  # exclude the DoNothing action
-        sub_id = int(action.as_dict()["set_bus_vect"]["modif_subs_id"][-1])
-        actions_per_substation[sub_id].append(action)
+    for action in possible_substation_actions:  # exclude the DoNothing action
+        act_dict = action.as_dict()
+        if "set_bus_vect" in act_dict.keys():
+            sub_id = int(act_dict["set_bus_vect"]["modif_subs_id"][-1])
+            actions_per_substation[sub_id].append(action)
+        elif "change_bus_vect" in act_dict.keys():
+            sub_id = int(act_dict["change_bus_vect"]["modif_subs_id"][-1])
+            actions_per_substation[sub_id].append(action)
 
     # print(f"action per substations {[(key, len(item)) for key,item in actions_per_substation.items()]}")
     return actions_per_substation
@@ -637,9 +637,7 @@ def create_greedy_agent_per_substation(
     """
     Create a greedy agent for each substation.
     """
-    actions_per_substation = get_actions_per_substation(
-        controllable_substations, possible_substation_actions
-    )
+    actions_per_substation = get_actions_per_substation(possible_substation_actions)
 
     # initialize greedy agents for all controllable substations
     agents = {}
