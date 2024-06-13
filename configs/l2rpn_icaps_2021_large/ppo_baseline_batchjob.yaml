@@ -1,12 +1,12 @@
 setup:
   max_ep_len: 8062
-  nb_timesteps: &nb_timesteps 100_000
+  nb_timesteps: &nb_timesteps 200_000
   checkpoint_freq: 10
   verbose: 0
   my_log_level: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "TuneBinBin_Sub36_2021"
-  experiment_name: "TuneBinBin_Sub36_2021"
+  folder_name: "TuneMaxRho_Sub36_2021"
+  experiment_name: "TuneMaxRho_Sub36_2021"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -71,7 +71,7 @@ environment:
     env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: l2rpn_icaps_2021_large_train
-    action_space: binbinchen
+    action_space: tennet_dn_maxrho0.9
     mask: 3
     lib_dir: !workdir
     grid2op_kwargs:
