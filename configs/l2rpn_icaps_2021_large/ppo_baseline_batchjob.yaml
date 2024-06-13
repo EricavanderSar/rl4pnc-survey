@@ -94,7 +94,7 @@ evaluation:
   always_attach_evaluation_results: True
   evaluation_sample_timeout_s: 720
 #  evaluation_parallel_to_training: True #Currently not working
-  evaluation_num_workers: 7
+  evaluation_num_workers: 15
   evaluation_config:
     explore: True,
     env_config:
@@ -110,8 +110,8 @@ scaling_config:
   num_workers: 4
 
 resources:
-  num_gpus: 1
+#  num_gpus: 1
   num_learner_workers: 4
 
 rollouts:
-  num_rollout_workers: 10
+  num_rollout_workers: 16
