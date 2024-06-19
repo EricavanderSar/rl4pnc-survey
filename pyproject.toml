@@ -69,6 +69,7 @@ dependencies = [
   "optuna",
   "typer",
   "ipykernel",
+  "pathos",
 ]
 
 [project.optional-dependencies]

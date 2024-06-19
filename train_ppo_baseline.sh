@@ -6,12 +6,12 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --partition=rome
 #SBATCH --time=48:00:00
-#SBATCH --output=Case36_MaxRho_ppo_baseline_%j.out
+#SBATCH --output=Case14_ReduceAct_ppo_baseline_%j.out
 
 
-ENVNAME=l2rpn_icaps_2021_large #l2rpn_case14_sandbox #rte_case14_realistic #
+ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=TuneMaxRho_Sub36_2021
+RESDIR=Case14_Sandbox_ActSpaces
 
 # function to handle the SIGTERM signal
 function handle_interrupt {

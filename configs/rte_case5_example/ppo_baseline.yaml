@@ -60,7 +60,7 @@ environment:
     env_type: new_env # old_env #
     shuffle_scenarios: True
     env_name: rte_case5_example_train
-    action_space: tennet
+    action_space: medha
     lib_dir: !workdir #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
     max_tsteps: *train_batch_size
     grid2op_kwargs:
