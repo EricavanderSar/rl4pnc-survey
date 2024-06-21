@@ -5,6 +5,7 @@ Implements the codes to configure the three kinds of action spaces.
 import json
 import os.path
 import time
+import itertools
 from collections import Counter, defaultdict
 from typing import List
 from tqdm import tqdm
@@ -488,6 +489,39 @@ def apply_greedy_filter(actions: list[BaseAction],
                 raise Exception(f"Exceeded {count_trials} trails")
 
 
+def clean_up_action_list(action_list_with_dupl: list[BaseAction],
+                         env: BaseEnv,) -> (list[BaseAction]):
+    """
+    This function will clean up the given action list, by
+        - removing duplicates
+        - adding actions to go back to default topology
+    Returns:
+        list of actions without duplicates and with default topology action for each substation with other actions.
+    """
+    subs = defaultdict(list)
+    actions_list = []
+    for action in action_list_with_dupl:
+        topo_act = action.set_bus
+        sub_act = env._topo_vect_to_sub[topo_act != 0][0]
+        topo_act = topo_act[topo_act > 0].tolist()
+        if topo_act not in subs[sub_act]:
+            # avoid duplicates in final list
+            subs[sub_act].append(topo_act)
+            actions_list.append(action)
+        # print(f"Substation {sub_act} - action {topo_act}")
+    for sub, sub_acts in subs.items():
+        # Make sure the substation can still go back to default topology
+        topo = [1] * env.sub_info[sub]
+        if topo not in sub_acts:
+            action = env.action_space(
+                {"set_bus": {"substations_id": [(sub, topo)]}}
+            )
+            actions_list.append(action)
+            subs[sub].append(topo)
+    print("Actions per sub in cleaned action space:")
+    [print(f"Sub {key} has {len(val)} actions.") for key, val in subs.items()]
+    return actions_list
+
 
 def multi_greedy_filter(env: BaseEnv,
                         actions: list[BaseAction],
@@ -510,16 +544,10 @@ def multi_greedy_filter(env: BaseEnv,
             greedy_actions, rho_filtered_actions = res
             greedy_actions_list.extend(greedy_actions)
             rho_filtered_list.extend(rho_filtered_actions)
-    print("Actions per sub in Greedy action space:")
-    subs = defaultdict(list)
-    for action in greedy_actions_list:
-        topo_act = action.set_bus
-        sub_act = env._topo_vect_to_sub[topo_act != 0][0]
-        topo_act = topo_act[topo_act > 0]
-        subs[sub_act].append(topo_act.tolist())
-        # print(f"Substation {sub_act} - action {topo_act}")
-    [print(f"Sub {key} has {len(val)} actions: {val}" ) for key, val in subs.items()]
+
+    greedy_actions_list = clean_up_action_list(greedy_actions_list, env)
     print(f"The greedy action space size is {len(greedy_actions_list)}")
+    rho_filtered_list = clean_up_action_list(rho_filtered_list, env)
     print(f"The rho filtered action_space size is {len(rho_filtered_list)}")
     return greedy_actions_list, rho_filtered_list
 
@@ -588,7 +616,7 @@ def save_to_json(
         }
         for action in possible_substation_actions
     ]
-    print(actions_to_json)
+    # print(actions_to_json)
     # Save to json
     with open(json_file_path, "wt", encoding="utf-8") as file:
         json.dump(actions_to_json, file)
