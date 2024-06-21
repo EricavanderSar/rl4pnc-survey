@@ -5,7 +5,7 @@ Implements the codes to configure the three kinds of action spaces.
 import json
 import os.path
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from typing import List
 from tqdm import tqdm
 from itertools import compress
@@ -456,26 +456,37 @@ def apply_greedy_filter(actions: list[BaseAction],
                         nb_interactions: int
                         ) -> (list[BaseAction], list[BaseAction]):
     # print("Creating copy of environment...")
-    env = grid2op.make(input_env.env_name, backend=LightSimBackend())
-    env.seed(0)
-    env.chronics_handler.set_chunk_size(100)
-    env.generate_classes()
-    # print("Creating GreedyAgentFilter...")
-    agent = GreedyAgentFilter(actions, env, rho_max)
-    i = 0
-    pbar = tqdm(total = nb_interactions)
-    while i < nb_interactions:
-        obs = env.reset()
-        done = False
-        while not done and (i < nb_interactions):
-            action, acted = agent.act(obs)
-            obs, rw, done, info = env.step(action)
-            if acted:
-                i += 1
-                pbar.update(1)
-    env.close()
-    pbar.close()
-    return agent.return_acts_to_keep()
+    count_trials = 0
+    while True:
+        try:
+            env = grid2op.make(input_env.env_name, backend=LightSimBackend())
+            env.seed(0)
+            env.chronics_handler.set_chunk_size(100)
+            # env.generate_classes()
+            # print("Creating GreedyAgentFilter...")
+            agent = GreedyAgentFilter(actions, env, rho_max)
+            i = 0
+            # pbar = tqdm(total = nb_interactions)
+            while i < nb_interactions:
+                obs = env.reset()
+                done = False
+                while not done and (i < nb_interactions):
+                    action, acted = agent.act(obs)
+                    obs, rw, done, info = env.step(action)
+                    if acted:
+                        i += 1
+                        # pbar.update(1)
+            env.close()
+            # pbar.close()
+            return agent.return_acts_to_keep()
+        except Exception as ex:
+            if count_trials < 10:
+                print("An error occured in 'apply_greedy_filter' retrying..." )
+                count_trials += 1
+                time.sleep(0.01)
+            else:
+                raise Exception(f"Exceeded {count_trials} trails")
+
 
 
 def multi_greedy_filter(env: BaseEnv,
@@ -493,13 +504,22 @@ def multi_greedy_filter(env: BaseEnv,
     env.generate_classes()
     with Pool(nb_workers) as pool:
         worker = partial(apply_greedy_filter, input_env=env, rho_max=rho_max, nb_interactions=nb_interact)
-        results = pool.map(worker, pools)
+        results = list(tqdm(pool.imap(worker, pools), total=len(pools), desc="Creating Greedy actions space"))
 
         for res in results:
             greedy_actions, rho_filtered_actions = res
             greedy_actions_list.extend(greedy_actions)
             rho_filtered_list.extend(rho_filtered_actions)
-    print(f"The greedy action_space size is {len(greedy_actions_list)}")
+    print("Actions per sub in Greedy action space:")
+    subs = defaultdict(list)
+    for action in greedy_actions_list:
+        topo_act = action.set_bus
+        sub_act = env._topo_vect_to_sub[topo_act != 0][0]
+        topo_act = topo_act[topo_act > 0]
+        subs[sub_act].append(topo_act.tolist())
+        # print(f"Substation {sub_act} - action {topo_act}")
+    [print(f"Sub {key} has {len(val)} actions: {val}" ) for key, val in subs.items()]
+    print(f"The greedy action space size is {len(greedy_actions_list)}")
     print(f"The rho filtered action_space size is {len(rho_filtered_list)}")
     return greedy_actions_list, rho_filtered_list
 
