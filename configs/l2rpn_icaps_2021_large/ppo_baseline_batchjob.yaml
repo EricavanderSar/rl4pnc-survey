@@ -71,7 +71,7 @@ environment:
     env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: l2rpn_icaps_2021_large_train
-    action_space: tennet_dn_maxrho0.9
+    action_space: medha_dn_maxrho1.0-100-200_gr
     mask: 3
     lib_dir: !workdir
     grid2op_kwargs:
