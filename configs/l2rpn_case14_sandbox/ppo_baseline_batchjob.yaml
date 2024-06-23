@@ -71,7 +71,7 @@ environment:
     env_type: new_env #old_env #
     shuffle_scenarios: True
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha_dn_optshunt_maxrho1.0
+    action_space: medha_dn_allshunt_maxrho1.0-30-100_gr
     mask: 3
     lib_dir: !workdir
     grid2op_kwargs:
@@ -79,7 +79,7 @@ environment:
       reward_class: !LossReward #!ScaledL2RPNReward #
     seed: *seed
     rho_threshold: 0.95
-    prio: False
+    prio: True
     input: [ "p_i", "p_l", "r", "o", "d"]
     # Params below only used for new_env
     n_history: 3
