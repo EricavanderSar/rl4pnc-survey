@@ -114,7 +114,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.step_surv = 0
 
         # reset topo option
-        self.reset_topo = env_config.get("reset_topo", True)
+        self.reset_topo = env_config.get("reset_topo", 0)
 
     def define_agents(self, env_config: dict) -> list:
         return [
@@ -353,7 +353,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
     def reset_ref_topo(self, g2op_obs: grid2op.Observation):
         # The environment goes back to the reference topology when safe
-        if (g2op_obs.rho.max() < 0.8) and (g2op_obs.current_step < g2op_obs.max_step-1):
+        if (g2op_obs.rho.max() < self.reset_topo) and (g2op_obs.current_step < g2op_obs.max_step-1):
             # Get all subs that are not in default topology
             subs_changed = np.unique(g2op_obs._topo_vect_to_sub[g2op_obs.topo_vect != 1])
             if len(subs_changed):
@@ -371,7 +371,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                     sim_obs, rw, done, info = g2op_obs.simulate(action)
                     max_rhos[i] = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
                     rewards[i] = rw
-                if max_rhos[np.argmax(rewards)] < 0.8:
+                if max_rhos[np.argmax(rewards)] < self.reset_topo:
                     act = action_options[np.argmax(rewards)]
                     # Execute the topology reset action
                     (
@@ -380,6 +380,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                         terminated,
                         infos,
                     ) = self.env_g2op.step(act)
+                    # print(act)
                     return g2op_obs, rw, terminated
         return g2op_obs, 0, False
 
