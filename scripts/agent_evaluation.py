@@ -176,30 +176,60 @@ def get_action_data(env, this_episode, input_data=None):
         data["el_changed"].extend(el_changed)
         data["el_topo_depth"].extend(el_topo_depth)
         # data["topo"] = np.append(data["topo"], topos)
-
     return data
 
 
 def collect_episode_data(env, store_trajectories_folder, li_episode):
     print(" Start collecting episode data ... ")
-    all_data = None
-    store_data_path = os.path.join(store_trajectories_folder, "line_action_topo_data.csv")
-    df = None
-    if os.path.exists(store_data_path):
-        df = pd.read_csv(store_data_path)
-        n_episode_evaluated = len(df.chron_id.unique())
-        li_episode = li_episode[n_episode_evaluated:]
+    act_data = None
+    store_actdata_path = os.path.join(store_trajectories_folder, "line_action_topo_data.csv")
+    store_surv_path = os.path.join(store_trajectories_folder, "survival.csv")
+    df_act, df_sur = None, None
+    chron = []
+    surv = []
+    rw = []
+
+    if os.path.exists(store_actdata_path):
+        # check if part of the data was already collected...
+        df_act = pd.read_csv(store_actdata_path)
+        n_episode_evaluated = len(df_act.chron_id.unique())
+        if os.path.exists(store_surv_path):
+            df_sur = pd.read_csv(store_actdata_path)
+            if n_episode_evaluated == len(df_sur.chron_id.unique()):
+                li_episode = li_episode[n_episode_evaluated:]
+            else:
+                df_act, df_sur = None, None
+        else:
+            df_act, df_sur = None, None
+
+    # start collecting the data by going through the played episodes
     for ep in tqdm(li_episode, total=len(li_episode)):
         full_path, episode_studied = ep
         this_episode = EpisodeData.from_disk(store_trajectories_folder, episode_studied)
-        all_data = get_action_data(env, this_episode, all_data)
-    if df is not None:
-        df = df.append(pd.DataFrame(all_data))
+        act_data = get_action_data(env, this_episode, act_data)
+        # save chronic data
+        chron.append(os.path.basename(os.path.normpath(this_episode.meta['chronics_path'])))
+        surv.append(this_episode.meta['nb_timestep_played'])
+        rw.append(np.round(this_episode.meta['cumulative_reward'], decimals=2))
+
+    # Save action data in data frame
+    if df_act is not None:
+        df_act = df_act.append(pd.DataFrame(act_data))
     else:
-        df = pd.DataFrame(all_data)
-    print(df.head())
-    df.to_csv(os.path.join(store_trajectories_folder, "line_action_topo_data.csv"), index=False)
-    return all_data, df
+        df_act = pd.DataFrame(act_data)
+    print(df_act.head())
+    df_act.to_csv(os.path.join(store_trajectories_folder, "line_action_topo_data.csv"), index=False)
+
+    # Save chronic data in data frame
+    chron_data = {'chron': chron, 'survived': surv, 'cum reward': rw}
+    if df_sur is not None:
+        df_sur = df_act.append(pd.DataFrame(chron_data))
+    else:
+        df_sur = pd.DataFrame(chron_data)
+    print(df_sur.head())
+    df_sur.to_csv(os.path.join(store_trajectories_folder, "survival.csv"), index=False)
+
+    return act_data, df_act
 
 
 def print_measures(df):
@@ -284,7 +314,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-t",
         "--test_case",
-        default="CustomPPO_RlGrid2OpEnv_7d675_00000_0_2024-05-06_10-20-25",
+        default="CustomPPO_RlGrid2OpEnv_736a5_00000_0_2024-05-06_03-10-39",
         type=str,
         help="Name of the agent you want to evaluate.",
     )

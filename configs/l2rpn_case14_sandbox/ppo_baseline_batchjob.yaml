@@ -79,7 +79,7 @@ environment:
       reward_class: !LossReward #!ScaledL2RPNReward #
     seed: *seed
     rho_threshold: 0.95
-    prio: True
+    prio: False
     input: [ "p_i", "p_l", "r", "o", "d"]
     # Params below only used for new_env
     n_history: 3

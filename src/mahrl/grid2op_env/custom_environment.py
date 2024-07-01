@@ -163,7 +163,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 g2op_obs, terminated = self.prio_reset()
         else:
             g2op_obs = self.env_g2op.reset()
-
+        self.update_obs(g2op_obs)
         # reconnect lines if needed.
         g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
 
@@ -171,7 +171,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         chron_id = self.env_g2op.chronics_handler.get_name()
         infos = {"time serie id": chron_id}
 
-        self.update_obs(g2op_obs)
         return observations, infos
 
     def update_obs(self, g2op_obs):
@@ -260,6 +259,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             terminated,
             infos,
         ) = self.env_g2op.step(g2op_act)
+        self.update_obs(g2op_obs)
         # reconnect lines if needed.
         if not terminated:
             g2op_obs, rw, terminated = self.reconnect_lines(g2op_obs)
@@ -271,7 +271,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             self.step_surv += 1
             if terminated:
                 self.chron_prios.update_prios(self.step_surv)
-        self.update_obs(g2op_obs)
         return g2op_obs, reward, terminated, infos
 
     def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
@@ -348,6 +347,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                             terminated,
                             infos,
                         ) = self.env_g2op.step(act)
+                        self.update_obs(g2op_obs)
                         return g2op_obs, rw, terminated
         return g2op_obs, 0, False
 
@@ -380,6 +380,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                         terminated,
                         infos,
                     ) = self.env_g2op.step(act)
+                    self.update_obs(g2op_obs)
                     # print(act)
                     return g2op_obs, rw, terminated
         return g2op_obs, 0, False
