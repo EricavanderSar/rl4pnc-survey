@@ -37,7 +37,7 @@ def get_env_config(studie_path, test_case, reset_topo, libdir):
     config = load_config(config_path)
     env_config = config["env_config"]
     # adjust lib_dir:
-    env_config["lib_dir"] = "/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/"
+    env_config["lib_dir"] = libdir
     # Overwrite file params
     config["env_config"] = env_config
     with open(config_path, "w") as outfile:
