@@ -79,7 +79,7 @@ environment:
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     prio: False
     normalize: maxmin
-    reset_topo: 0.8
+    reset_topo: 0.5
 
 evaluation:
   evaluation_interval: 1

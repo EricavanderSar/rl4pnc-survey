@@ -53,6 +53,8 @@ class RllibAgent(BaseAgent):
         # load neural network of (eg) PPO agent.
         checkpoint_path = os.path.join(file_path, checkpoint_name, "policies", policy_name)
         self._rllib_agent = Policy.from_checkpoint(checkpoint_path)
+        print("agent observation space is : ", self._rllib_agent.observation_space)
+        # self._rllib_agent.observation_space =
         # self._rllib_agent = algorithm.from_checkpoint(
         #     checkpoint_path, policy_ids=[policy_name]
         # )
@@ -74,8 +76,38 @@ class RllibAgent(BaseAgent):
         # Grid2Op to RLlib observation
         self.gym_wrapper.update_obs(observation)
 
-        # The environment goes back to the reference topology when safe
-        if self.reset_topo and observation.rho.max() < 0.8:
+        if False in observation.line_status:
+            # reconnect lines if possible
+            disc_lines = np.where(observation.line_status == False)[0]
+            for i in disc_lines:
+                act = None
+                # Reconnecting the line when cooldown and maintenance is over:
+                if (observation.time_next_maintenance[i] != 0) & (observation.time_before_cooldown_line[i] == 0):
+                    status = np.arange(observation.n_line) == i
+                    act = self.action_space({"change_line_status": status})
+                    if act is not None:
+                        return act
+        if observation.rho.max() > self.threshold:
+            # Get action from trained RL-agent when in danger.
+            if not any(len(obs_el.shape) > 1 for obs_el in self.gym_wrapper.cur_obs.values()):
+                # Convert the observation dictionary to a NumPy array
+                observation_array = np.concatenate([self.gym_wrapper.cur_obs[key] for key in self.gym_wrapper.cur_obs])
+            else:
+                observation_array = self.gym_wrapper.cur_obs
+            # print("current obs:", observation_array)
+            # get action as int
+            # compute_single_action returns:
+            #   - Tuple consisting of the action,
+            #   - the list of RNN state outputs (if any), and
+            #   - a dictionary of extra features (if any).
+            gym_action, state_out, info = self._rllib_agent.compute_single_action(
+                observation_array,
+                policy_id="reinforcement_learning_policy"
+            )
+            # convert Rllib action to grid2op
+            return self.gym_wrapper.env_gym.action_space.from_gym(gym_action)
+        elif self.reset_topo and observation.rho.max() < 0.8:
+            # Go back to the reference topology when safe
             # Get all subs that are not in default topology
             subs_changed = np.unique(observation._topo_vect_to_sub[observation.topo_vect != 1])
             if len(subs_changed):
@@ -95,31 +127,8 @@ class RllibAgent(BaseAgent):
                     rewards[i] = rw
                 if max_rhos[np.argmax(rewards)] < 0.8:
                     return action_options[np.argmax(rewards)]
-
-        if False in observation.line_status:
-            disc_lines = np.where(observation.line_status == False)[0]
-            for i in disc_lines:
-                act = None
-                # Reconnecting the line when cooldown and maintenance is over:
-                if (observation.time_next_maintenance[i] != 0) & (observation.time_before_cooldown_line[i] == 0):
-                    status = np.arange(observation.n_line) == i
-                    act = self.action_space({"change_line_status": status})
-                    if act is not None:
-                        return act
-        elif observation.rho.max() > self.threshold:
-            # get action as int
-            # compute_single_action returns:
-            #   - Tuple consisting of the action,
-            #   - the list of RNN state outputs (if any), and
-            #   - a dictionary of extra features (if any).
-            # print("current obs:", self.gym_wrapper.cur_obs)
-            gym_action, state_out, info = self._rllib_agent.compute_single_action(
-                self.gym_wrapper.cur_obs,
-                policy_id="reinforcement_learning_policy"
-            )
-            # convert Rllib action to grid2op
-            return self.gym_wrapper.env_gym.action_space.from_gym(gym_action)
         else:
+            # Return do-nothing action.
             return self.action_space({})
 
 

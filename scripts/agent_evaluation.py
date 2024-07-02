@@ -3,6 +3,7 @@ import os
 import grid2op
 import numpy as np
 import argparse
+import re
 from grid2op.PlotGrid import PlotMatplot
 from lightsim2grid import LightSimBackend
 from grid2op.Agent import DoNothingAgent
@@ -20,7 +21,16 @@ from mahrl.experiments.yaml import load_config
 from mahrl.evaluation.utils import instantiate_reward_class
 
 
-def get_env_config(studie_path, test_case, reset_topo):
+def get_latest_checkpoint(agent_path):
+    def extract_number(f):
+        s = re.findall("\d+$", f)
+        return (int(s[0]) if s else -1, f)
+    # Get latest checkpoint:
+    checkpoints = [name for name in os.listdir(agent_path) if name.startswith("checkpoint")]
+    return max(checkpoints, key=extract_number)
+
+
+def get_env_config(studie_path, test_case, reset_topo, libdir):
     agent_path = os.path.join(studie_path, test_case)
     # load config
     config_path = os.path.join(agent_path, "params.json")
@@ -56,8 +66,8 @@ def run_evaluation(agent_path,
     li_episode = EpisodeData.list_episode(store_trajectories_folder) if \
         os.path.exists(store_trajectories_folder) else []
 
-    if len(li_episode) < NB_EPISODE:
-        print(f">> Start running evaluation of {NB_EPISODE-len(li_episode)} episodes")
+    if len(li_episode) < nb_episodes:
+        print(f">> Start running evaluation of {nb_episodes-len(li_episode)} episodes")
         agent = RllibAgent(
             action_space=env.action_space,
             env_config=env_config,
@@ -75,7 +85,7 @@ def run_evaluation(agent_path,
         res = runner.run(
             nb_episode=nb_episodes-len(li_episode),
             pbar=True,
-            episode_id=chronics[len(li_episode):NB_EPISODE],
+            episode_id=chronics[len(li_episode):nb_episodes],
             path_save=os.path.abspath(store_trajectories_folder),
         )
 
@@ -301,6 +311,34 @@ def quick_overview(data_folder):
     plt.show()
 
 
+def eval_single_agent(test_case,
+                      studie_path,
+                      reset_topo_todefault,
+                      lib_dir,
+                      test_chronics
+                      ):
+    # Get environment configuration
+    env_config, agent_path = get_env_config(studie_path, test_case, reset_topo_todefault, lib_dir)
+    ENV_TYPE = RlGrid2OpEnv if env_config["env_type"] == "new_env" else CustomizedGrid2OpEnvironment
+    checkpoint_name = get_latest_checkpoint(agent_path)
+
+    print(f"Studying agent at {agent_path}")
+    print(f"Environment configuration {env_config}")
+
+    NB_EPISODE = len(test_chronics)
+    store_trajectories_folder, env = run_evaluation(agent_path,
+                                                    checkpoint_name,
+                                                    env_config,
+                                                    ENV_TYPE,
+                                                    test_chronics,
+                                                    NB_EPISODE)
+
+    li_episode = EpisodeData.list_episode(store_trajectories_folder)
+    all_data, df = collect_episode_data(env, store_trajectories_folder, li_episode)
+    quick_overview(store_trajectories_folder)
+    return all_data, df, env
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
@@ -314,16 +352,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "-t",
         "--test_case",
-        default="CustomPPO_RlGrid2OpEnv_736a5_00000_0_2024-05-06_03-10-39",
+        default="CustomPPO_CustomizedGrid2OpEnvironment_cc933_00000_0_2024-05-06_10-15-28",
         type=str,
         help="Name of the agent you want to evaluate.",
-    )
-    parser.add_argument(
-        "-c",
-        "--checkpoint",
-        default="checkpoint_000031",
-        type=str,
-        help="checkpoint to be loaded",
     )
     parser.add_argument('-r', '--reset_topo', default=False, action='store_true',
                         help="reset topology when the environment is in a safe state"
@@ -331,29 +362,13 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     test_case = args.test_case
-    checkpoint_name = args.checkpoint
     # Get location of studied agent
     studie_path = args.path
+    lib_dir = "/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/"
 
     # chronics copied from test set in Snellius
     chronics = "0020  0047  0076  0129  0154  0164  0196  0230  0287  0332  0360  0391  0454  0504  0516  0539  0580  0614  0721  0770  0842  0868  0879  0925  0986 0023  0065  0103  0141  0156  0172  0206  0267  0292  0341  0369  0401  0474  0505  0529  0545  0595  0628  0757  0774  0844  0869  0891  0950  0993 0026  0066  0110  0144  0157  0179  0222  0274  0303  0348  0381  0417  0481  0511  0531  0547  0610  0636  0763  0779  0845  0870  0895  0954  0995 0030  0075  0128  0153  0162  0192  0228  0286  0319  0355  0387  0418  0486  0513  0533  0565  0612  0703  0766  0812  0852  0871  0924  0962  1000"
     test_chronics = chronics.split()
-    NB_EPISODE = len(test_chronics)
     reset_topo_todefault = args.reset_topo
 
-    env_config, agent_path = get_env_config(studie_path, test_case, reset_topo_todefault)
-    ENV_TYPE = RlGrid2OpEnv if env_config["env_type"] == "new_env" else CustomizedGrid2OpEnvironment
-
-    print(f"Studying agent at {agent_path}")
-    print(f"Environment configuration {env_config}")
-
-    store_trajectories_folder, env = run_evaluation(agent_path,
-                                                    checkpoint_name,
-                                                    env_config,
-                                                    ENV_TYPE,
-                                                    test_chronics,
-                                                    NB_EPISODE)
-
-    li_episode = EpisodeData.list_episode(store_trajectories_folder)
-    all_data, df = collect_episode_data(env, store_trajectories_folder, li_episode)
-    quick_overview(store_trajectories_folder)
+    all_data, df, env = eval_single_agent(test_case, studie_path, reset_topo_todefault, lib_dir, test_chronics)
