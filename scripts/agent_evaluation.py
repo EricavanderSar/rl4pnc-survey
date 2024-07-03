@@ -84,7 +84,7 @@ def run_evaluation(agent_path,
         )
         res = runner.run(
             nb_episode=nb_episodes-len(li_episode),
-            pbar=True,
+            # pbar=True,
             episode_id=chronics[len(li_episode):nb_episodes],
             path_save=os.path.abspath(store_trajectories_folder),
         )
@@ -122,7 +122,7 @@ def run_evaluation(agent_path,
     return store_trajectories_folder, env
 
 
-def get_action_data(env, this_episode, input_data=None):
+def get_action_data(env, env_config, this_episode, input_data=None):
     # get data lines in overflow
     idx = env.observation_space.shape
     pos = env.observation_space.attr_list_vect.index('rho')
@@ -189,7 +189,7 @@ def get_action_data(env, this_episode, input_data=None):
     return data
 
 
-def collect_episode_data(env, store_trajectories_folder, li_episode):
+def collect_episode_data(env, env_config, store_trajectories_folder, li_episode):
     print(" Start collecting episode data ... ")
     act_data = None
     store_actdata_path = os.path.join(store_trajectories_folder, "line_action_topo_data.csv")
@@ -216,7 +216,7 @@ def collect_episode_data(env, store_trajectories_folder, li_episode):
     for ep in tqdm(li_episode, total=len(li_episode)):
         full_path, episode_studied = ep
         this_episode = EpisodeData.from_disk(store_trajectories_folder, episode_studied)
-        act_data = get_action_data(env, this_episode, act_data)
+        act_data = get_action_data(env, env_config, this_episode, act_data)
         # save chronic data
         chron.append(os.path.basename(os.path.normpath(this_episode.meta['chronics_path'])))
         surv.append(this_episode.meta['nb_timestep_played'])
@@ -334,7 +334,7 @@ def eval_single_agent(test_case,
                                                     NB_EPISODE)
 
     li_episode = EpisodeData.list_episode(store_trajectories_folder)
-    all_data, df = collect_episode_data(env, store_trajectories_folder, li_episode)
+    all_data, df = collect_episode_data(env, env_config, store_trajectories_folder, li_episode)
     quick_overview(store_trajectories_folder)
     return all_data, df, env
 

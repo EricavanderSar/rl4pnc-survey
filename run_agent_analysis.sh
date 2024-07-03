@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=rome
 #SBATCH --time=16:00:00
-#SBATCH --output=Evaluate_Agents%j.out
+#SBATCH --output=Evaluate_Agents_%j.out
 
 
 ENVNAME=l2rpn_case14_sandbox_test
