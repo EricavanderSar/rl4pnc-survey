@@ -13,7 +13,7 @@ from agent_evaluation import eval_single_agent
 from mahrl.grid2op_env.utils import load_actions
 
 
-def actions_per_agent(env, agents, main_folder, reset_topo=False):
+def actions_per_agent(env_name, agents, main_folder, reset_topo=False):
     data_dict = {}
     for agent_name in agents:
         # Get agent code
@@ -36,10 +36,11 @@ def actions_per_agent(env, agents, main_folder, reset_topo=False):
 
 
         # Size action space
+        env = grid2op.make(env_name)
         lib_dir = "/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op"
         path = os.path.join(
             lib_dir,
-            f"data/action_spaces/{env.name}/{act_space}.json",
+            f"data/action_spaces/{env_name}/{act_space}.json",
         )
         actions = load_actions(path, env)
         data_dict[agent_code]["n_actions"] = len(actions)
@@ -64,11 +65,10 @@ def actions_per_agent(env, agents, main_folder, reset_topo=False):
     return new_df
 
 
-def eval_all_agents(path: str, lib_dir: str, chron_list: list, nb_workers: int, reset_topo=False):
+def eval_all_agents(env_name: str, path: str, lib_dir: str, chron_list: list, nb_workers: int, reset_topo=False):
     # Get all agents in current directory
     agent_list = [name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
     print("Collecting data for the following agents: ", agent_list)
-    env = None
 
     with Pool(nb_workers) as pool:
         worker = partial(eval_single_agent,
@@ -82,7 +82,7 @@ def eval_all_agents(path: str, lib_dir: str, chron_list: list, nb_workers: int, 
     #     all_data, df, env = eval_single_agent(test_case, path, reset_topo, lib_dir, chron_list)
 
     # Create overview table showing actions used per agent & survival of the agent.
-    actions_per_agent(env, agent_list, path, reset_topo=reset_topo)
+    actions_per_agent(env_name, agent_list, path, reset_topo=reset_topo)
 
 
 if __name__ == "__main__":
@@ -91,7 +91,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-e",
         "--environment",
-        default="l2rpn_case14_sandbox_test",
+        default="l2rpn_case14_sandbox",
         # "l2rpn_wcci_2022", # "l2rpn_neurips_2020_track1_small", #"l2rpn_icaps_2021_small", #
         type=str,
         help="Name of the environment to be used.",
@@ -129,12 +129,12 @@ if __name__ == "__main__":
     # Get location of studied agent
     studie_path = args.path
 
-    env = grid2op.make(args.environment, backend=LightSimBackend())
+    env = grid2op.make(f"{args.environment}_test", backend=LightSimBackend())
     # # chronics copied from test set in Snellius
     # chronics = "0020  0047  0076  0129  0154  0164  0196  0230  0287  0332  0360  0391  0454  0504  0516  0539  0580  0614  0721  0770  0842  0868  0879  0925  0986 0023  0065  0103  0141  0156  0172  0206  0267  0292  0341  0369  0401  0474  0505  0529  0545  0595  0628  0757  0774  0844  0869  0891  0950  0993 0026  0066  0110  0144  0157  0179  0222  0274  0303  0348  0381  0417  0481  0511  0531  0547  0610  0636  0763  0779  0845  0870  0895  0954  0995 0030  0075  0128  0153  0162  0192  0228  0286  0319  0355  0387  0418  0486  0513  0533  0565  0612  0703  0766  0812  0852  0871  0924  0962  1000"
     # test_chronics = chronics.split()
     test_chronics = [os.path.basename(d) for d in env.chronics_handler.real_data.available_chronics()]
     NB_EPISODE = len(test_chronics)
     reset_topo_todefault = args.reset_topo
-    eval_all_agents(args.path, args.lib_dir, test_chronics, args.nb_workers, reset_topo_todefault)
+    eval_all_agents(args.environment, args.path, args.lib_dir, test_chronics, args.nb_workers, reset_topo_todefault)
 

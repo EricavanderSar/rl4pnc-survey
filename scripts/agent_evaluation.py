@@ -62,7 +62,12 @@ def run_evaluation(agent_path,
                    nb_episodes):
     folder_name = "evaluation_episodes_testreset" if env_config["reset_topo"] else "evaluation_episodes"
     store_trajectories_folder = os.path.join(agent_path, folder_name)
-    env = grid2op.make(env_config["env_name"], backend=LightSimBackend())
+    try:
+        env = grid2op.make(env_config["env_name"], backend=LightSimBackend())
+    except:
+        # try without LightSimBackend()
+        env = grid2op.make(env_config["env_name"])
+    env.chronics_handler.set_chunk_size(100)
     li_episode = EpisodeData.list_episode(store_trajectories_folder) if \
         os.path.exists(store_trajectories_folder) else []
 
@@ -233,7 +238,7 @@ def collect_episode_data(env, env_config, store_trajectories_folder, li_episode)
     # Save chronic data in data frame
     chron_data = {'chron': chron, 'survived': surv, 'cum reward': rw}
     if df_sur is not None:
-        df_sur = df_act.append(pd.DataFrame(chron_data))
+        df_sur = df_sur.append(pd.DataFrame(chron_data))
     else:
         df_sur = pd.DataFrame(chron_data)
     print(df_sur.head())
@@ -273,7 +278,7 @@ def quick_overview(data_folder):
     ax.set_ylabel('Frequency')
     ax.legend(title='Topology')
     plt.savefig(os.path.join(data_folder, 'actions_at_substations.png'))
-    plt.show()
+    # plt.show()
 
     #
     pivot_table = df.pivot_table(index=['action_sub', 'action_topo'], columns='line_danger', aggfunc='size',
@@ -285,7 +290,7 @@ def quick_overview(data_folder):
     ax.legend(title='Line in danger')
     plt.tight_layout()
     plt.savefig(os.path.join(data_folder, 'actions_per_line_danger.png'))
-    plt.show()
+    # plt.show()
 
     # Plat data
     for i in range(1, max_topo_depth+1):
@@ -297,7 +302,7 @@ def quick_overview(data_folder):
         ax.set_ylabel('Frequency')
         ax.legend(title='Topology')
         plt.savefig(os.path.join(data_folder, f'topology_action_{i}.png'))
-        plt.show()
+        # plt.show()
 
     # Create a pivot table
     pivot_table = df.pivot_table(index=['line_danger'], columns='subs_changed', aggfunc='size', fill_value=0)
@@ -308,7 +313,7 @@ def quick_overview(data_folder):
     ax.set_ylabel('Frequency')
     ax.legend(title='Subs changed')
     plt.savefig(os.path.join(data_folder, f'subs_changed_frequency.png'))
-    plt.show()
+    # plt.show()
 
 
 def eval_single_agent(test_case,

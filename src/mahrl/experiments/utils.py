@@ -6,8 +6,9 @@ import logging
 import os
 from typing import Any, Dict, List, OrderedDict, Union
 from tabulate import tabulate
-
+import json
 import numpy as np
+
 from grid2op.Environment import BaseEnv
 import ray
 from ray import air, tune
@@ -24,7 +25,7 @@ from mahrl.experiments.callback import Style, TuneCallback
 from ray.tune.stopper.stopper import Stopper
 from ray.util.annotations import PublicAPI
 
-REPORT_END = False
+REPORT_END = True
 
 
 def calculate_action_space_asymmetry(env: BaseEnv, add_dn:bool = False) -> tuple[int, int, dict[int, int]]:
@@ -359,8 +360,20 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
     for i in range(len(result_grid)):
         result = result_grid[i]
         if not result.error:
+            # Print and save available checkpoints
+            checkpoints_tojson = {
+                os.path.basename(checkpoint.path): metrics['evaluation']['custom_metrics'] for
+                checkpoint, metrics in result.best_checkpoints
+            }
+            with open(os.path.join(result.path, "checkpoint_results.json"), "w") as outfile:
+                json.dump(checkpoints_tojson, outfile)
+
             print(Style.BOLD + f" *---- Trial {i} finished successfully with evaluation results ---*\n" + Style.END +
-                  f"{tabulate([result.metrics['evaluation']['custom_metrics']], headers='keys', tablefmt='rounded_grid')}")
+                  tabulate(
+                      [[k] + list(v.values()) for k, v in checkpoints_tojson.items()],
+                      headers=['checkpoint'] + list(result.metrics['evaluation']['custom_metrics'].keys()),
+                      tablefmt='rounded_grid')
+                  )
 
             # print("ALL RESULT METRICS: ", result.metrics)
             # print("ENV CONFIG: ", result.config['env_config'])
@@ -375,8 +388,10 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
                 values = [result.config[par] for par in params_ppo]
                 print(f"--- PPO Configuration  ---- \n"
                       f"{tabulate([values], headers=params_ppo, tablefmt='rounded_grid')}")
+                params_model = ['fcnet_hiddens', 'fcnet_activation', 'post_fcnet_hiddens', 'post_fcnet_activation']
+                values = [result.config['model'][par] for par in params_model]
                 print(f"--- Model Configuration  ---- \n"
-                      f"{tabulate([result.config['model']], headers='keys', tablefmt='rounded_grid')}")
+                      f"{tabulate([values], headers=params_model, tablefmt='rounded_grid')}")
         else:
             print(f"Trial failed with error {result.error}.")
     return result_grid
