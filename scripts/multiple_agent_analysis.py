@@ -77,6 +77,9 @@ def eval_all_agents(env_name: str, path: str, lib_dir: str, chron_list: list, nb
                          lib_dir=lib_dir,
                          test_chronics=chron_list)
         results = list(tqdm(pool.imap(worker, agent_list), total=len(agent_list), desc="Running evaluation for all agents"))
+        for res in results:
+            # Collect all data before continueing, hopefully avoiding error
+            _, _, _ = res
 
     # for test_case in agent_list:
     #     all_data, df, env = eval_single_agent(test_case, path, reset_topo, lib_dir, chron_list)
