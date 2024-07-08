@@ -209,7 +209,7 @@ def collect_episode_data(env, env_config, store_trajectories_folder, li_episode)
         df_act = pd.read_csv(store_actdata_path)
         n_episode_evaluated = len(df_act.chron_id.unique())
         if os.path.exists(store_surv_path):
-            df_sur = pd.read_csv(store_actdata_path)
+            df_sur = pd.read_csv(store_surv_path)
             if n_episode_evaluated == len(df_sur.chron_id.unique()):
                 li_episode = li_episode[n_episode_evaluated:]
             else:
