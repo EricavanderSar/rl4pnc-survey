@@ -12,7 +12,7 @@ from agent_evaluation import eval_single_agent
 from mahrl.grid2op_env.utils import load_actions
 
 
-def actions_per_agent(env_name, agents, main_folder, reset_topo=False):
+def actions_per_agent(env_name, agents, main_folder, lib_dir, reset_topo=False):
     data_dict = {}
     for agent_name in agents:
         # Get agent code
@@ -37,7 +37,6 @@ def actions_per_agent(env_name, agents, main_folder, reset_topo=False):
 
             # Size action space
             env = grid2op.make(env_name)
-            lib_dir = "/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op"
             path = os.path.join(
                 lib_dir,
                 f"data/action_spaces/{env_name}/{act_space}.json",
