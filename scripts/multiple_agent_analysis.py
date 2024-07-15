@@ -96,7 +96,7 @@ def eval_all_agents(env_name: str,
     else:
         print("Save results evaluation in table")
         # Create overview table showing actions used per agent & survival of the agent.
-        res_df = actions_per_agent(env_name, agent_list, path, reset_topo=reset_topo)
+        res_df = actions_per_agent(env_name, agent_list, path, lib_dir, reset_topo=reset_topo)
 
 
 if __name__ == "__main__":
