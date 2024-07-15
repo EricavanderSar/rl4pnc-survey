@@ -66,7 +66,7 @@ def actions_per_agent(env_name, agents, main_folder, lib_dir, reset_topo=False):
         + [col for col in new_df if col.startswith('line')]
         ]
     print(new_df)
-    new_df.to_csv(os.path.join(main_folder, "agents_overview.csv"), index=False)
+    new_df.to_csv(os.path.join(main_folder, "agents_overview.csv"), index=True)
     return new_df
 
 
