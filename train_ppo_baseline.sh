@@ -41,7 +41,7 @@ srun cp -r $HOME/mahrl_grid2op/data $WORKDIR/data
 
 i=${SLURM_ARRAY_TASK_ID}
 echo "Run code: Task id $i"
-  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s i
+  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s $i
 echo "Done"
 
 #Copy output directory from scratch to home
