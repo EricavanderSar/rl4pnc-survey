@@ -77,27 +77,30 @@ class CustomMetricsCallback(DefaultCallbacks):
         **kwargs: Dict[str, Any],
     ) -> None:
         """
-        Halfs the episode length as rllib counts double.
+        Collect extra metrics such as:
+         - grid2op episode length - RLlib counts extra steps because of high level agent.
+         - chronic id.
         """
         agents_steps = {k: len(v) for k, v in episode._agent_reward_history.items()}
 
         episode.custom_metrics["corrected_ep_len"] = agents_steps["high_level_agent"]
-        # if "do_nothing_agent" in agents_steps.keys():
-        #     episode.custom_metrics["agent_interactions"] = int(agents_steps["high_level_agent"] - agents_steps["do_nothing_agent"])
-        # else:
-        #     episode.custom_metrics["agent_interactions"] = int(agents_steps["high_level_agent"])
         envs = base_env.get_sub_environments()
-        # if type(envs[0]) == RlGrid2OpEnv:
         grid2op_end = np.array([env.env_g2op.current_obs.current_step for env in envs]).mean()
         # print('chron ID:', envs[0].env_glop.chronics_handler.get_id())
         chron_id = envs[0].env_g2op.chronics_handler.get_name()
-        # else:
-        #     grid2op_end = np.array([env.env_gym.init_env.current_obs.current_step for env in envs]).mean()
-        #     # print('chron ID:', envs[0].env_glop.chronics_handler.get_id())
-        #     chron_id = envs[0].env_gym.init_env.chronics_handler.get_name()
-
         episode.custom_metrics["grid2op_end"] = grid2op_end
         episode.media["chronic_id"] = chron_id
+
+        # New extra metrics:
+        interact_count = np.array([env.interact_count for env in envs]).mean()
+        active_dn_count = np.array([env.active_dn_count for env in envs]).mean()
+        reconnect_count = np.array([env.reconnect_count for env in envs]).mean()
+        reset_count = np.array([env.reset_count for env in envs]).mean()
+
+        episode.custom_metrics["interact_count"] = interact_count
+        episode.custom_metrics["active_dn_count"] = active_dn_count
+        episode.custom_metrics["reconnect_count"] = reconnect_count
+        episode.custom_metrics["reset_count"] = reset_count
 
     def on_evaluate_end(
             self,
@@ -112,6 +115,12 @@ class CustomMetricsCallback(DefaultCallbacks):
         data["custom_metrics"]["grid2op_end_mean"] = int(np.mean(data["custom_metrics"]["grid2op_end"]))
         data["custom_metrics"]["grid2op_end_max"] = int(np.max(data["custom_metrics"]["grid2op_end"]))
         data["custom_metrics"]["grid2op_end_std"] = np.std(data["custom_metrics"]["grid2op_end"])
+        # Extra metrics:
+        data["custom_metrics"]["interact_count"] = int(np.mean(data["custom_metrics"]["interact_count"])) 
+        data["custom_metrics"]["active_dn_count"] = int(np.mean(data["custom_metrics"]["active_dn_count"]))  
+        data["custom_metrics"]["reconnect_count"] = int(np.mean(data["custom_metrics"]["reconnect_count"]))  
+        data["custom_metrics"]["reset_count"] = int(np.mean(data["custom_metrics"]["reset_count"]))     
+        
         # data["custom_metrics"]["mean_agent_interact"] = np.mean(data["custom_metrics"]["agent_interactions"])
         # # Print specified logging level
         # if self.log_level:
@@ -137,6 +146,11 @@ class CustomMetricsCallback(DefaultCallbacks):
         del data["episode_media"]["chronic_id"]
         del data["custom_metrics"]["corrected_ep_len"]
         del data["sampler_results"]
+
+        del data["custom_metrics"]["interact_count"]
+        del data["custom_metrics"]["active_dn_count"]
+        del data["custom_metrics"]["reconnect_count"]
+        del data["custom_metrics"]["reset_count"]
         # del data["custom_metrics"]["agent_interactions"]
 
     def on_train_result(
@@ -153,6 +167,13 @@ class CustomMetricsCallback(DefaultCallbacks):
         result["custom_metrics"]["grid2op_end_mean"] = mean_grid2op_end
         result["custom_metrics"]["grid2op_end_std"] = std_grid2op_end
         result["custom_metrics"]["corrected_ep_len_mean"] = mean_episode_duration
+        
+        # Extra metrics:
+        result["custom_metrics"]["interact_count"] = int(np.mean(result["custom_metrics"]["interact_count"]))
+        result["custom_metrics"]["active_dn_count"] = int(np.mean(result["custom_metrics"]["active_dn_count"]))
+        result["custom_metrics"]["reconnect_count"] = int(np.mean(result["custom_metrics"]["reconnect_count"]))
+        result["custom_metrics"]["reset_count"] = int(np.mean(result["custom_metrics"]["reset_count"]))
+
         # if "total_agent_interact" in result["custom_metrics"].keys():
         #     print("tot agent interact: ", result["custom_metrics"]["total_agent_interact"])
         #     result["custom_metrics"]["total_agent_interact"] += int(np.sum(result["custom_metrics"]["agent_interactions"]))
@@ -166,6 +187,10 @@ class CustomMetricsCallback(DefaultCallbacks):
         del result["episode_media"]["chronic_id"]
         # del result["custom_metrics"]["agent_interactions"]
         del result["sampler_results"]
+        del result["custom_metrics"]["interact_count"]
+        del result["custom_metrics"]["active_dn_count"]
+        del result["custom_metrics"]["reconnect_count"]
+        del result["custom_metrics"]["reset_count"]
 
     # def on_learn_on_batch(
     #     self, *, policy: Policy, train_batch: SampleBatch, result: dict, **kwargs

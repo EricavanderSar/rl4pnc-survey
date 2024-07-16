@@ -116,6 +116,14 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         # reset topo option
         self.reset_topo = env_config.get("reset_topo", 0)
 
+    def reset_metrics(self):
+        # different metrics to keep track of episode performance
+        self.interact_count = 0
+        self.activated = False
+        self.active_dn_count = 0
+        self.reconnect_count = 0
+        self.reset_count = 0
+
     def define_agents(self, env_config: dict) -> list:
         return [
             "high_level_agent",
@@ -164,6 +172,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         else:
             g2op_obs = self.env_g2op.reset()
         self.update_obs(g2op_obs)
+        # reset episode metrics
+        self.reset_metrics()
         # reconnect lines if needed.
         g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
 
@@ -233,8 +243,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         elif "do_nothing_agent" in action_dict.keys():
             # overwrite action in action_dict to nothing
             action = action_dict["do_nothing_agent"]
+            self.activated = False
         elif "reinforcement_learning_agent" in action_dict.keys():
             action = action_dict["reinforcement_learning_agent"]
+            self.activated = True
+            self.interact_count += 1
         elif bool(action_dict) is False:
             return observations, rewards, terminateds, truncateds, infos
         else:
@@ -253,6 +266,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
     def gym_act_in_g2op(self, action) -> Tuple[BaseObservation, float, bool, dict]:
         g2op_act = self.env_gym.action_space.from_gym(action)
+        if self.activated:
+            act_config = g2op_act.set_bus
+            if np.all(self.env_g2op.current_obs.topo_vect[act_config!=0] == act_config[act_config!=0]):
+                self.active_dn_count += 1
         (
             g2op_obs,
             reward,
@@ -347,6 +364,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                             terminated,
                             infos,
                         ) = self.env_g2op.step(act)
+                        self.reconnect_count += 1
                         self.update_obs(g2op_obs)
                         return g2op_obs, rw, terminated
         return g2op_obs, 0, False
@@ -381,6 +399,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                         infos,
                     ) = self.env_g2op.step(act)
                     self.update_obs(g2op_obs)
+                    self.reset_count += 1
                     # print(act)
                     return g2op_obs, rw, terminated
         return g2op_obs, 0, False

@@ -5,8 +5,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
-  folder_name: "Case14_Sandbox_EnvOptions"
-  experiment_name: "Case14_Sandbox_EnvOptions"
+  folder_name: "Case14_Enhancements"
+  experiment_name: "Case14_Enhancements"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -28,7 +28,7 @@ debugging:
 
 training:
   checkpoint_trainable_policies_only: True
-  gamma: 0.975 #!quniform [0.975, 0.995, 0.001] #
+  gamma: 0.99 #!quniform [0.975, 0.995, 0.001] #
   lr: 0.0001 #!qloguniform [0.0001, 0.005, 0.0001] #
 #  use_kl_loss: False # setting this similar to orig EVDS implementation
   kl_coeff: 0.2
@@ -37,15 +37,15 @@ training:
   lambda: 0.95
   vf_loss_coeff: 0.5
   vf_clip_param: 100
-  num_sgd_iter: 4 #!quniform [4, 16, 4] #
-  sgd_minibatch_size:  128 #!choice [32, 64, 128] #
-  train_batch_size: 256 # 128 #!choice [128, 256, 512] #
+  num_sgd_iter: 5 #!quniform [4, 16, 4] #
+  sgd_minibatch_size: 256 #128 #!choice [32, 64, 128] #
+  train_batch_size: 1024 #256 # 128 #!choice [128, 256, 512] #
   batch_mode: complete_episodes
   model:
 #    custom_model : linfcn
     fcnet_hiddens: [256,256,256] # !choice [[128,128,128], [256,256,256]]  # [128,128,128]
     fcnet_activation: relu #!choice [relu, tanh] #
-    post_fcnet_hiddens: [256] #!choice [[],[128], [256]] #
+#    post_fcnet_hiddens: [256] #!choice [[],[128], [256]] #
   _enable_learner_api: False
 
 rl_module:
@@ -68,15 +68,15 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_type: new_env #old_env #
+    env_type: old_env #new_env #
     shuffle_scenarios: True
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha_dn_rev
+    action_space: medha
     mask: 3
     lib_dir: !workdir
     grid2op_kwargs:
       # general kwargs
-      reward_class: !LossReward #!ScaledL2RPNReward #
+      reward_class: !ScaledL2RPNReward #L2RPNReward #!LossReward #
     seed: *seed
     rho_threshold: 0.95
     prio: False
@@ -86,7 +86,7 @@ environment:
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: maxmin
-    reset_topo: 0.7
+    reset_topo: 0.0
 
 evaluation:
   evaluation_interval: 10

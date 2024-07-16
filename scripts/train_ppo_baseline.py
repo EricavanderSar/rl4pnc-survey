@@ -39,7 +39,7 @@ ENV_TYPE = {
 }
 
 
-def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[str, Any]):
+def setup_config(workdir_path: str, input_path: str, seed: int = None) -> (dict[str, Any], dict[str, Any]):
     """
     Loads the json as config and sets it up for training.
     """
@@ -49,6 +49,10 @@ def setup_config(workdir_path: str, input_path: str) -> (dict[str, Any], dict[st
     config_path = os.path.join(workdir_path, input_path)
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
+    if seed:
+        print(f"Running experiment with seed {seed}.")
+        custom_config["debugging"]["seed"] = seed
+        custom_config["environment"]["env_config"]["seed"] = seed
     for key in custom_config.keys():
         if key != "setup":
             ppo_config.update(custom_config[key])
@@ -137,12 +141,19 @@ if __name__ == "__main__":
         default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/",
         help="path do store results.",
     )
+    parser.add_argument(
+        "-s",
+        "--seed",
+        type=int,
+        default=0,
+        help="Seed of the experiment",
+    )
 
     # Parse the command-line arguments
     args = parser.parse_args()
 
     if args.file_path:
-        ppo_config, custom_config = setup_config(args.workdir, args.file_path)
+        ppo_config, custom_config = setup_config(args.workdir, args.file_path, seed=args.seed)
         result_grid = run_training(ppo_config, custom_config["setup"], args.workdir)
     else:
         parser.print_help()

@@ -6,12 +6,13 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --partition=rome
 #SBATCH --time=16:00:00
-#SBATCH --output=Case14_RevertTopo_ppo_baseline_%j.out
+#SBATCH --output=Case14_BASELINE_ppo_%j.out
+#SBATCH --array=1-5
 
 
 ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=Case14_Sandbox_EnvOptions
+RESDIR=Case14_Enhancements
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
@@ -38,8 +39,9 @@ srun cp -r $HOME/mahrl_grid2op/data $WORKDIR/data
 #srun find $HOME/data_grid2op -type d -name "${ENVNAME}*" -print0 | xargs -0 -I {} cp -r {} $WORKDIR/data_grid2op/
 
 
-echo "Run code:"
-time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR
+i=${SLURM_ARRAY_TASK_ID}
+echo "Run code: Task id $i"
+  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s i
 echo "Done"
 
 #Copy output directory from scratch to home
