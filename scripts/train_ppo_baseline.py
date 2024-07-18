@@ -148,13 +148,20 @@ if __name__ == "__main__":
         default=0,
         help="Seed of the experiment",
     )
+    parser.add_argument(
+        "-j",
+        "--job_id",
+        type=str,
+        default="",
+        help="job_id of this trial, this way each trial gets an extra unique identifier.",
+    )
 
     # Parse the command-line arguments
     args = parser.parse_args()
 
     if args.file_path:
         ppo_config, custom_config = setup_config(args.workdir, args.file_path, seed=args.seed)
-        result_grid = run_training(ppo_config, custom_config["setup"], args.workdir)
+        result_grid = run_training(ppo_config, custom_config["setup"], args.job_id)
     else:
         parser.print_help()
         logging.error("\nError: --file_path is required to specify config location.")

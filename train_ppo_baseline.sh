@@ -7,7 +7,7 @@
 #SBATCH --partition=rome
 #SBATCH --time=16:00:00
 #SBATCH --output=Case14_BASELINE_ppo_%j.out
-#SBATCH --array=1-5
+#SBATCH --array=1-2
 
 
 ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
@@ -40,8 +40,9 @@ srun cp -r $HOME/mahrl_grid2op/data $WORKDIR/data
 
 
 i=${SLURM_ARRAY_TASK_ID}
+j=${SLURM_JOB_ID}
 echo "Run code: Task id $i"
-  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s $i
+  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s $i -j $j
 echo "Done"
 
 #Copy output directory from scratch to home

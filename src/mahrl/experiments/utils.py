@@ -23,6 +23,7 @@ from mahrl.algorithms.custom_ppo import CustomPPO
 from mahrl.algorithms.optuna_search import MyOptunaSearch
 from mahrl.experiments.callback import Style, TuneCallback
 from ray.tune.stopper.stopper import Stopper
+from ray.tune.experiment import Trial
 from ray.util.annotations import PublicAPI
 
 REPORT_END = True
@@ -264,7 +265,15 @@ class MaxCustomMetricStopper(Stopper):
         return False
 
 
-def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) -> ResultGrid:
+def trial_str_creator(trial: Trial, job_id=""):
+    trial.trial_id = trial.trial_id.split("_")[0]
+    if job_id:
+        return "{}_{}_{}_{}".format(trial.trainable_name, trial.config["env_config"]["env_type"], job_id, trial.trial_id)
+    else:
+        return "{}_{}_{}".format(trial.trainable_name, trial.config["env_config"]["env_type"], trial.trial_id)
+
+
+def run_training(config: dict[str, Any], setup: dict[str, Any], job_id: str) -> ResultGrid:
     """
     Function that runs the training script.
     """
@@ -343,10 +352,15 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], workdir: str) ->
             verbose=setup["verbose"],
         ),
         tune_config=tune.TuneConfig(
+            trial_name_creator=lambda t: trial_str_creator(t, job_id),
+            trial_dirname_creator=lambda t: trial_str_creator(t, job_id),
             search_alg=algo,
             num_samples=setup["num_samples"],
             # scheduler=scheduler,
-        ) if setup["optimize"] else None
+        ) if setup["optimize"] else
+        tune.TuneConfig(
+            trial_name_creator=lambda t: trial_str_creator(t, job_id),
+            trial_dirname_creator=lambda t: trial_str_creator(t, job_id),)
         ,
     )
 

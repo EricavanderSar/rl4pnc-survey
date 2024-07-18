@@ -169,17 +169,10 @@ class CustomMetricsCallback(DefaultCallbacks):
         result["custom_metrics"]["corrected_ep_len_mean"] = mean_episode_duration
         
         # Extra metrics:
-        result["custom_metrics"]["interact_count"] = int(np.mean(result["custom_metrics"]["interact_count"]))
-        result["custom_metrics"]["active_dn_count"] = int(np.mean(result["custom_metrics"]["active_dn_count"]))
-        result["custom_metrics"]["reconnect_count"] = int(np.mean(result["custom_metrics"]["reconnect_count"]))
-        result["custom_metrics"]["reset_count"] = int(np.mean(result["custom_metrics"]["reset_count"]))
-
-        # if "total_agent_interact" in result["custom_metrics"].keys():
-        #     print("tot agent interact: ", result["custom_metrics"]["total_agent_interact"])
-        #     result["custom_metrics"]["total_agent_interact"] += int(np.sum(result["custom_metrics"]["agent_interactions"]))
-        # else:
-        #     print(result["custom_metrics"].keys())
-        #     result["custom_metrics"]["total_agent_interact"] = int(np.sum(result["custom_metrics"]["agent_interactions"]))
+        result["custom_metrics"]["mean_interact_count"] = int(np.mean(result["custom_metrics"]["interact_count"]))
+        result["custom_metrics"]["mean_active_dn_count"] = int(np.mean(result["custom_metrics"]["active_dn_count"]))
+        result["custom_metrics"]["mean_reconnect_count"] = int(np.mean(result["custom_metrics"]["reconnect_count"]))
+        result["custom_metrics"]["mean_reset_count"] = int(np.mean(result["custom_metrics"]["reset_count"]))
 
         # Delete irrelevant data
         del result["custom_metrics"]["grid2op_end"]
@@ -213,7 +206,6 @@ class CustomMetricsCallback(DefaultCallbacks):
     #         print(f'agent id {agent_id}')
     #         pid, policy, batch = original_batches[agent_id]
     #         print(f'batch size : {batch.count}')
-
 
 
 class TuneCallback(TuneReporterBase):
@@ -284,7 +276,7 @@ class TuneCallback(TuneReporterBase):
                 self._print_result(trial, result)
                 self._last_res_it = result['training_iteration']
 
-    def _print_result(self, trial, result: Optional[Dict] = None, force: bool = False):
+    def _print_result(self, trial: Trial, result: Optional[Dict] = None, force: bool = False):
         # print(f'ALL TRIAL METRICS {result}')
         result = result or trial.last_result
         # skip for now since this is already printed after tuning... Perhaps move?
