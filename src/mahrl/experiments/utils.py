@@ -8,6 +8,7 @@ from typing import Any, Dict, List, OrderedDict, Union
 from tabulate import tabulate
 import json
 import numpy as np
+from datetime import datetime
 
 from grid2op.Environment import BaseEnv
 import ray
@@ -273,6 +274,10 @@ def trial_str_creator(trial: Trial, job_id=""):
         return "{}_{}_{}".format(trial.trainable_name, trial.config["env_config"]["env_type"], trial.trial_id)
 
 
+def trial_dir_name(trial: Trial, job_id=""):
+    return "{}_{}".format(trial_str_creator(trial, job_id), datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
+
+
 def run_training(config: dict[str, Any], setup: dict[str, Any], job_id: str) -> ResultGrid:
     """
     Function that runs the training script.
@@ -353,14 +358,14 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], job_id: str) -> 
         ),
         tune_config=tune.TuneConfig(
             trial_name_creator=lambda t: trial_str_creator(t, job_id),
-            trial_dirname_creator=lambda t: trial_str_creator(t, job_id),
+            trial_dirname_creator=lambda t: trial_dir_name(t, job_id),
             search_alg=algo,
             num_samples=setup["num_samples"],
             # scheduler=scheduler,
         ) if setup["optimize"] else
         tune.TuneConfig(
             trial_name_creator=lambda t: trial_str_creator(t, job_id),
-            trial_dirname_creator=lambda t: trial_str_creator(t, job_id),)
+            trial_dirname_creator=lambda t: trial_dir_name(t, job_id),)
         ,
     )
 

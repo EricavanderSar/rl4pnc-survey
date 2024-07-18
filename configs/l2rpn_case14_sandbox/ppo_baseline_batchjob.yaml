@@ -71,14 +71,14 @@ environment:
     env_type: old_env #new_env #
     shuffle_scenarios: True
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha_dn
+    action_space: medha
     mask: 3
     lib_dir: !workdir
     grid2op_kwargs:
       # general kwargs
       reward_class: !ScaledL2RPNReward #L2RPNReward #!LossReward #
     seed: *seed
-    rho_threshold: 0.95
+    rho_threshold: 0.85
     prio: False
     input: [ "p_i", "p_l", "r", "o", "d"]
     # Params below only used for new_env
