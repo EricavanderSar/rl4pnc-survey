@@ -152,7 +152,7 @@ if __name__ == "__main__":
         "-j",
         "--job_id",
         type=str,
-        default="",
+        default="TEsTING",
         help="job_id of this trial, this way each trial gets an extra unique identifier.",
     )
 

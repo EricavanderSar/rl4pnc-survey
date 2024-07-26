@@ -76,13 +76,13 @@ environment:
     lib_dir: !workdir
     grid2op_kwargs:
       # general kwargs
-      reward_class: !ScaledL2RPNReward #L2RPNReward #!LossReward #
+      reward_class: !LossReward #!ScaledL2RPNReward #L2RPNReward #
     seed: *seed
-    rho_threshold: 0.85
+    rho_threshold: 0.95
     prio: False
     input: [ "p_i", "p_l", "r", "o", "d"]
     # Params below only used for new_env
-    n_history: 3
+    n_history: 1
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: maxmin
