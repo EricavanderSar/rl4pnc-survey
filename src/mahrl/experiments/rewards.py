@@ -137,3 +137,49 @@ class ScaledL2RPNReward(L2RPNReward):
             dt_float(1.0) - min_value**2, np.zeros(min_value.shape, dtype=dt_float)
         )
         return lines_capacity_usage_score
+
+
+class AlphaZeroRW(BaseReward):
+    """
+        Implemented as described in M. Dorfer et al. (2022) - Power Grid Congestion Management via Topology
+        Optimization with AlphaZero:
+        "... a shaped reward based on the cumulative sum of all overflowing line loads, which the agent aims
+        to minimize..."
+    """
+
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        BaseReward.__init__(self, logger=None)
+        self.reward_min = -1.0
+        self.reward_illegal = -0.5
+        self.reward_max = 1.0
+
+    def initialize(self, env: BaseEnv) -> None:
+        """
+        Initializes reward, not implemented.
+        """
+
+    def __call__(
+            self,
+            action: BaseAction,
+            env: BaseEnv,
+            has_error: bool,
+            is_done: bool,
+            is_illegal: bool,
+            is_ambiguous: bool,
+    ) -> float:
+        """
+        Calls reward.
+        """
+        rho_values = env.current_obs.rho
+        rho_max = np.max(rho_values)
+        if rho_max <= 1.0:
+            # If ρ_max ≤ 1, i.e., there is currently no overflow, and line loads of all lines are within the
+            # allowed bounds, u is calculated as
+            u = max(rho_max - 0.5, 0)
+        else:
+            # In case of an overflow, i.e., when ρ_max > 1, u is computed as
+            u = np.sum(rho_values[rho_values > 1] - 0.5)
+        # r = exp (−u − 0.5 · n_offline), where n_offline is the number of lines which are currently offline as
+        # a result of an overflow or agent’s actions
+        reward = np.exp(-u - 0.5 * (env.n_line - np.sum(env.current_obs.line_status)) )
+        return reward
