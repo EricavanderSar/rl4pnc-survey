@@ -33,18 +33,19 @@ def update_wandb_old_env_history(project):
         print("n_history: ", run.config["env_config"]["n_history"])
         if run.config["env_config"]["env_type"] == "old_env":
             # set n_history to 1 (since no history is possible for old_env
-            run.config["env_config"]["n_history"] = 1
+            if run.config["env_config"]["n_history"] != 1:
+                run.config["env_config"]["n_history"] = 1
         # if run.config["env_config"]["env_type"] == "new_env":
         #     job_id = int(run.name.split("_")[3])
         #     if 7062409 <= job_id <= 7062414:
         #         run.config["env_config"]["n_history"] = 6
         #     elif 7062296 <= job_id <= 7062300:
         #         run.config["env_config"]["n_history"] = 3
-        print("new n_history: ", run.config["env_config"]["n_history"])
-        run.update()
+                print("new n_history: ", run.config["env_config"]["n_history"])
+                run.update()
     return runs
 
 
 if __name__ == "__main__":
-    update_wandb_rw_config(PROJECT_NAME)
-    # runs = update_wandb_old_env_history(PROJECT_NAME)
+    #update_wandb_rw_config(PROJECT_NAME)
+    runs = update_wandb_old_env_history(PROJECT_NAME)

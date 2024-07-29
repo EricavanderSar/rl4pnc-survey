@@ -76,7 +76,7 @@ environment:
     lib_dir: !workdir
     grid2op_kwargs:
       # general kwargs
-      reward_class: !AlphaZeroRW #!LinesCapacityReward #!LossReward #!ScaledL2RPNReward #L2RPNReward #
+      reward_class: !LossRwRescaled #!AlphaZeroRW #!LinesCapacityReward #!LossReward #!ScaledL2RPNReward #L2RPNReward #
     seed: *seed
     rho_threshold: 0.95
     prio: False

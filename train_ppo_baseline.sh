@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --partition=rome
 #SBATCH --time=16:00:00
-#SBATCH --output=Case14_RWsNew_ppo_%j.out
+#SBATCH --output=Case14_LossRwRescaled_ppo_%j.out
 #SBATCH --array=1-5
 
 
