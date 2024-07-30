@@ -27,7 +27,7 @@ from yaml.nodes import MappingNode, ScalarNode, SequenceNode
 
 from mahrl.experiments.callback import CustomMetricsCallback
 from mahrl.experiments.opponent import ReconnectingOpponentSpace
-from mahrl.experiments.rewards import LossReward, ScaledL2RPNReward, AlphaZeroRW, LossRewardRescaled
+from mahrl.experiments.rewards import LossReward, ScaledL2RPNReward, AlphaZeroRW, LossRewardRescaled2, LossRewardNew
 from grid2op.Reward import L2RPNReward,LinesCapacityReward
 from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from mahrl.multi_agent.policy import (
@@ -76,11 +76,19 @@ def loss_reward_constructor(
     """Custom constructor for LossReward"""
     return LossReward()
 
+
 def loss_rw_rescaled_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
-) -> LossRewardRescaled:
+) -> LossRewardRescaled2:
     """Custom constructor for LossReward"""
-    return LossRewardRescaled()
+    return LossRewardRescaled2()
+
+
+def loss_rw_new_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> LossRewardNew:
+    """Custom constructor for LossReward"""
+    return LossRewardNew()
 
 
 def scaled_reward_constructor(
@@ -259,7 +267,8 @@ def add_constructors() -> None:
         "!CustomizedGrid2OpEnvironment", customized_environment_constructor
     )
     yaml.FullLoader.add_constructor("!LossReward", loss_reward_constructor)
-    yaml.FullLoader.add_constructor("!LossRwRescaled", loss_rw_rescaled_constructor)
+    yaml.FullLoader.add_constructor("!LossRwRescaled2", loss_rw_rescaled_constructor)
+    yaml.FullLoader.add_constructor("!LossRwNew", loss_rw_new_constructor)
     yaml.FullLoader.add_constructor("!ScaledL2RPNReward", scaled_reward_constructor)
     yaml.FullLoader.add_constructor("!L2RPNReward", l2rpn_reward_constructor)
     yaml.FullLoader.add_constructor("!AlphaZeroRW", alphazero_reward_constructor)

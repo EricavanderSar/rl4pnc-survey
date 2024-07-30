@@ -47,5 +47,5 @@ def update_wandb_old_env_history(project):
 
 
 if __name__ == "__main__":
-    #update_wandb_rw_config(PROJECT_NAME)
-    runs = update_wandb_old_env_history(PROJECT_NAME)
+    update_wandb_rw_config(PROJECT_NAME)
+    # runs = update_wandb_old_env_history(PROJECT_NAME)

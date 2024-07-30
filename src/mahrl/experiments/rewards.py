@@ -16,6 +16,9 @@ from grid2op.Reward.baseReward import BaseReward
 class LossReward(BaseReward):
     """
     Taken from van der Sar, Zocca, and Bhulai (2023).
+    Linear reward function that computes reward based on energy loss in the network.
+    When > 10% loss neg. reward will be given. Otherwise positive.
+    reward possible between -0.9 and 0.1
     """
 
     def __init__(self, logger: Optional[logging.Logger] = None):
@@ -53,21 +56,12 @@ class LossReward(BaseReward):
         return reward
 
 
-class LossRewardRescaled(BaseReward):
+class LossRewardRescaled2(LossReward):
     """
     Taken from van der Sar, Zocca, and Bhulai (2023).
+    With a small adjustment (not multiplied with 0.1 but devided if <0)
+    Rewards possible between -1 and 1.
     """
-
-    def __init__(self, logger: Optional[logging.Logger] = None):
-        BaseReward.__init__(self, logger=None)
-        self.reward_min = -1.0
-        self.reward_illegal = -0.5
-        self.reward_max = 1.0
-
-    def initialize(self, env: BaseEnv) -> None:
-        """
-        Initializes reward, not implemented.
-        """
 
     def __call__(
         self,
@@ -89,6 +83,41 @@ class LossRewardRescaled(BaseReward):
         gen_p, *_ = env.backend.generators_info()
         load_p, *_ = env.backend.loads_info()
         reward = (load_p.sum() / gen_p.sum() * 10.0 - 9.0)
+        if reward < 0:
+            reward /= 9
+        return reward
+
+
+class LossRewardNew(LossReward):
+    """
+    Adjusted reward function also based on loss of power in the network.
+    """
+
+    def __call__(
+        self,
+        action: BaseAction,
+        env: BaseEnv,
+        has_error: bool,
+        is_done: bool,
+        is_illegal: bool,
+        is_ambiguous: bool,
+    ) -> float:
+        """
+        Calls reward.
+        """
+        reward: float
+        if has_error or is_done:
+            return self.reward_min
+        if is_illegal or is_ambiguous:
+            return self.reward_illegal
+        gen_p, *_ = env.backend.generators_info()
+        load_p, *_ = env.backend.loads_info()
+        loss_ratio = load_p.sum() / gen_p.sum()
+        reward = loss_ratio * 10.0 - 9.0
+        if reward > 0:
+            reward = 1 - (1 - (loss_ratio * 10 - 9)) ** 2
+        else:
+            reward = loss_ratio ** 2 - 1
         return reward
 
 

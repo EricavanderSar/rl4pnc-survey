@@ -11,6 +11,7 @@ from typing import Iterator
 
 import grid2op
 from grid2op.Environment import BaseEnv
+from lightsim2grid import LightSimBackend
 
 from mahrl.experiments.yaml import load_config
 
@@ -67,12 +68,13 @@ def flatten_directory(root_dir: str) -> None:
 
 
 def save_chronic(
-    env: BaseEnv,
-    save_path: str,
-    dict_beg: dict[str, str],
-    dict_end: dict[str, str],
-    day: int,
-    scenario_name: str,
+        env: BaseEnv,
+        save_path: str,
+        dict_beg: dict[str, str],
+        dict_end: dict[str, str],
+        day: int,
+        scenario_name: str,
+        delta: int = 1,
 ) -> None:
     """
     Save chronic data for a specific day and scenario.
@@ -95,7 +97,7 @@ def save_chronic(
     # create folder if necessary
     file_path = os.path.join(
         save_path,
-        f"{env.env_name}/generated_chronics/",
+        f"{env.env_name}_{delta}days/",
         scenario_name,
     )
     if not os.path.exists(os.path.abspath(file_path)):
@@ -146,9 +148,12 @@ def generate_split_points(
             _, _, _, _ = env.step(env.action_space())
             splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
         else:
-            raise AssertionError(
-                f"Safe starting point not found for {scenario_id} at day 0"
-            )
+            print(f"Day snip not safe for {scenario_id}, appending anyways.")
+            # _, _, _, _ = env.step(env.action_space())
+            splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
+            # raise AssertionError(
+            #     f"Safe starting point not found for {scenario_id} at day 0"
+            # )
 
         for tsteps in range(LENGTH_DAY * delta, episode_duration, LENGTH_DAY * delta):
             number_of_days = int(tsteps / (LENGTH_DAY * delta))
@@ -247,6 +252,7 @@ def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
                 dict_end,
                 number_of_days,
                 next(formatted_scenario_ids_iter),
+                delta=delta
             )
 
 
@@ -254,16 +260,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
     parser.add_argument(
-        "-c",
-        "--config",
+        "-e",
+        "--env_name",
         type=str,
-        default= "../configs/rte_case5_example/ppo_baseline.yaml", #"../configs/rte_case14_realistic/ppo_baseline.yaml",  #
-        help="Path to the config file.",
+        default="rte_case5_example",
+        help="Environment name. Default in /home/data_grid2op.",
     )
 
     parser.add_argument(
-        "-s",
-        "--save_path",
+        "-p",
+        "--path",
         type=str,
         default="/Users/ericavandersar/data_grid2op/",
         help="Path for scenarios to be saved",
@@ -274,7 +280,7 @@ if __name__ == "__main__":
         "-d",
         "--num_days",
         type=int,
-        default=1,
+        default=2,
         help="The number of days that should be contained in a single scenario.",
     )
 
@@ -282,19 +288,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Access the parsed arguments
-    input_config = args.config
+    # input_config = args.config
+    input_env_name = args.env_name
     input_save_path = args.save_path
     input_days = args.num_days
 
-    if input_config:
-        custom_config = load_config(input_config)
+    if input_env_name:
         setup_env = grid2op.make(
-            custom_config["environment"]["env_config"]["env_name"],
-            **custom_config["environment"]["env_config"]["grid2op_kwargs"],
+            input_env_name,
+            backend=LightSimBackend(),
         )
-        setup_env.seed(custom_config["environment"]["env_config"]["seed"])
-        # generate_split_points(setup_env, input_days)
-
         split_chronics_into_days(setup_env, input_save_path, input_days)
     else:
         parser.print_help()
