@@ -263,7 +263,7 @@ if __name__ == "__main__":
         "-e",
         "--env_name",
         type=str,
-        default="rte_case5_example",
+        default="rte_case5_example_train",
         help="Environment name. Default in /home/data_grid2op.",
     )
 
@@ -290,7 +290,7 @@ if __name__ == "__main__":
     # Access the parsed arguments
     # input_config = args.config
     input_env_name = args.env_name
-    input_save_path = args.save_path
+    input_save_path = args.path
     input_days = args.num_days
 
     if input_env_name:
