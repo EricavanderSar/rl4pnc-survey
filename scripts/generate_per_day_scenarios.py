@@ -8,6 +8,7 @@ import math
 import os
 import shutil
 from typing import Iterator
+from tqdm import tqdm
 
 import grid2op
 from grid2op.Environment import BaseEnv
@@ -148,7 +149,7 @@ def generate_split_points(
             _, _, _, _ = env.step(env.action_space())
             splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
         else:
-            print(f"Day snip not safe for {scenario_id}, appending anyways.")
+            print(f"Day 0 not safe for {scenario_id}, appending anyways.")
             # _, _, _, _ = env.step(env.action_space())
             splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
             # raise AssertionError(
@@ -169,6 +170,7 @@ def generate_split_points(
             else:
                 reduction_in_days[scenario_id].append(True)
                 continue
+        print(f"Splitting points for scenario {scenario_id.split('/')[-1]}: {splitting_points[scenario_id]}")
 
         # append final starting/ending point
         splitting_points[scenario_id].append(episode_duration)
@@ -204,8 +206,9 @@ def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
         reduction_in_days,
     ) = generate_split_points(env, delta)
 
-    print(reduction_in_days)
-    for scenario_id, list_with_points in splitting_points.items():
+    # print(reduction_in_days)
+    for scenario_id, list_with_points in tqdm(splitting_points.items(), total=len(splitting_points)):
+        # print(f"Start with splitting scenario: {scenario_id.split('/')[-1]}")
         env.set_id(scenario_id)
         _ = env.reset()
         env.fast_forward_chronics(list_with_points[0])
