@@ -17,12 +17,13 @@ training:
   # tunable parameters
   lr: !grid_search [5e-3, 5e-4, 5e-5]
   num_sgd_iter: !grid_search [5, 15]
-  sgd_minibatch_size: !grid_search [32, 64] #32 # !grid_search [32, 64, 128]
-  train_batch_size: !grid_search [128, 1024]
+  sgd_minibatch_size: 64
+  train_batch_size: !grid_search [128, 512, 1024]
   model:
     fcnet_hiddens: 
     - 256
     - 256
+    - 256    
   _enable_learner_api: False
   batch_mode: complete_episodes
 
@@ -64,14 +65,12 @@ environment:
       opponent_space_type: !ReconnectingOpponentSpace #reconnecting_opponent
       kwargs_opponent:
         lines_attacked:
-          - '0_2_1'
-          # - '0_3_2'
-          # - '2_3_6'
+          - '0_3_2'
           - '0_4_3'
     rho_threshold: 0.95
     shuffle_scenarios: True
     stage: train
-    prio: False
+    prio: True
 
 env_config_val: &env_config_val
   <<: *env_config_train

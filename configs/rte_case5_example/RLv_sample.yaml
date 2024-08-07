@@ -8,25 +8,26 @@ setup:
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
   experiment_name: rte_case5_example/RLv_sample
   save_artifact: True
-  num_samples: 2
+  num_samples: 4
 
 debugging:
   seed: !randint [0, 100000]
 
 training:
   # tunable parameters
-  lr: 0.003 # !grid_search [0.0005, 0.005, 0.05] # PREVIOUS: 0.05
-  gamma: 0.95 # !grid_search [0.95, 0.99]
-  vf_loss_coeff: 0.5
-  entropy_coeff: 0.01
-  clip_param: 0.2
-  lambda_: 0.95
-  sgd_minibatch_size: 32 # !grid_search [32, 64, 128]
+  lr: 0.0005
+  num_sgd_iter: 15
+  sgd_minibatch_size: 64
   train_batch_size: 128
+  # lr: !grid_search [5e-3, 5e-4, 5e-5]
+  # num_sgd_iter: !grid_search [5, 15]
+  # sgd_minibatch_size: 64
+  # train_batch_size: !grid_search [128, 512, 1024]
   model:
     fcnet_hiddens: 
     - 256
     - 256
+    - 256    
   _enable_learner_api: False
   batch_mode: complete_episodes
 
@@ -50,7 +51,7 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_name: rte_case5_example_per_day_train
+    env_name: rte_case5_example_train
     shuffle_scenarios: True
     action_space: tennet
     lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 
@@ -75,3 +76,11 @@ evaluation:
   evaluation_config: 
     env_config: *env_config_val # use the validation environment
     explore: True
+  num_evaluation_workers: 1
+
+resources:
+  num_gpus: 0
+  num_learner_workers: 1
+
+rollouts:
+  num_rollout_workers: 1

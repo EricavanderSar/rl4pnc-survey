@@ -177,6 +177,10 @@ def load_actions(path: str, env: BaseEnv) -> list[BaseAction]:
     Returns:
         list[BaseAction]: A list of BaseAction objects representing the loaded actions.
     """
+    if path.startswith("/home3/s3374610/"):
+        # replace for runs on cluster
+        path = path.replace("/home3/s3374610/", "/Users/barberademol/Documents/GitHub/")
+
     with open(path, "rt", encoding="utf-8") as action_set_file:
         return list(
             (
@@ -268,14 +272,20 @@ def rescale_observation_space(
             underestimation_constant = (
                 1.2  # constant to account that our max/min are underestimated
             )
-            max_arr, min_arr = np.load(
-                os.path.join(
-                    env_config["lib_dir"],
-                    "data/scaling_arrays",
-                    grid_name,
-                    f"{attr}.npy",
-                )
+            path = os.path.join(
+                env_config["lib_dir"],
+                "data/scaling_arrays",
+                grid_name,
+                f"{attr}.npy",
             )
+
+            if path.startswith("/home3/s3374610/"):
+                # replace for runs on cluster
+                path = path.replace(
+                    "/home3/s3374610/", "/Users/barberademol/Documents/GitHub/"
+                )
+
+            max_arr, min_arr = np.load(path)
 
             gym_observation_space = gym_observation_space.reencode_space(
                 attr,
@@ -402,7 +412,6 @@ def reconnecting_and_abbc(
     reconnect_line: list[BaseAction],
     info: dict[str, Any] = {},
 ) -> tuple[list[BaseAction], dict[str, Any]]:
-    # TODO: Change st if there is a cooldown at one line or at a substation, ignore that entire sub
     # This should avoid converging power flows
     on_cooldown, cooldown_lines = ignore_cooldowns(env, g2op_obs)
 

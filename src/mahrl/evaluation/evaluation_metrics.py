@@ -69,7 +69,10 @@ def get_controlled_substations(action_list: list[dict[str, Any]]) -> list[int]:
     """List the controlled substations in the dataset"""
     substation_list = []
     for action in action_list:
-        substation_list.append(action["set_bus_vect"]["modif_subs_id"][-1])
+        if "set_line_status" in action:
+            pass
+        else:
+            substation_list.append(action["set_bus_vect"]["modif_subs_id"][-1])
     return substation_list
 
 
@@ -216,9 +219,15 @@ def plot_action_distribution(path: str, action_list: list[dict[str, Any]]) -> No
     """Plot the distribution of actions."""
     unique_actions_list = get_unique_actions(action_list)
     action_counts = get_action_counts(unique_actions_list, action_list)
-    action_dicts = [ast.literal_eval(action) for action in unique_actions_list]
+    action_dicts = [
+        ast.literal_eval(action)
+        for action in unique_actions_list
+        if "set_line_status" not in action
+    ]
     modif_subs_ids = [
-        action["set_bus_vect"]["modif_subs_id"] for action in action_dicts
+        action["set_bus_vect"]["modif_subs_id"]
+        for action in action_dicts
+        if "set_line_status" not in action
     ]
 
     # Sort action_counts and unique_actions_list based on action_counts

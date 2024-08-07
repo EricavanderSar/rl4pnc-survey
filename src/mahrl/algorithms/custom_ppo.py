@@ -277,11 +277,13 @@ class CustomPPO(PPO):
 
         policies_to_train = worker_set.local_worker().get_policies_to_train()
 
-        # count the steps per policy but ignore the middle agent,
-        # as this is always counted whenever the lower level agents are counted
-        self.steps_per_policy = {
-            pid: 0 for pid in policies_to_train if pid != "choose_substation_policy"
-        }
+        # in case of multi agent setup
+        if len(policies_to_train) > 1:
+            # count the steps per policy but ignore the middle agent,
+            # as this is always counted whenever the lower level agents are counted
+            self.steps_per_policy = {
+                pid: 0 for pid in policies_to_train if pid != "choose_substation_policy"
+            }
 
         worker_set.local_worker()
         # Stop collecting batches as soon as one criterium is met.

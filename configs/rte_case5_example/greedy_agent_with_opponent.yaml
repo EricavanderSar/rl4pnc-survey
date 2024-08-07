@@ -2,7 +2,7 @@ environment:
   env_config: &env_config_train
     seed: 14
     env_name: rte_case5_example
-    action_space: medha
+    action_space: tennet
     lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 
     grid2op_kwargs:
       # general kwargs
@@ -18,7 +18,6 @@ environment:
       opponent_space_type: !ReconnectingOpponentSpace #reconnecting_opponent
       kwargs_opponent:
         lines_attacked: #['0_1_0', '0_2_1', '0_3_2', '0_4_3', '1_2_4', '2_3_5', '2_3_6', '3_4_7'
-          - '0_2_1'
           - '0_3_2'
           - '0_4_3'
     rho_threshold: 0.95

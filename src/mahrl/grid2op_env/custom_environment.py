@@ -66,7 +66,6 @@ class ReconnectingGymEnv(GymEnv):
             self.init_env, g2op_obs, self.reconnect_line, info
         )
 
-        print(f"Inside: {info} and {self.reconnect_line}")
         gym_obs = self.observation_space.to_gym(g2op_obs)
         truncated = False  # see https://github.com/openai/gym/pull/2752
         return gym_obs, float(reward), terminated, truncated, info
@@ -119,7 +118,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         )
         self.possible_substation_actions = load_action_space(path, self.grid2op_env)
 
-        # print(f"Actions loaded")
         # add the do-nothing action at index 0
         do_nothing_action = self.grid2op_env.action_space({})
         self.possible_substation_actions.insert(0, do_nothing_action)
@@ -184,7 +182,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.prio = env_config.get("prio", True)  # NOTE: Default is now set to true
         self.chron_prios = ChronPrioMatrix(self.grid2op_env)
         self.step_surv = 0
-        self.pause_reward = False
+        self.pause_reward = True
 
     def no_shunt_reset(
         self,
@@ -258,7 +256,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         This function resets the environment with prio sampling.
         """
-        # TODO: CHeck if it doesn't sample the wrong one because of shuffling. Force shuffle off?
         # adapted from the internal GymEnv _aux_reset method
         if self.env_gym._shuffle_chronics and isinstance(
             self.env_gym.init_env.chronics_handler.real_data, Multifolder
@@ -382,13 +379,13 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             truncateds = {"__all__": truncated}
             infos = {"__common__": info}
         elif bool(action_dict) is False:
-            # print("Caution: Empty action dictionary!")
             pass
         else:
             raise ValueError(
                 f"No valid agent found in action dictionary in step(): {action_dict}."
             )
 
+        # went back to abbc
         if "__common__" in infos:
             if "abbc_action" in infos["__common__"]:
                 self.pause_reward = True
@@ -532,8 +529,8 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         self.is_capa = "capa" in env_config.keys()
         self.is_rulebased = "rulebased" in env_config.keys()
         self.reset_capa_idx = 1
-        self.proposed_actions: dict[str, int] = {}
-        self.proposed_confidences: dict[str, float] = {}
+        self.proposed_actions: dict[str, int] = OrderedDict()
+        self.proposed_confidences: dict[str, float] = OrderedDict()
         self.last_action_agent: Union[str, None] = None
 
     # pylint: disable=too-many-branches
@@ -616,29 +613,47 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             key.startswith("reinforcement_learning_agent") for key in action_dict.keys()
         ):
             self.proposed_actions = self.extract_proposed_actions(action_dict)
-            observations = {
-                "choose_substation_agent": OrderedDict(
-                    {
-                        "proposed_actions": {
-                            str(sub_id): action
-                            for sub_id, action in self.proposed_actions.items()
-                        },
-                    }
-                )
-            }
 
-            if not self.is_rulebased:  # also provide additional informatoin
+            if (
+                not self.is_rulebased
+            ):  # also provide additional information, obs need to be first, otherwise ray breaks
+                observations = {
+                    "choose_substation_agent": OrderedDict(
+                        {
+                            "previous_obs": self.previous_obs,
+                        }
+                    )
+                }
+
+            # obs already exists
+            if "choose_substation_agent" in observations:
                 if isinstance(observations["choose_substation_agent"], OrderedDict):
-                    if self.is_capa:
-                        # add reset_capa_idx to observations
-                        observations["choose_substation_agent"][
-                            "reset_capa_idx"
-                        ] = self.reset_capa_idx
-                    observations["choose_substation_agent"][
-                        "previous_obs"
-                    ] = self.previous_obs
+                    observations["choose_substation_agent"]["proposed_actions"] = {
+                        str(sub_id): action
+                        for sub_id, action in self.proposed_actions.items()
+                    }
                 else:
-                    raise ValueError("Capa observations is not an OrderedDict.")
+                    raise ValueError("Observation is not an OrderedDict.")
+            else:
+                observations = {
+                    "choose_substation_agent": OrderedDict(
+                        {
+                            "proposed_actions": {
+                                str(sub_id): action
+                                for sub_id, action in self.proposed_actions.items()
+                            },
+                        }
+                    )
+                }
+
+            if self.is_capa:
+                if isinstance(observations["choose_substation_agent"], OrderedDict):
+                    # add reset_capa_idx to observations
+                    observations["choose_substation_agent"][
+                        "reset_capa_idx"
+                    ] = self.reset_capa_idx
+                else:
+                    raise ValueError("Observation is not an OrderedDict.")
 
             self.reset_capa_idx = 0
         elif any(
@@ -662,15 +677,18 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                 }
 
             # obs already exists
-            if isinstance(observations["choose_substation_agent"], OrderedDict):
-                observations["choose_substation_agent"]["proposed_actions"] = {
-                    str(sub_id): action
-                    for sub_id, action in self.proposed_actions.items()
-                }
-                observations["choose_substation_agent"]["proposed_confidences"] = {
-                    str(sub_id): confidence
-                    for sub_id, confidence in self.proposed_confidences.items()
-                }
+            if "choose_substation_agent" in observations:
+                if isinstance(observations["choose_substation_agent"], OrderedDict):
+                    observations["choose_substation_agent"]["proposed_actions"] = {
+                        str(sub_id): action
+                        for sub_id, action in self.proposed_actions.items()
+                    }
+                    observations["choose_substation_agent"]["proposed_confidences"] = {
+                        str(sub_id): confidence
+                        for sub_id, confidence in self.proposed_confidences.items()
+                    }
+                else:
+                    raise ValueError("Observation is not an OrderedDict.")
             else:
                 observations = {
                     "choose_substation_agent": OrderedDict(
@@ -694,7 +712,6 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
 
         if "__common__" in infos:
             if "abbc_action" in infos["__common__"]:
-                # print(f"Info in rllib: {infos['__common__']}")
                 self.last_action_agent = None
 
         return observations, rewards, terminateds, truncateds, infos
@@ -748,7 +765,10 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             ValueError: If the substation ID is not an integer.
         """
         if self.is_capa or self.is_rulebased:
-            action = self.proposed_actions[str(substation_id)]
+            if str(substation_id) == "-1":
+                action = 0
+            else:
+                action = self.proposed_actions[str(substation_id)]
         else:
             substation_id = self.middle_to_substation_map[str(substation_id)]
             local_action = self.proposed_actions[str(substation_id)]

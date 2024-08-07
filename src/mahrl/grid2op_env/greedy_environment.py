@@ -12,6 +12,7 @@ from mahrl.evaluation.evaluation_agents import create_greedy_agent_per_substatio
 from mahrl.grid2op_env.custom_environment import (
     HierarchicalCustomizedGrid2OpEnvironment,
 )
+from mahrl.grid2op_env.utils import reconnecting_and_abbc
 
 RENDERFRAME = TypeVar("RENDERFRAME")
 
@@ -41,9 +42,9 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
             "do_nothing_agent",
         ]
 
-        self.reset_capa_idx = 1
         self.is_greedy = True
         self.g2op_obs = None
+        self.reconnect_lines = []
 
     def reset(
         self,
@@ -123,9 +124,20 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
                 )
         elif "do_nothing_agent" in action_dict.keys():
             # step do nothing in environment
-            self.g2op_obs, reward, terminated, info = self.grid2op_env.step(
-                self.grid2op_env.action_space({})
+            g2op_action = self.grid2op_env.action_space({})
+
+            if self.reconnect_lines:
+                for line in self.reconnect_lines:
+                    g2op_action = g2op_action + line
+                self.reconnect_lines = []
+
+            self.g2op_obs, reward, terminated, info = self.grid2op_env.step(g2op_action)
+            self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
+
+            self.reconnect_lines, info = reconnecting_and_abbc(
+                self.grid2op_env, self.g2op_obs, self.reconnect_lines, info
             )
+
             self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
 
             # reward the RL agent for this step, go back to HL agent
@@ -143,8 +155,17 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
 
             g2op_action = self.converter.convert_act(gym_action)
 
+            if self.reconnect_lines:
+                for line in self.reconnect_lines:
+                    g2op_action = g2op_action + line
+                self.reconnect_lines = []
+
             self.g2op_obs, reward, terminated, info = self.grid2op_env.step(g2op_action)
             self.previous_obs = self.env_gym.observation_space.to_gym(self.g2op_obs)
+
+            self.reconnect_lines, info = reconnecting_and_abbc(
+                self.grid2op_env, self.g2op_obs, self.reconnect_lines, info
+            )
 
             # reward the RL agent for this step, go back to HL agent
             observations = {"high_level_agent": max(self.previous_obs["rho"])}
@@ -156,12 +177,6 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
             pass
         else:
             raise ValueError("No agent found in action dictionary in step().")
-
-        if "__common__" in infos:
-            # print(f"Infos: {infos['__common__']}")
-            if "abbc_action" in infos["__common__"]:
-                print(f"Pause reward succesful")
-                self.pause_reward = True
 
         return observations, rewards, terminateds, truncateds, infos
 

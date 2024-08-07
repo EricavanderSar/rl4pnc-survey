@@ -77,13 +77,15 @@ def save_global_statistics(
         file.write(
             f"Max action sequence length: {evaluation_metrics.get_max_action_sequence_length(all_action_sequences)}\n"
         )
+
+        file.write(f"Actions taken: {len(all_actions)}\n")
+        file.write(f"Unique actions taken: {len(set([str(d) for d in all_actions]))}\n")
     all_substations = range(len(all_episodes[0].name_sub))
     evaluation_metrics.plot_substation_distribution(
         path,
         all_substations,
         evaluation_metrics.get_controlled_substations(all_actions),
     )
-
     evaluation_metrics.plot_action_distribution(path, all_actions)
 
 

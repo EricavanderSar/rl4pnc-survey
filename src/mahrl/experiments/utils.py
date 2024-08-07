@@ -157,9 +157,10 @@ def get_capa_substation_id(
         for line_idx in line_info[sub_idx]:
             # extract rho
             if isinstance(obs_batch, OrderedDict):
-                rho = obs_batch["previous_obs"]["rho"][0][line_idx]
-            elif isinstance(obs_batch, dict):
-                rho = obs_batch["previous_obs"]["rho"][line_idx]
+                if "previous_obs" in obs_batch:
+                    rho = obs_batch["previous_obs"]["rho"][0][line_idx]
+                else:
+                    rho = obs_batch["rho"][line_idx]
             else:
                 raise ValueError("The observation batch is not supported.")
 
@@ -246,7 +247,7 @@ def run_training(
     Function that runs the training script.
     """
     # init ray
-    ray.init(ignore_reinit_error=False)
+    ray.init()
 
     if "debugging" in config and "seed" in config["debugging"]:
         set_reproducibillity(config["debugging"]["seed"])
@@ -255,6 +256,7 @@ def run_training(
         config["env_config"]["seed"] = config["debugging"]["seed"]
         config["evaluation_config"]["env_config"]["seed"] = config["debugging"]["seed"]
 
+    print(config)
     tuner = get_gridsearch_tuner(setup, config, algorithm)
 
     # Launch tuning

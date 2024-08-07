@@ -375,24 +375,24 @@ def split_hub_into_agents(agent_per_substation: dict[str, int]) -> dict[str, int
 
     # enumerate over dict to find the hub agent (over 1000 possible configurations)
     for sub_idx, num_actions in agent_per_substation.items():
-        if num_actions > 1000:
-            # split the hub into agents
-            num_agents = num_actions // max_sub_actions
-            avg_actions_per_hub = int(num_actions / num_agents)
-            leftover_actions = num_actions % num_agents
-            for i in range(int(num_agents)):
-                if i < leftover_actions:
-                    new_agent_per_substation[str(f"{sub_idx}_{i}")] = (
-                        avg_actions_per_hub + 1
-                    )
-                else:
-                    new_agent_per_substation[
-                        str(f"{sub_idx}_{i}")
-                    ] = avg_actions_per_hub
+        # if num_actions > 1000:
+        #     # split the hub into agents
+        #     num_agents = num_actions // max_sub_actions
+        #     avg_actions_per_hub = int(num_actions / num_agents)
+        #     leftover_actions = num_actions % num_agents
+        #     for i in range(int(num_agents)):
+        #         if i < leftover_actions:
+        #             new_agent_per_substation[str(f"{sub_idx}_{i}")] = (
+        #                 avg_actions_per_hub + 1
+        #             )
+        #         else:
+        #             new_agent_per_substation[str(f"{sub_idx}_{i}")] = (
+        #                 avg_actions_per_hub
+        #             )
 
-        else:
-            # keep as is
-            new_agent_per_substation[str(sub_idx)] = int(num_actions)
+        # else:
+        # keep as is
+        new_agent_per_substation[str(sub_idx)] = int(num_actions)
 
     return new_agent_per_substation
 
@@ -518,14 +518,31 @@ def setup_config(
         "dim_topo": setup_env.dim_topo,
     }
 
-    # Make as number additional policies as controllable substations
-    agent_per_substation = find_list_of_agents(
-        setup_env,
-        custom_config["environment"]["env_config"]["action_space"],
-        add_dn_agents=False,
-        add_dn_action_per_agent=True,
-    )
-    agent_per_substation = split_hub_into_agents(agent_per_substation)
+    # NOTE: Manual for new action space, can still be automated
+    if custom_config["environment"]["env_config"]["env_name"].startswith(
+        "l2rpn_icaps_2021_large"
+    ):
+        agent_per_substation = {
+            "29": 26,
+            "9": 26,
+            "4": 25,
+            "28": 7,
+            "26": 183,
+            "33": 42,
+            "21": 93,
+            "23": 321,
+            "16": 585,
+            "7": 14,
+        }
+    else:
+        # Make as number additional policies as controllable substations
+        agent_per_substation = find_list_of_agents(
+            setup_env,
+            custom_config["environment"]["env_config"]["action_space"],
+            add_dn_agents=False,
+            add_dn_action_per_agent=True,
+        )
+        agent_per_substation = split_hub_into_agents(agent_per_substation)
 
     original_list_of_substations = []
     for sub_id in agent_per_substation:

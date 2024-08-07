@@ -70,7 +70,7 @@ env_config_val: &env_config_val
   env_name: l2rpn_case14_sandbox_val
   shuffle_scenarios: False
   stage: val
-π
+
 evaluation:
   evaluation_interval: 20
   evaluation_duration: 100 # as many as there are validation episodes
