@@ -256,7 +256,6 @@ def run_training(
         config["env_config"]["seed"] = config["debugging"]["seed"]
         config["evaluation_config"]["env_config"]["seed"] = config["debugging"]["seed"]
 
-    print(config)
     tuner = get_gridsearch_tuner(setup, config, algorithm)
 
     # Launch tuning

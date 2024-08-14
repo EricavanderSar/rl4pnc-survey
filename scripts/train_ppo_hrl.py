@@ -120,38 +120,29 @@ def setup_gym_spaces(
     )
 
 
-def select_mid_level_policy(
+def get_mid_level_observation(
     middle_agent_type: str,
-    agent_per_substation: dict[str, int],
-    line_info: dict[str, list[int]],
-    env_info: dict[str, int],
-    custom_config: dict[str, Any],
-) -> tuple[PolicySpec, dict[str, Any]]:
+    gym_previous_obs: gym.spaces.Dict,
+    gym_proposed_actions: gym.spaces.Dict,
+    capa_gym_proposed_actions: gym.spaces.Dict,
+    gym_proposed_confidences: gym.spaces.Dict,
+) -> gym.spaces.Dict:
     """
-    Specifies the policy for the middle level agent.
+    Constructs the mid-level observation based on the middle agent type.
 
     Args:
-        middle_agent_type (str): The type of middle level agent. Possible values are 'capa', 'random', 'argmax', 'rlv',
-            'sample', or 'rl'.
-        agent_per_substation (dict[int, int]): A dictionary mapping substation IDs to the number of agents per substation.
-        line_info (dict[int, list[int]]): A dictionary mapping line IDs to the list of connected substations.
-        env_info (dict[str, int]): A dictionary containing environment information.
-        custom_config (dict[str, Any]): A dictionary containing custom configuration parameters.
+        middle_agent_type (str): The type of middle agent.
+        gym_previous_obs (gym.spaces.Dict): The previous observation from the environment.
+        gym_proposed_actions (gym.spaces.Dict): The proposed actions from the environment.
+        capa_gym_proposed_actions (gym.spaces.Dict): The proposed actions for CAPA agent.
+        gym_proposed_confidences (gym.spaces.Dict): The proposed confidences from the environment.
 
     Returns:
-        PolicySpec: The policy specification for the middle level agent.
+        gym.spaces.Dict: The mid-level observation.
 
     Raises:
-        ValueError: If the middle_agent_type is not recognized.
-
+        None
     """
-    (
-        gym_previous_obs,
-        gym_proposed_actions,
-        capa_gym_proposed_actions,
-        gym_proposed_confidences,
-    ) = setup_gym_spaces(agent_per_substation, env_info)
-
     if middle_agent_type in ("capa"):
         mid_level_observation = gym.spaces.Dict(
             {
@@ -191,6 +182,48 @@ def select_mid_level_policy(
                 "previous_obs": gym_previous_obs,
             }
         )
+    return mid_level_observation
+
+
+def select_mid_level_policy(
+    middle_agent_type: str,
+    agent_per_substation: dict[str, int],
+    line_info: dict[str, list[int]],
+    env_info: dict[str, int],
+    custom_config: dict[str, Any],
+) -> tuple[PolicySpec, dict[str, Any]]:  # noqa: C901
+    """
+    Specifies the policy for the middle level agent.
+
+    Args:
+        middle_agent_type (str): The type of middle level agent. Possible values are 'capa', 'random', 'argmax', 'rlv',
+            'sample', or 'rl'.
+        agent_per_substation (dict[int, int]): A dictionary mapping substation IDs to the number of agents per substation.
+        line_info (dict[int, list[int]]): A dictionary mapping line IDs to the list of connected substations.
+        env_info (dict[str, int]): A dictionary containing environment information.
+        custom_config (dict[str, Any]): A dictionary containing custom configuration parameters.
+
+    Returns:
+        PolicySpec: The policy specification for the middle level agent.
+
+    Raises:
+        ValueError: If the middle_agent_type is not recognized.
+
+    """
+    (
+        gym_previous_obs,
+        gym_proposed_actions,
+        capa_gym_proposed_actions,
+        gym_proposed_confidences,
+    ) = setup_gym_spaces(agent_per_substation, env_info)
+
+    mid_level_observation = get_mid_level_observation(
+        middle_agent_type,
+        gym_previous_obs,
+        gym_proposed_actions,
+        capa_gym_proposed_actions,
+        gym_proposed_confidences,
+    )
 
     act_space_rl = gym.spaces.Discrete(len(list(agent_per_substation.keys())))
 
@@ -370,28 +403,7 @@ def split_hub_into_agents(agent_per_substation: dict[str, int]) -> dict[str, int
     """
     new_agent_per_substation = {}
 
-    # find the largest value of agent_per_substation that is below or at 1000
-    max_sub_actions = max(v for v in agent_per_substation.values() if v <= 1000)
-
-    # enumerate over dict to find the hub agent (over 1000 possible configurations)
     for sub_idx, num_actions in agent_per_substation.items():
-        # if num_actions > 1000:
-        #     # split the hub into agents
-        #     num_agents = num_actions // max_sub_actions
-        #     avg_actions_per_hub = int(num_actions / num_agents)
-        #     leftover_actions = num_actions % num_agents
-        #     for i in range(int(num_agents)):
-        #         if i < leftover_actions:
-        #             new_agent_per_substation[str(f"{sub_idx}_{i}")] = (
-        #                 avg_actions_per_hub + 1
-        #             )
-        #         else:
-        #             new_agent_per_substation[str(f"{sub_idx}_{i}")] = (
-        #                 avg_actions_per_hub
-        #             )
-
-        # else:
-        # keep as is
         new_agent_per_substation[str(sub_idx)] = int(num_actions)
 
     return new_agent_per_substation

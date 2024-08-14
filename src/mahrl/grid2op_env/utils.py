@@ -4,7 +4,7 @@ Utilities in the grid2op and gym convertion.
 
 import json
 import os
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Tuple
 
 import grid2op
 import gymnasium
@@ -203,6 +203,8 @@ def get_original_env_name(path: str) -> str:
 
     if "_blazej" in path:
         path = path.replace("_blazej", "")
+    if "_original" in path:
+        path = path.replace("_original", "")
     if "_per_day" in path:
         path = path.replace("_per_day", "")
     if "_train" in path:
@@ -312,18 +314,18 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
 
     """
     # enable acting on all subs to go back to base topology
-    p = Parameters()
+    params = Parameters()
     if env_config["env_name"].startswith("rte_case5_example"):
-        p.MAX_SUB_CHANGED = 5
-        p.MAX_LINE_STATUS_CHANGED = 8
+        params.MAX_SUB_CHANGED = 5
+        params.MAX_LINE_STATUS_CHANGED = 8
     elif env_config["env_name"].startswith("rte_case14_realistic") or env_config[
         "env_name"
     ].startswith("l2rpn_case14_sandbox"):
-        p.MAX_SUB_CHANGED = 14
-        p.MAX_LINE_STATUS_CHANGED = 20
+        params.MAX_SUB_CHANGED = 14
+        params.MAX_LINE_STATUS_CHANGED = 20
     elif env_config["env_name"].startswith("l2rpn_icaps_2021_large"):
-        p.MAX_SUB_CHANGED = 36
-        p.MAX_LINE_STATUS_CHANGED = 59
+        params.MAX_SUB_CHANGED = 36
+        params.MAX_LINE_STATUS_CHANGED = 59
     else:
         raise ValueError("Please specify the number of subs in this env.")
 
@@ -331,7 +333,7 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
         env_config["env_name"],
         **env_config["grid2op_kwargs"],
         backend=LightSimBackend(),
-        param=p,
+        param=params,
     )
 
     if "seed" in env_config:
@@ -370,8 +372,24 @@ def go_to_abbc(
     g2op_obs: BaseObservation,
     reconnect_line: list[BaseAction],
     on_cooldown: set[int],
-    info: Optional[dict[str, Any]] = {},
-) -> tuple[list[BaseAction], dict[str, Any]]:
+    info: Optional[dict[str, Any]] = None,
+) -> Tuple[list[BaseAction], dict[str, Any]]:
+    """
+    Performs the necessary actions to transition the system to ABBC state.
+
+    Args:
+        env (BaseEnv): The grid environment.
+        g2op_obs (BaseObservation): The current observation of the grid.
+        reconnect_line (list[BaseAction]): The list of actions to reconnect lines.
+        on_cooldown (set[int]): The set of bus indices that are on cooldown.
+        info (Optional[dict[str, Any]], optional): Additional information. Defaults to {}.
+
+    Returns:
+        Tuple[list[BaseAction], dict[str, Any]]: The updated list of reconnect actions and additional information.
+    """
+    if info is None:
+        info = {}
+
     changed_busses = [
         i for i, x in enumerate(g2op_obs.topo_vect) if x != 1 and i not in on_cooldown
     ]
@@ -380,13 +398,7 @@ def go_to_abbc(
         new_status = [1] * len(changed_busses)
 
         # Get action that sets everything to ABBC
-        g2op_act = env.action_space(
-            {
-                "set_bus": [
-                    (l_id, status) for l_id, status in zip(changed_busses, new_status)
-                ]
-            }
-        )
+        g2op_act = env.action_space({"set_bus": list(zip(changed_busses, new_status))})
 
         try:
             # Simulate action to see that it doesn't cause the rho outside 0-1
@@ -399,9 +411,9 @@ def go_to_abbc(
 
                 # add info in reset to stop rewarding the last agent for this action
                 info["abbc_action"] = True
-        except:
+        except:  # pylint: disable=bare-except # noqa: E722
+            # no simulation available, skip step
             pass
-            # print(f"No forecast at {g2op_obs.get_time_stamp()} available, skipping.")
 
     return reconnect_line, info
 
@@ -410,8 +422,24 @@ def reconnecting_and_abbc(
     env: BaseEnv,
     g2op_obs: BaseObservation,
     reconnect_line: list[BaseAction],
-    info: dict[str, Any] = {},
-) -> tuple[list[BaseAction], dict[str, Any]]:
+    info: Optional[dict[str, Any]] = None,
+) -> Tuple[list[BaseAction], dict[str, Any]]:
+    """
+    Reconnects lines and performs ABBC (Automatic Busbar Closing) operation.
+
+    Args:
+        env (BaseEnv): The grid environment.
+        g2op_obs (BaseObservation): The observation from the grid environment.
+        reconnect_line (list[BaseAction]): List of actions to reconnect lines.
+        info (dict[str, Any], optional): Additional information. Defaults to {}.
+
+    Returns:
+        Tuple[list[BaseAction], dict[str, Any]]: A Tuple containing the updated list of
+        reconnect actions and additional information.
+    """
+    if info is None:
+        info = {}
+
     # This should avoid converging power flows
     on_cooldown, cooldown_lines = ignore_cooldowns(env, g2op_obs)
 
@@ -421,16 +449,14 @@ def reconnecting_and_abbc(
         )
 
     if any(g2op_obs.time_before_cooldown_sub):
-        for i, t in enumerate(g2op_obs.time_before_cooldown_sub):
-            if t > 0:
-                # print(f"Sub {i} has {t} ts left")
+        for sub_id, time in enumerate(g2op_obs.time_before_cooldown_sub):
+            if time > 0:
                 connected_elements = env.observation_space.get_obj_connect_to(
-                    substation_id=i
+                    substation_id=sub_id
                 )
-                for el in connected_elements:
-                    if el == "lines_or_id" or "lines_ex_id":
-                        for l_id in connected_elements[el]:
-                            cooldown_lines.add(l_id)
+                cooldown_lines = find_lines_on_cooldown(
+                    connected_elements, cooldown_lines
+                )
 
     to_reco = ~g2op_obs.line_status
     if np.any(to_reco):
@@ -443,14 +469,46 @@ def reconnecting_and_abbc(
     return reconnect_line, info
 
 
-def ignore_cooldowns(env: BaseEnv, obs: BaseObservation) -> tuple[set[int], set[int]]:
+def find_lines_on_cooldown(
+    connected_elements: dict[str, Any], cooldown_lines: set[int]
+) -> set[int]:
+    """
+    Finds the lines on cooldown connected to a given substation.
+
+    Parameters:
+        connected_elements (list[int]): Connected elements.
+        cooldown_lines (set[int]): A set to store the IDs of the lines on cooldown.
+
+    Returns:
+        set[int]: A set containing the IDs of the lines on cooldown connected to the substation.
+    """
+    for element in connected_elements:
+        if element in ("lines_or_id", "lines_ex_id"):
+            for l_id in connected_elements[element]:
+                cooldown_lines.add(l_id)
+    return cooldown_lines
+
+
+def ignore_cooldowns(env: BaseEnv, obs: BaseObservation) -> Tuple[set[int], set[int]]:
+    """
+    Finds the elements and lines that are on cooldown based on the given observation.
+
+    Args:
+        env (BaseEnv): The environment object.
+        obs (BaseObservation): The observation object.
+
+    Returns:
+        Tuple[set[int], set[int]]: A Tuple containing two sets:
+            - elements_on_cooldown: A set of element IDs that are on cooldown.
+            - lines_on_cooldown: A set of line IDs that are on cooldown.
+    """
     elements_on_cooldown = set()
     substation_on_cooldown = set()
     lines_on_cooldown = set()
     if any(obs.time_before_cooldown_line):
         # print(obs.time_before_cooldown_line)
-        for line_id, t in enumerate(obs.time_before_cooldown_line):
-            if t > 0:
+        for line_id, time in enumerate(obs.time_before_cooldown_line):
+            if time > 0:
                 lines_on_cooldown.add(line_id)
                 elements_on_cooldown.add(obs.line_or_pos_topo_vect[line_id])
                 elements_on_cooldown.add(obs.line_ex_pos_topo_vect[line_id])
@@ -459,54 +517,88 @@ def ignore_cooldowns(env: BaseEnv, obs: BaseObservation) -> tuple[set[int], set[
                 substation_on_cooldown.add(obs.line_or_to_subid[line_id])
                 substation_on_cooldown.add(obs.line_ex_to_subid[line_id])
                 for sub_id in substation_on_cooldown:
-                    connected_elements = env.observation_space.get_obj_connect_to(
-                        substation_id=sub_id
+                    (
+                        elements_on_cooldown,
+                        lines_on_cooldown,
+                    ) = find_substations_on_cooldown(
+                        sub_id, elements_on_cooldown, lines_on_cooldown, obs
                     )
-                    for el in env.observation_space.get_obj_connect_to(
-                        substation_id=sub_id
-                    ):
-                        if el == "loads_id":
-                            for l_id in connected_elements[el]:
-                                elements_on_cooldown.add(obs.load_pos_topo_vect[l_id])
-                        elif el == "lines_or_id":
-                            for l_id in connected_elements[el]:
-                                elements_on_cooldown.add(
-                                    obs.line_or_pos_topo_vect[l_id]
-                                )
-                                lines_on_cooldown.add(l_id)
-                        elif el == "lines_ex_id":
-                            for l_id in connected_elements[el]:
-                                elements_on_cooldown.add(
-                                    obs.line_ex_pos_topo_vect[l_id]
-                                )
-                                lines_on_cooldown.add(l_id)
-                        elif el == "generators_id":
-                            for l_id in connected_elements[el]:
-                                elements_on_cooldown.add(obs.gen_pos_topo_vect[l_id])
-
     # find related elements to substation that is nonzero
     if any(obs.time_before_cooldown_sub):
         # print(obs.time_before_cooldown_sub)
-        for sub_id, t in enumerate(obs.time_before_cooldown_sub):
-            if t > 0:
-                connected_elements = env.observation_space.get_obj_connect_to(
-                    substation_id=sub_id
+        for sub_id, time in enumerate(obs.time_before_cooldown_sub):
+            if time > 0:
+                elements_on_cooldown = find_elements_on_cooldown(
+                    sub_id, elements_on_cooldown, obs
                 )
-                for el in connected_elements:
-                    if el == "loads_id":
-                        for l_id in connected_elements[el]:
-                            elements_on_cooldown.add(obs.load_pos_topo_vect[l_id])
-                    elif el == "lines_or_id":
-                        for l_id in connected_elements[el]:
-                            elements_on_cooldown.add(obs.line_or_pos_topo_vect[l_id])
-                    elif el == "lines_ex_id":
-                        for l_id in connected_elements[el]:
-                            elements_on_cooldown.add(obs.line_ex_pos_topo_vect[l_id])
-                    elif el == "generators_id":
-                        for l_id in connected_elements[el]:
-                            elements_on_cooldown.add(obs.gen_pos_topo_vect[l_id])
         # print(on_cooldown)
     return elements_on_cooldown, lines_on_cooldown
+
+
+def find_substations_on_cooldown(
+    connected_elements: dict[str, Any],
+    elements_on_cooldown: set[int],
+    lines_on_cooldown: set[int],
+    obs: BaseObservation,
+) -> Tuple[set[int], set[int]]:
+    """
+    Finds the substations on cooldown based on the connected elements.
+
+    Args:
+        connected_elements (dict[str, Any]): A dictionary containing the connected elements.
+        elements_on_cooldown (set[int]): A set to store the elements on cooldown.
+        lines_on_cooldown (set[int]): A set to store the lines on cooldown.
+
+    Returns:
+        Tuple[set[int], set[int]]: A Tuple containing the elements on cooldown and lines on cooldown.
+    """
+    for element in connected_elements:
+        if element == "loads_id":
+            for l_id in connected_elements[element]:
+                elements_on_cooldown.add(obs.load_pos_topo_vect[l_id])
+        elif element == "lines_or_id":
+            for l_id in connected_elements[element]:
+                elements_on_cooldown.add(obs.line_or_pos_topo_vect[l_id])
+                lines_on_cooldown.add(l_id)
+        elif element == "lines_ex_id":
+            for l_id in connected_elements[element]:
+                elements_on_cooldown.add(obs.line_ex_pos_topo_vect[l_id])
+                lines_on_cooldown.add(l_id)
+        elif element == "generators_id":
+            for l_id in connected_elements[element]:
+                elements_on_cooldown.add(obs.gen_pos_topo_vect[l_id])
+    return elements_on_cooldown, lines_on_cooldown
+
+
+def find_elements_on_cooldown(
+    connected_elements: dict[str, Any],
+    elements_on_cooldown: set[int],
+    obs: BaseObservation,
+) -> set[int]:
+    """
+    Finds the elements on cooldown connected to a given substation.
+
+    Args:
+        sub_id (int): The ID of the substation.
+        elements_on_cooldown (set[int]): The set of elements on cooldown.
+
+    Returns:
+        set[int]: The updated set of elements on cooldown.
+    """
+    for element in connected_elements:
+        if element == "loads_id":
+            for l_id in connected_elements[element]:
+                elements_on_cooldown.add(obs.load_pos_topo_vect[l_id])
+        elif element == "lines_or_id":
+            for l_id in connected_elements[element]:
+                elements_on_cooldown.add(obs.line_or_pos_topo_vect[l_id])
+        elif element == "lines_ex_id":
+            for l_id in connected_elements[element]:
+                elements_on_cooldown.add(obs.line_ex_pos_topo_vect[l_id])
+        elif element == "generators_id":
+            for l_id in connected_elements[element]:
+                elements_on_cooldown.add(obs.gen_pos_topo_vect[l_id])
+    return elements_on_cooldown
 
 
 class ChronPrioMatrix:

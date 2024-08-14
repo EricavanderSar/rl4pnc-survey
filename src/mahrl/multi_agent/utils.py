@@ -3,6 +3,7 @@ Defines agent policies.
 """
 
 import random
+from typing import Any, Optional, Tuple
 
 import numpy as np
 from grid2op.Action import BaseAction
@@ -25,7 +26,7 @@ def argmax_logic(proposed_confidences: dict[str, float]) -> str:
     return max(proposed_confidences, key=lambda x: proposed_confidences[x])
 
 
-def softmax(x):
+def softmax(input_array: np.ndarray[Any, Any]) -> list[float]:
     """
     Compute the softmax function for an input array.
 
@@ -35,8 +36,8 @@ def softmax(x):
     Returns:
     numpy.ndarray: Softmax values of the input array.
     """
-    e_x = np.exp(x - np.max(x))
-    return e_x / e_x.sum(axis=0)
+    e_x = np.exp(input_array - np.max(input_array))
+    return list(e_x / e_x.sum(axis=0))
 
 
 def sample_logic(proposed_confidences: dict[str, float]) -> str:
@@ -51,7 +52,7 @@ def sample_logic(proposed_confidences: dict[str, float]) -> str:
 
     """
     # make all weights positive
-    weights = softmax(list(proposed_confidences.values()))
+    weights = softmax(np.array(proposed_confidences.values()))
 
     # take the sub_id based on a uniform sample of proposed_confidences
     sub_id = random.choices(
@@ -68,9 +69,9 @@ def capa_logic(
     gym_obs: dict[str, list[int]],
     controllable_substations: dict[str, int],
     line_info: dict[str, list[int]],
-    substation_order: list[str] = [],
+    substation_order: Optional[list[str]] = None,
     idx: int = 0,
-) -> tuple[int, str]:
+) -> Tuple[int, str]:
     """
     Selects a sub_id based on the proposed actions and capa logic.
 

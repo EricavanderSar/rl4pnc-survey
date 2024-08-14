@@ -8,7 +8,6 @@ import os
 import re
 import shutil
 import time
-from statistics import mean
 from typing import Any
 
 import grid2op
@@ -16,7 +15,6 @@ from grid2op.Agent import BaseAgent, DoNothingAgent
 from grid2op.Environment import BaseEnv
 from grid2op.Reward import BaseReward
 from grid2op.Runner import Runner
-from lightsim2grid import LightSimBackend  # pylint: disable=wrong-import-order
 from ray.rllib.algorithms import ppo
 
 from mahrl.evaluation.evaluation_agents import (
@@ -135,6 +133,35 @@ def instantiate_opponent_classes(class_name: str) -> Any:
     raise ValueError("Problem instantiating opponent class for evaluation.")
 
 
+def find_agent_name(
+    agent_instance: Any,
+    env_config: dict[str, Any],
+) -> str:
+    """
+    Returns a descriptive name for the given agent instance.
+
+    Parameters:
+    agent_instance (str): The name of the agent instance.
+
+    Returns:
+    str: A descriptive name for the agent instance.
+
+    """
+    if "SingleRllibAgent" in str(agent_instance):
+        describe_agent = "single_agent"
+    elif "MultiRllibAgents" in str(agent_instance):
+        describe_agent = (
+            agent_instance.lower_policy_name + "_" + agent_instance.middle_policy_name
+        )
+    elif "CapaAndGreedy" in str(agent_instance):
+        describe_agent = "greedy_capa"
+    elif "RandomAndGreedy" in str(agent_instance):
+        describe_agent = "greedy_random"
+    else:
+        describe_agent = str(agent_instance)
+    return str(describe_agent)
+
+
 def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
     """
     Perform runner on the implemented networks.
@@ -163,18 +190,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         del env_config["grid2op_kwargs"]["kwargs_opponent"]
     params.update(env_config["grid2op_kwargs"])
 
-    if "SingleRllibAgent" in str(agent_instance):
-        describe_agent = "single_agent"
-    elif "MultiRllibAgents" in str(agent_instance):
-        describe_agent = (
-            agent_instance.lower_policy_name + "_" + agent_instance.middle_policy_name
-        )
-    elif "CapaAndGreedy" in str(agent_instance):
-        describe_agent = "greedy_capa"
-    elif "RandomAndGreedy" in str(agent_instance):
-        describe_agent = "greedy_random"
-    else:
-        describe_agent = str(agent_instance)
+    describe_agent = find_agent_name(agent_instance, env_config)
 
     store_trajectories_folder = os.path.join(
         env_config["lib_dir"],
@@ -211,27 +227,7 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         ) as file:
             file.write(f"Threshold={env_config['rho_threshold']}\n")
 
-        ############################
-        # with open(os.path.join(results_folder, "medha_left.txt"), "r") as f:
-        #     lines = f.readlines()
-
-        # lines = [line.strip() for line in lines]
-        # res = Runner(
-        #     **params,
-        #     agentClass=None,
-        #     agentInstance=agent_instance,
-        # ).run(
-        #     path_save=os.path.abspath(
-        #         f"{store_trajectories_folder}/{env_config['env_name']}/{env_config['action_space']}/{i}"
-        #     ),
-        #     nb_episode=len(lines),
-        #     episode_id=lines,
-        #     max_iter=-1,
-        #     nb_process=1,
-        # )
-        ############################
-
-        res = Runner(
+        _ = Runner(
             **params,
             agentClass=None,
             agentInstance=agent_instance,
@@ -242,34 +238,23 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
             nb_process=1,
         )
 
-        individual_timesteps = []
+    flatten_directories(store_trajectories_folder, env_config)
 
-        for _, chron_name, _, nb_time_step, max_ts in res:
-            with open(
-                f"{results_folder}/{file_name}",
-                "a",
-                encoding="utf-8",
-            ) as file:
-                file.write(
-                    f"\n\tFor chronics with id {chron_name}\n"
-                    + f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
-                )
 
-            individual_timesteps.append(nb_time_step)
+def flatten_directories(
+    store_trajectories_folder: str, env_config: dict[str, Any]
+) -> None:
+    """
+    Flatten the directory structure by moving all subdirectories and files to the parent directory.
 
-        with open(
-            f"{results_folder}/{file_name}",
-            "a",
-            encoding="utf-8",
-        ) as file:
-            file.write(
-                f"\nAverage timesteps survived: {mean(individual_timesteps)}\n{individual_timesteps}\n"
-                + f"Total time = {time.time() - start_time}"
-            )
+    Args:
+        dir_name (str): The name of the directory.
+        store_trajectories_folder (str): The path to the parent directory where the subdirectories and files are located.
+        env_config (Dict[str, Any]): The environment configuration.
 
-        print(f"Average timesteps survived: {mean(individual_timesteps)}")
-
-    # flatten the input_file_path directory
+    Returns:
+        None
+    """
     # Iterate over all directories
     for dir_name in range(
         10 if "opponent_kwargs" in env_config["grid2op_kwargs"] else 1
@@ -347,7 +332,7 @@ def setup_do_nothing_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) 
 def setup_rllib_evaluation(
     file_path: str,
     checkpoint_name: str,
-    config: dict[str, Any],
+    full_config: dict[str, Any],
     setup_env: BaseEnv,
     is_multi_agent: bool = False,
 ) -> None:
@@ -365,7 +350,7 @@ def setup_rllib_evaluation(
     # # load config
     # config_path = os.path.join(args.file_path, "params.json")
     # config = load_config(config_path)
-    env_config = config["environment"]["env_config"]
+    env_config = full_config["environment"]["env_config"]
     # # change the env_name from _train to _test
     # env_config["env_name"] = get_original_env_name(env_config["env_name"])
 
@@ -391,12 +376,14 @@ def setup_rllib_evaluation(
 
     # setup_env = grid2op.make(env_config["env_name"])
     # replace opp_ or opponent_ in string with empty string
-    config["setup"]["experiment_name"] = (
-        config["setup"]["experiment_name"].replace("opponent_", "").replace("opp_", "")
+    full_config["setup"]["experiment_name"] = (
+        full_config["setup"]["experiment_name"]
+        .replace("opponent_", "")
+        .replace("opp_", "")
     )
 
     lower_name, middle_name = (
-        config["setup"]["experiment_name"].split("/")[1].split("_")
+        full_config["setup"]["experiment_name"].split("/")[1].split("_")
     )
 
     if is_multi_agent:
@@ -533,7 +520,7 @@ if __name__ == "__main__":
                 setup_rllib_evaluation(
                     file_path=args.file_path,
                     checkpoint_name=CHECKPOINT_NAME,
-                    config=config,
+                    full_config=config,
                     setup_env=init_setup_env,
                     is_multi_agent=args.multi_agent,
                 )
@@ -541,7 +528,7 @@ if __name__ == "__main__":
                 setup_rllib_evaluation(
                     file_path=args.file_path,
                     checkpoint_name=args.checkpoint_name,
-                    config=config,
+                    full_config=config,
                     setup_env=init_setup_env,
                     is_multi_agent=args.multi_agent,
                 )

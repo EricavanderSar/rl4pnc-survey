@@ -214,7 +214,7 @@ class MultiRllibAgents(BaseAgent):
                     global_gym_act = int(
                         self.gym_wrapper.env_gym.action_space.to_gym(g2op_act)
                     )
-                    local_gym_act = next(
+                    local_gym_act: Optional[int] = next(
                         (
                             k
                             for k, v in self.gym_wrapper.local_to_global_action_map[
@@ -224,7 +224,8 @@ class MultiRllibAgents(BaseAgent):
                         ),
                         None,
                     )
-                    proposed_actions[str(key)] = local_gym_act
+                    if local_gym_act is not None:
+                        proposed_actions[str(key)] = local_gym_act
             else:
                 # collect proposed actions
                 proposed_actions = self.get_proposed_actions(gym_obs)
@@ -525,10 +526,16 @@ class ReconnectingGreedyAgent(GreedyAgent):
         self.reconnect_line: list[BaseAction] = []
 
     def reconnect_and_return(
-        self, action: Union[int, BaseAction], observation: BaseObservation
+        self,
+        action: Union[int, BaseAction],
+        observation: BaseObservation,
+        hub: bool = False,
     ) -> BaseAction:
         if type(action) == int:
-            g2op_action = self.tested_action[action]
+            if hub:
+                g2op_action = self.hub_actions[action]
+            else:
+                g2op_action = self.tested_action[action]
         else:
             g2op_action = action
 

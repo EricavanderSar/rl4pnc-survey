@@ -1,9 +1,16 @@
+"""
+Script to analyse agent behaviour. The script collects data from the played episodes and saves the data in CSV files.
+"""
+
 import argparse
+import logging
 import os
+from typing import Any, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from grid2op.Environment import BaseEnv
 from grid2op.Episode import EpisodeData
 from tqdm import tqdm  # for easy progress bar
 
@@ -11,14 +18,32 @@ from mahrl.experiments.yaml import load_config
 from mahrl.grid2op_env.utils import make_g2op_env
 
 
-def get_action_data(env, env_config, this_episode, input_data=None):
+def get_action_data(  # pylint: disable=too-many-locals,too-many-statements
+    env: BaseEnv,
+    env_config: dict[str, Any],
+    this_episode: EpisodeData,
+    input_data: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """
+    Get action data from the environment.
+
+    Args:
+        env (object): The environment object.
+        env_config (dict): Configuration parameters for the environment.
+        this_episode (object): The episode object.
+        input_data (dict, optional): Existing data to append to. Defaults to None.
+
+    Returns:
+        dict: A dictionary containing the action data.
+
+    """
     # get data lines in overflow
     idx = env.observation_space.shape
     pos = env.observation_space.attr_list_vect.index("rho")
     start = sum(idx[:pos])
     end = start + idx[pos]
     rho_values = this_episode.get_observations()[
-        0 : this_episode.meta["nb_timestep_played"]
+        0 : this_episode.meta["nb_timestep_played"]  # noqa: E203
     ][..., np.arange(start, end)]
     ts_danger, line_danger = np.where(rho_values > env_config["rho_threshold"])
     rho = rho_values[rho_values > env_config["rho_threshold"]]
@@ -48,18 +73,15 @@ def get_action_data(env, env_config, this_episode, input_data=None):
     # check the new topos (ts_danger+1)
     topos = this_episode.get_observations()[ts_danger + 1][..., np.arange(start, end)]
 
-    implicit_DNs = []
+    implicit_dns = []
     # check that action is not implicit do nothing
     for idx, topo in enumerate(topos):
         if np.array_equal(topo, cur_topos[idx]):
-            implicit_DNs.append(idx)
-            print(f"implicit do nothing at {ts_danger[idx]}")
-        # if action_topo[idx] == [0]:
-        #     implicit_DNs.append(idx)
-        #     print(f"explicit do nothing at {ts_danger[idx]}")
+            implicit_dns.append(idx)
+            logging.info(f"implicit do nothing at {ts_danger[idx]}")
 
     # remove item from topos and cur_topos
-    for idx in sorted(implicit_DNs, reverse=True):
+    for idx in sorted(implicit_dns, reverse=True):
         topos = np.delete(topos, idx, 0)
         del action_topo[idx]  # = np.delete(action_topo, idx, 0)
         del action_sub[idx]  # = np.delete(action_sub, idx, 0)
@@ -77,7 +99,7 @@ def get_action_data(env, env_config, this_episode, input_data=None):
     # chronic ids
     chron_id = [this_episode.name for _ in ts_danger]
 
-    if input_data == None:
+    if input_data is None:
         data = {}
         data["chron_id"] = chron_id
         data["ts_danger"] = ts_danger
@@ -106,24 +128,44 @@ def get_action_data(env, env_config, this_episode, input_data=None):
     return data
 
 
-def collect_episode_data(env, env_config, store_trajectories_folder, li_episode):
-    print(" Start collecting episode data ... ")
+def collect_episode_data(
+    env: BaseEnv,
+    env_config: dict[str, Any],
+    store_trajectories_folder: str,
+    li_episode: list[EpisodeData],
+) -> Tuple[Optional[dict[str, Any]], pd.DataFrame]:
+    """
+    Collects episode data by going through the played episodes and saves the data in CSV files.
+
+    Args:
+        env (object): The environment object.
+        env_config (object): The environment configuration object.
+        store_trajectories_folder (str): The path to the folder where the episode data will be stored.
+        li_episode (list): A list of tuples containing the full path and episode number.
+
+    Returns:
+        tuple: A tuple containing the action data and the data frame containing the action data.
+
+    """
+    logging.info(" Start collecting episode data ... ")
     act_data = None
-    store_actdata_path = os.path.join(
-        store_trajectories_folder, "line_action_topo_data.csv"
-    )
-    store_surv_path = os.path.join(store_trajectories_folder, "survival.csv")
     df_act, df_sur = None, None
     chron = []
     surv = []
-    rw = []
+    reward = []
 
-    if os.path.exists(store_actdata_path):
+    if os.path.exists(
+        os.path.join(store_trajectories_folder, "line_action_topo_data.csv")
+    ):
         # check if part of the data was already collected...
-        df_act = pd.read_csv(store_actdata_path)
+        df_act = pd.read_csv(
+            os.path.join(store_trajectories_folder, "line_action_topo_data.csv")
+        )
         n_episode_evaluated = len(df_act.chron_id.unique())
-        if os.path.exists(store_surv_path):
-            df_sur = pd.read_csv(store_surv_path)
+        if os.path.exists(os.path.join(store_trajectories_folder, "survival.csv")):
+            df_sur = pd.read_csv(
+                os.path.join(store_trajectories_folder, "survival.csv")
+            )
             if n_episode_evaluated == len(df_sur.chron_id.unique()):
                 li_episode = li_episode[n_episode_evaluated:]
             else:
@@ -132,8 +174,8 @@ def collect_episode_data(env, env_config, store_trajectories_folder, li_episode)
             df_act, df_sur = None, None
 
     # start collecting the data by going through the played episodes
-    for ep in tqdm(li_episode, total=len(li_episode)):
-        full_path, episode_studied = ep
+    for episode in tqdm(li_episode, total=len(li_episode)):
+        _, episode_studied = episode
         this_episode = EpisodeData.from_disk(store_trajectories_folder, episode_studied)
         act_data = get_action_data(env, env_config, this_episode, act_data)
         # save chronic data
@@ -141,26 +183,26 @@ def collect_episode_data(env, env_config, store_trajectories_folder, li_episode)
             os.path.basename(os.path.normpath(this_episode.meta["chronics_path"]))
         )
         surv.append(this_episode.meta["nb_timestep_played"])
-        rw.append(np.round(this_episode.meta["cumulative_reward"], decimals=2))
+        reward.append(np.round(this_episode.meta["cumulative_reward"], decimals=2))
 
     # Save action data in data frame
     if df_act is not None:
         df_act = df_act.append(pd.DataFrame(act_data))
     else:
         df_act = pd.DataFrame(act_data)
-    print(df_act.head())
+    logging.info(df_act.head())
     df_act.to_csv(
         os.path.join(store_trajectories_folder, "line_action_topo_data.csv"),
         index=False,
     )
 
     # Save chronic data in data frame
-    chron_data = {"chron": chron, "survived": surv, "cum reward": rw}
+    chron_data = {"chron": chron, "survived": surv, "cum reward": reward}
     if df_sur is not None:
         df_sur = df_sur.append(pd.DataFrame(chron_data))
     else:
         df_sur = pd.DataFrame(chron_data)
-    print(
+    logging.info(
         f"Survival stats: mean {df_sur.survived.mean()} with std: {df_sur.survived.std()}"
     )
     df_sur.to_csv(os.path.join(store_trajectories_folder, "survival.csv"), index=False)
@@ -168,84 +210,104 @@ def collect_episode_data(env, env_config, store_trajectories_folder, li_episode)
     return act_data, df_act
 
 
-def print_measures(df):
-    print("\n Frequency substations activations")
-    print(df.action_sub.value_counts())
-    print(
-        f"\n Frequency topology actions: {df.action_topo.value_counts().sum()} of which unique: {len(df.action_topo.unique())}"
+def print_dataframe(dataframe: pd.DataFrame) -> int:
+    """
+    Prints various statistics and information about the given dataframe.
+
+    Parameters:
+    dataframe (pandas.DataFrame): The dataframe containing the data to be analyzed.
+
+    Returns:
+    int: The maximum topology depth found in the dataframe.
+    """
+    logging.info("\n Frequency substations activations")
+    logging.info(dataframe.action_sub.value_counts())
+    logging.info(
+        f"\n Frequency topology actions: {dataframe.action_topo.value_counts().sum()} \
+            of which unique: {len(dataframe.action_topo.unique())}"
     )
-    print(df.action_topo.value_counts())
-    print("\n Frequency lines in danger: ")
-    print(df.line_danger.value_counts())
-    print(f"\n # unique topologies: {len(df.el_changed.unique())}")
-    max_topo_depth = df.sub_topo_depth.unique().max()
+    logging.info(dataframe.action_topo.value_counts())
+    logging.info("\n Frequency lines in danger: ")
+    logging.info(dataframe.line_danger.value_counts())
+    logging.info(f"\n # unique topologies: {len(dataframe.el_changed.unique())}")
+    max_topo_depth = int(dataframe.sub_topo_depth.unique().max())
     # if max_topo_depth == 14:  # TODO make not hardcoded
     #     max_topo_depth = df.sub_topo_depth.unique()[-2]
-    print(
-        f"\n Average topology depth {df.sub_topo_depth.mean()} with std {df.sub_topo_depth.std()} and max {df.sub_topo_depth.unique().max()}"
+    logging.info(
+        f"\n Average topology depth {dataframe.sub_topo_depth.mean()} with std {dataframe.sub_topo_depth.std()} \
+            and max {dataframe.sub_topo_depth.unique().max()}"
     )
     return max_topo_depth
 
 
-def quick_overview(data_folder):
-    df = pd.read_csv(os.path.join(data_folder, "line_action_topo_data.csv"))
-    # print overview
-    max_topo_depth = print_measures(df)
+def quick_overview(data_folder: str) -> None:
+    """
+    Generate a quick overview of the data by creating various plots based on the input data.
+
+    Parameters:
+    - data_folder (str): The path to the folder containing the data.
+
+    Returns:
+    None
+    """
+    dataframe = pd.read_csv(os.path.join(data_folder, "line_action_topo_data.csv"))
+    # logging.log overview
+    max_topo_depth = print_dataframe(dataframe)
 
     # Create a pivot table to count occurrences of 'action topo' for each 'action sub'
-    pivot_table = df.pivot_table(
+    pivot_table = dataframe.pivot_table(
         index=["action_sub"], columns="action_topo", aggfunc="size", fill_value=0
     )
     # Plotting the data
-    ax = pivot_table.plot(kind="bar", figsize=(10, 6), width=0.8)
+    axis = pivot_table.plot(kind="bar", figsize=(10, 6), width=0.8)
     # Customize the plot
-    ax.set_title("Frequency actions at substations")
-    ax.set_xlabel("Substation")
-    ax.set_ylabel("Frequency")
-    ax.legend(title="Topology")
+    axis.set_title("Frequency actions at substations")
+    axis.set_xlabel("Substation")
+    axis.set_ylabel("Frequency")
+    axis.legend(title="Topology")
     plt.savefig(os.path.join(data_folder, "actions_at_substations.png"))
     # plt.show()
 
     #
-    pivot_table = df.pivot_table(
+    pivot_table = dataframe.pivot_table(
         index=["action_sub", "action_topo"],
         columns="line_danger",
         aggfunc="size",
         fill_value=0,
     )
-    ax = pivot_table.plot(kind="bar", figsize=(10, 6), width=0.8)
-    ax.set_title("Frequency actions per line in danger")
-    ax.set_xlabel("Action")
-    ax.set_ylabel("Frequency")
-    ax.legend(title="Line in danger")
+    axis = pivot_table.plot(kind="bar", figsize=(10, 6), width=0.8)
+    axis.set_title("Frequency actions per line in danger")
+    axis.set_xlabel("Action")
+    axis.set_ylabel("Frequency")
+    axis.legend(title="Line in danger")
     plt.tight_layout()
     plt.savefig(os.path.join(data_folder, "actions_per_line_danger.png"))
     # plt.show()
 
     # Plat data
     for i in range(1, max_topo_depth + 1):
-        pivot_table = df[df["sub_topo_depth"] == i].pivot_table(
+        pivot_table = dataframe[dataframe["sub_topo_depth"] == i].pivot_table(
             index="action_sub", columns="action_topo", aggfunc="size", fill_value=0
         )
-        ax = pivot_table.plot(kind="bar", figsize=(10, 6), width=0.8)
-        ax.set_title(f"Frequency of {i}th topology action")
-        ax.set_xlabel("Substation")
-        ax.set_ylabel("Frequency")
-        ax.legend(title="Topology")
+        axis = pivot_table.plot(kind="bar", figsize=(10, 6), width=0.8)
+        axis.set_title(f"Frequency of {i}th topology action")
+        axis.set_xlabel("Substation")
+        axis.set_ylabel("Frequency")
+        axis.legend(title="Topology")
         plt.savefig(os.path.join(data_folder, f"topology_action_{i}.png"))
         # plt.show()
 
     # Create a pivot table
-    pivot_table = df.pivot_table(
+    pivot_table = dataframe.pivot_table(
         index=["line_danger"], columns="subs_changed", aggfunc="size", fill_value=0
     )
 
-    ax = pivot_table.plot(kind="bar", figsize=(10, 6), width=0.8)
-    ax.set_title("Frequency different changed subs")
-    ax.set_xlabel("Line in danger")
-    ax.set_ylabel("Frequency")
-    ax.legend(title="Subs changed")
-    plt.savefig(os.path.join(data_folder, f"subs_changed_frequency.png"))
+    axis = pivot_table.plot(kind="bar", figsize=(10, 6), width=0.8)
+    axis.set_title("Frequency different changed subs")
+    axis.set_xlabel("Line in danger")
+    axis.set_ylabel("Frequency")
+    axis.legend(title="Subs changed")
+    plt.savefig(os.path.join(data_folder, "subs_changed_frequency.png"))
     # plt.show()
 
 
@@ -266,18 +328,13 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Get location of studied agent
-    store_trajectories_folder = args.file_path
-    config = args.config
-    lib_dir = "/Users/barberademol/Documents/GitHub/mahrl_grid2op/"
-
     # load config file
     config = load_config(args.config)
-    env_config = config["environment"]["env_config"]
-    env = make_g2op_env(env_config)
+    setup_env_config = config["environment"]["env_config"]
+    setup_env = make_g2op_env(setup_env_config)
 
-    li_episode = EpisodeData.list_episode(store_trajectories_folder)
-    all_data, df = collect_episode_data(
-        env, env_config, store_trajectories_folder, li_episode
+    setup_li_episode = EpisodeData.list_episode(args.file_path)
+    _, _ = collect_episode_data(
+        setup_env, setup_env_config, args.file_path, setup_li_episode
     )
-    quick_overview(store_trajectories_folder)
+    quick_overview(args.file_path)

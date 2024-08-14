@@ -79,7 +79,7 @@ def save_global_statistics(
         )
 
         file.write(f"Actions taken: {len(all_actions)}\n")
-        file.write(f"Unique actions taken: {len(set([str(d) for d in all_actions]))}\n")
+        file.write(f"Unique actions taken: {len({str(d) for d in all_actions})}\n")
     all_substations = range(len(all_episodes[0].name_sub))
     evaluation_metrics.plot_substation_distribution(
         path,
