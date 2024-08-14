@@ -22,7 +22,27 @@ RENDERFRAME = TypeVar("RENDERFRAME")
 
 
 class SingleAgentGrid2OpEnvironment(gym.Env):
-    """Encapsulate Grid2Op environment and set action/observation space."""
+    """
+    Encapsulate Grid2Op environment and set action/observation space.
+
+    Parameters:
+        env_config (dict[str, Any]): Configuration parameters for the environment.
+
+    Attributes:
+        grid2op_env: The Grid2Op environment.
+        env_gym: The gym environment.
+        possible_substation_actions: List of possible substation actions.
+        converter: The converter for custom action space.
+        action_space: The action space for the environment.
+        observation_space: The observation space for the environment.
+        rho_threshold: The threshold value for rho.
+        steps: The number of steps taken in the environment.
+
+    Methods:
+        reset(seed=None, options=None): Resets the environment.
+        step(action): Performs a single step in the environment.
+        render(): Not implemented.
+    """
 
     def __init__(self, env_config: dict[str, Any]):
         # create the grid2op environment
@@ -80,7 +100,17 @@ class SingleAgentGrid2OpEnvironment(gym.Env):
         options: dict[str, Any] | None = None,
     ) -> tuple[dict[str, Any], dict[str, Any]]:  # type: ignore
         """
-        This function resets the environment.
+        Resets the environment.
+
+        Args:
+            seed (int | None): The random seed to use for environment initialization. Defaults to None.
+            options (dict[str, Any] | None): Additional options for resetting the environment. Defaults to None.
+
+        Returns:
+            tuple[dict[str, Any], dict[str, Any]]: A tuple containing the initial observation and an empty dictionary.
+
+        Raises:
+            ValueError: If the observation is None.
         """
         done = True
         while done:
@@ -105,7 +135,15 @@ class SingleAgentGrid2OpEnvironment(gym.Env):
         action: int,
     ) -> tuple[dict[str, Any] | None, float, bool, bool, dict[str, Any]]:
         """
-        This function performs a single step in the environment.
+        Performs a single step in the environment.
+
+        Args:
+            action (int): The action to take in the environment.
+
+        Returns:
+            tuple[dict[str, Any] | None, float, bool, bool, dict[str, Any]]:
+                A tuple containing the next observation, the reward, a flag indicating if the episode
+                is done, a flag indicating if the episode was truncated, and additional information.
         """
         cum_reward: float = 0.0
         obs: dict[str, Any]

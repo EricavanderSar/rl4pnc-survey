@@ -25,6 +25,15 @@ def calculate_action_space_asymmetry(
 ) -> tuple[int, int, dict[str, int]]:
     """
     Function prints and returns the number of legal actions and topologies without symmetries.
+
+    Parameters:
+        env (BaseEnv): The environment object.
+        add_dn_agents (bool): Flag indicating whether to add do-nothing agents.
+        add_dn_action_per_agent (bool): Flag indicating whether to add a do-nothing action per agent.
+
+    Returns:
+        tuple[int, int, dict[str, int]]: A tuple containing the number of legal actions,
+            the number of topologies without symmetries, and a dictionary of controllable substations.
     """
 
     nr_substations = len(env.sub_info)
@@ -60,7 +69,16 @@ def calculate_action_space_medha(
     env: BaseEnv, add_dn_agents: bool = False, add_dn_action_per_agent: bool = False
 ) -> tuple[int, int, dict[str, int]]:
     """
-    Function prints and returns the number of legal actions and topologies following Subrahamian (2021).
+    Calculates the number of legal actions and possible topologies based on Subrahamian (2021).
+
+    Args:
+        env (BaseEnv): The environment object.
+        add_dn_agents (bool, optional): Whether to add demand agents. Defaults to False.
+        add_dn_action_per_agent (bool, optional): Whether to add demand action per agent. Defaults to False.
+
+    Returns:
+        tuple[int, int, dict[str, int]]: A tuple containing the number of legal actions, possible topologies,
+        and a dictionary of controllable substations.
     """
     nr_substations = len(env.sub_info)
 
@@ -94,7 +112,16 @@ def calculate_action_space_tennet(
     env: BaseEnv, add_dn_agents: bool = False, add_dn_action_per_agent: bool = False
 ) -> tuple[int, int, dict[str, int]]:
     """
-    Function prints and returns the number of legal actions and topologies following the proposed action space.
+    Calculate the number of legal actions and topologies following the proposed action space.
+
+    Args:
+        env (BaseEnv): The environment object.
+        add_dn_agents (bool, optional): Whether to add demand agents. Defaults to False.
+        add_dn_action_per_agent (bool, optional): Whether to add demand action per agent. Defaults to False.
+
+    Returns:
+        tuple[int, int, dict[str, int]]: A tuple containing the number of legal actions, the number of possible topologies,
+        and a dictionary mapping controllable substations to their respective number of topologies.
     """
     nr_substations = len(env.sub_info)
 
@@ -150,6 +177,17 @@ def get_capa_substation_id(
 ) -> list[str]:
     """
     Returns the substation id of the substation to act on according to CAPA.
+
+    Parameters:
+    - line_info: A dictionary containing information about the lines and substations.
+    - obs_batch: The observation batch, which can be a list of dictionaries or a single dictionary.
+    - controllable_substations: A dictionary containing the controllable substations.
+
+    Returns:
+    - A list of substation ids, ordered based on the maximum rho value and the mean rho value.
+
+    Raises:
+    - ValueError: If the observation batch is not supported.
     """
     # calculate the mean rho per substation
     connected_rhos: dict[str, list[float]] = {agent: [] for agent in line_info}
@@ -201,6 +239,18 @@ def find_list_of_agents(
 ) -> dict[str, int]:
     """
     Function that returns the number of controllable substations.
+
+    Parameters:
+        env (BaseEnv): The environment object.
+        action_space (str): The type of action space.
+        add_dn_agents (bool): Whether to add distribution network agents.
+        add_dn_action_per_agent (bool): Whether to add distribution network actions per agent.
+
+    Returns:
+        dict[str, int]: A dictionary mapping agent names to the number of controllable substations.
+
+    Raises:
+        ValueError: If the action space is not supported.
     """
     if action_space.startswith("asymmetry"):
         _, _, list_of_agents = calculate_action_space_asymmetry(
@@ -225,6 +275,13 @@ def find_substation_per_lines(
 ) -> dict[str, list[int]]:
     """
     Returns a dictionary connecting line ids to substations.
+
+    Args:
+        env (BaseEnv): The environment object.
+        list_of_agents (list[str]): A list of agent names.
+
+    Returns:
+        dict[str, list[int]]: A dictionary connecting line ids to substations.
     """
     line_info: dict[str, list[int]] = {agent: [] for agent in list_of_agents}
     for sub_idx in list_of_agents:
@@ -245,6 +302,14 @@ def run_training(
 ) -> None:
     """
     Function that runs the training script.
+
+    Args:
+        config (dict): A dictionary containing the configuration parameters for training.
+        setup (dict): A dictionary containing the setup parameters for training.
+        algorithm (Algorithm): An instance of the Algorithm class representing the training algorithm.
+
+    Returns:
+        None
     """
     # init ray
     ray.init()

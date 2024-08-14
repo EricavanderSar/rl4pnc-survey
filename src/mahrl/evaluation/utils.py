@@ -12,7 +12,13 @@ from mahrl.evaluation import evaluation_metrics
 
 def load_episodes(path: str) -> list[EpisodeData]:
     """
-    Loads all evaluated episodes from a path.
+    Loads all evaluated episodes from a given path.
+
+    Args:
+        path (str): The path to the directory containing the episodes.
+
+    Returns:
+        list[EpisodeData]: A list of EpisodeData objects representing the loaded episodes.
     """
     li_episode = EpisodeData.list_episode(path)
 
@@ -33,6 +39,18 @@ def save_global_statistics(
 ) -> None:
     """
     Save global statistics to a file.
+
+    Args:
+        path (str): The path to the directory where the statistics file will be saved.
+        all_episodes (list[EpisodeData]): A list of EpisodeData objects containing the data for all episodes.
+        grid_objects_types (list[list[int]]): A list of lists representing the types of grid objects.
+        global_action_sequences (list[list[list[dict[str, Any]]]]):
+            A list of lists of lists representing the action sequences for each episode.
+        global_topology_list (list[list[list[int]]]): A list of lists of lists representing the topologies for each episode.
+
+    Returns:
+        None: This function does not return anything.
+
     """
     # flatten multi-dimensional lists
     all_action_sequences = [
@@ -98,8 +116,17 @@ def save_scenario_statistics(
 ) -> None:
     """
     Save scenario-wise statistics to a file.
-    """
 
+    Args:
+        path (str): The path to the directory where the statistics file will be saved.
+        episode (EpisodeData): The episode data containing the actions and other information.
+        grid_objects_types (list[list[int]]): A list of grid object types for each topology.
+        action_sequences (list[list[dict[str, Any]]]): A list of action sequences for each topology.
+        topology_list (list[list[int]]): A list of topologies for each action sequence.
+
+    Returns:
+        None
+    """
     # flatten action sequences
     action_list = [item for sublist in action_sequences for item in sublist]
 

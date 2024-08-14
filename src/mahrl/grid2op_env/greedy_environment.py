@@ -21,8 +21,26 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
     HierarchicalCustomizedGrid2OpEnvironment
 ):
     """
-    Implement step function for hierarchical environment. This is made to work with greedy-agent lower
-    level agents. Their action is built into the environment.
+    A customized grid2op environment for hierarchical RL with greedy lower-level agents.
+
+    This environment is designed to work with greedy lower-level agents, where their actions are built into the environment.
+    It extends the `HierarchicalCustomizedGrid2OpEnvironment` class.
+
+    Attributes:
+        agents (dict): A dictionary of greedy agents per substation.
+        _agent_ids (list): A list of agent IDs representing the acting agents.
+        is_greedy (bool): A flag indicating whether the lower-level agents are greedy.
+        g2op_obs (object): The grid2op observation object.
+        reconnect_lines (list): A list of lines to be reconnected.
+
+    Methods:
+        reset: Resets the environment.
+        step: Performs a single step in the environment.
+        render: Not implemented.
+        select_high_level_action: Selects a high-level action based on the given action dictionary.
+        execute_do_nothing: Executes the "do nothing" action in the environment.
+        select_substation: Selects a substation based on the given action dictionary.
+        get_local_from_global: Converts a global action to its corresponding local action.
     """
 
     def __init__(self, env_config: dict[str, Any]):
@@ -53,7 +71,15 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
         options: Optional[Dict[str, Any]] = None,
     ) -> Tuple[MultiAgentDict, MultiAgentDict]:
         """
-        This function resets the environment.
+        Resets the environment.
+
+        Args:
+            seed (int, optional): The random seed for the environment. Defaults to None.
+            options (Dict[str, Any], optional): Additional options for resetting the environment. Defaults to None.
+
+        Returns:
+            Tuple[MultiAgentDict, MultiAgentDict]: A tuple containing the observations and rewards dictionaries.
+
         """
         # Adjusted reset to also get g2op_obs
         self.reset_capa_idx = 1
@@ -68,9 +94,19 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
         MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict
     ]:
         """
-        This function performs a single step in the environment.
-        """
+        Performs a single step in the environment.
 
+        Args:
+            action_dict (MultiAgentDict): A dictionary containing the actions for each agent.
+
+        Returns:
+            Tuple[MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict]:
+            A tuple containing the observations, rewards, termination flags, truncation flags, and information dictionary.
+
+        Raises:
+            ValueError: If no agent is found in the action dictionary.
+
+        """
         # build basic dicts, that are overwritten by acting agents
         observations: Dict[str, Any] = {}
         rewards: Dict[str, Any] = {}
@@ -120,6 +156,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
         Selects a high-level action based on the given action dictionary.
 
         Args:
+            observations (MultiAgentDict): The current observations dictionary.
             action_dict (MultiAgentDict): A dictionary containing the high-level agent's action.
 
         Returns:
@@ -127,6 +164,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
 
         Raises:
             ValueError: If an invalid action is selected by the high_level_agent in step().
+
         """
         if action_dict["high_level_agent"] == 0:  # do something
             self.proposed_actions = {
@@ -177,12 +215,9 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
         Executes the "do nothing" action in the environment.
 
         Returns:
-            A tuple containing the following:
-            - observations: A dictionary of observations for each agent.
-            - rewards: A dictionary of rewards for each agent.
-            - terminateds: A dictionary indicating whether each agent is terminated.
-            - truncateds: A dictionary indicating whether each agent's episode is truncated.
-            - infos: A dictionary of additional information for each agent.
+            Tuple[MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict]:
+            A tuple containing the observations, rewards, termination flags, truncation flags, and information dictionary.
+
         """
         # step do nothing in environment
         g2op_action = self.grid2op_env.action_space({})
@@ -266,6 +301,7 @@ class GreedyHierarchicalCustomizedGrid2OpEnvironment(
 
         Raises:
             ValueError: If the global action is not found in the inner dictionary.
+
         """
         # return the do-nothing action if asked
         if global_action == 0:

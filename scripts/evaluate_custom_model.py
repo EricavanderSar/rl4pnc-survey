@@ -99,7 +99,16 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
 
 def instantiate_reward_class(class_name: str) -> Any:
     """
-    Instantiates the Reward class from json string.
+    Instantiates the Reward class from a JSON string.
+
+    Args:
+        class_name (str): The fully qualified name of the class to instantiate.
+
+    Returns:
+        Any: An instance of the specified class.
+
+    Raises:
+        ValueError: If there is a problem instantiating the reward class for evaluation.
     """
     # Split the class name into module and class
     class_name = class_name.replace("<", "")
@@ -118,6 +127,15 @@ def instantiate_reward_class(class_name: str) -> Any:
 def instantiate_opponent_classes(class_name: str) -> Any:
     """
     Instantiates opponent classes from json string.
+
+    Args:
+        class_name (str): The name of the class to instantiate.
+
+    Returns:
+        Any: An instance of the specified class.
+
+    Raises:
+        ValueError: If there is a problem instantiating the opponent class.
     """
     # extract the module and class names
     match = re.match(r"<class '(.*)\.(.*)'>", class_name)
@@ -141,11 +159,11 @@ def find_agent_name(
     Returns a descriptive name for the given agent instance.
 
     Parameters:
-    agent_instance (str): The name of the agent instance.
+    agent_instance (Any): The instance of the agent.
+    env_config (dict[str, Any]): The environment configuration.
 
     Returns:
     str: A descriptive name for the agent instance.
-
     """
     if "SingleRllibAgent" in str(agent_instance):
         describe_agent = "single_agent"
@@ -165,6 +183,16 @@ def find_agent_name(
 def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
     """
     Perform runner on the implemented networks.
+
+    Args:
+        env_config (dict): Configuration dictionary for the environment.
+        agent_instance (BaseAgent): An instance of the agent to be evaluated.
+
+    Returns:
+        None
+
+    Raises:
+        None
     """
     results_folder = os.path.join(
         env_config["lib_dir"],
@@ -348,33 +376,8 @@ def setup_rllib_evaluation(
     """
 
     # # load config
-    # config_path = os.path.join(args.file_path, "params.json")
-    # config = load_config(config_path)
     env_config = full_config["environment"]["env_config"]
-    # # change the env_name from _train to _test
-    # env_config["env_name"] = get_original_env_name(env_config["env_name"])
 
-    # env_config["grid2op_kwargs"]["reward_class"] = instantiate_reward_class(
-    #     env_config["grid2op_kwargs"]["reward_class"]
-    # )
-
-    # # check if "opponent_action_class" is part of env_config["grid2op_kwargs"]
-    # if "opponent_action_class" in env_config["grid2op_kwargs"]:
-    #     env_config["grid2op_kwargs"]["opponent_action_class"] = (
-    #         instantiate_opponent_classes(
-    #             env_config["grid2op_kwargs"]["opponent_action_class"]
-    #         )
-    #     )
-    #     env_config["grid2op_kwargs"]["opponent_budget_class"] = (
-    #         instantiate_opponent_classes(
-    #             env_config["grid2op_kwargs"]["opponent_budget_class"]
-    #         )
-    #     )
-    #     env_config["grid2op_kwargs"]["opponent_class"] = instantiate_opponent_classes(
-    #         env_config["grid2op_kwargs"]["opponent_class"]
-    #     )
-
-    # setup_env = grid2op.make(env_config["env_name"])
     # replace opp_ or opponent_ in string with empty string
     full_config["setup"]["experiment_name"] = (
         full_config["setup"]["experiment_name"]

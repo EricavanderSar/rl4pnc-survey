@@ -1,6 +1,6 @@
 """
-This script develops three variants of actions spaces (asymmetrical, based on medha and
-based on TenneT) for a specified grid2op environment.
+This script develops three variants of actions spaces (asymmetrical, based on N-0 (medha) and
+based on N-1 (tennet)) for a specified grid2op environment.
 """
 
 import argparse
@@ -26,6 +26,18 @@ def create_action_spaces(
 ) -> None:
     """
     Creates action spaces for a specified grid2op environment.
+
+    Parameters:
+        env_name (str): The name of the grid2op environment.
+        action_spaces_to_create (list[str]): A list of action spaces to create.
+            Possible values are "asymmetry", "medha", and "tennet".
+        save_path (str): The path to save the created action spaces.
+
+    Raises:
+        ValueError: If the number of possible actions does not match the mathematically calculated number of actions.
+
+    Returns:
+        None
     """
     env = grid2op.make(env_name)
 

@@ -2,6 +2,8 @@
 Defines agent policies.
 """
 
+# pylint: disable=too-many-lines
+
 import os
 import random
 import re
@@ -47,7 +49,20 @@ def policy_mapping_fn(
     episode: Optional[EpisodeV2] = None,
     worker: Optional[RolloutWorker] = None,
 ) -> str:
-    """Maps each agent to a policy."""
+    """
+    Maps each agent to a policy.
+
+    Args:
+        agent_id (str): The ID of the agent.
+        episode (Optional[EpisodeV2]): The episode being processed. Defaults to None.
+        worker (Optional[RolloutWorker]): The worker that is executing the policy. Defaults to None.
+
+    Returns:
+        str: The name of the policy associated with the agent.
+
+    Raises:
+        NotImplementedError: If the given agent ID is not recognized.
+    """
     if agent_id.startswith("reinforcement_learning_agent"):
         # from agent_id, use re to extract the integer at the end
         id_number = re.search(r"\d+$", agent_id)
@@ -82,6 +97,14 @@ class ActionFunctionTorchPolicy(PPOTorchPolicy):
     """
     A custom policy class that extends the PPOTorchPolicy class.
     This policy is used for action function torch models.
+
+    Args:
+        observation_space (gym.Space): The observation space of the environment.
+        action_space (gym.Space): The action space of the environment.
+        config (AlgorithmConfigDict): The configuration dictionary for the algorithm.
+
+    Attributes:
+        model: The sub-model used for the policy.
     """
 
     def __init__(
@@ -90,15 +113,18 @@ class ActionFunctionTorchPolicy(PPOTorchPolicy):
         action_space: gym.Space,
         config: AlgorithmConfigDict,
     ):
-        # self.sub_modelaldkfj = config["model"]["custom_model_config"]["model"]
-
         self.model = config["model"]["custom_model_config"]["model"]
         super().__init__(observation_space, action_space, config)
 
         assert isinstance(self.model, ModelV2)
 
     def make_model(self) -> ModelV2:
-        """Creates a new model for this policy."""
+        """
+        Creates a new model for this policy.
+
+        Returns:
+            A new instance of ModelV2.
+        """
         return self.model
 
     def _compute_action_helper(
@@ -113,14 +139,15 @@ class ActionFunctionTorchPolicy(PPOTorchPolicy):
         Helper function to compute the action based on the input.
 
         Args:
-            input_dict (dict): Input dictionary containing the input data.
-            state_batches (List): List of state batches.
-            seq_lens (List): List of sequence lengths.
+            input_dict (Union[SampleBatch, ModelInputDict]): Input dictionary containing the input data.
+            state_batches (List[TensorType]): List of state batches.
+            seq_lens (List[int]): List of sequence lengths.
             explore (bool): Whether to explore or not.
             timestep (int): The current timestep.
 
         Returns:
-            Tuple: A tuple containing the logits, state outputs, and extra fetches.
+            Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+                A tuple containing the logits, state outputs, and extra fetches.
         """
         logits, state_out, extra_fetches = super()._compute_action_helper(
             input_dict, state_batches, seq_lens, explore, timestep
@@ -138,7 +165,7 @@ class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
         config (AlgorithmConfigDict): The configuration dictionary for the algorithm.
 
     Attributes:
-        sub_modelaldkf: The sub-model used for the policy.
+        model: The sub-model used for the policy.
     """
 
     def __init__(
@@ -153,7 +180,12 @@ class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
         assert isinstance(self.model, ModelV2)
 
     def make_model(self) -> ModelV2:
-        """Creates a new model for this policy."""
+        """
+        Creates a new model for this policy.
+
+        Returns:
+            A new instance of ModelV2.
+        """
         return ValueOnlyModel(
             obs_space=self.observation_space,
             action_space=self.action_space,
@@ -167,6 +199,20 @@ class OnlyValueFunctionTorchPolicy(PPOTorchPolicy):
 class CustomFCN(FullyConnectedNetwork):
     """
     Implements a custom FCN model that appends the mean and stdev for the value function.
+
+    Args:
+        obs_space (gym.spaces.Space): The observation space.
+        action_space (gym.spaces.Space): The action space.
+        num_outputs (int): The number of outputs.
+        model_config (ModelConfigDict): The model configuration.
+        name (str): The name of the model.
+
+    Attributes:
+        obs_space (gym.spaces.Space): The observation space.
+        action_space (gym.spaces.Space): The action space.
+        num_outputs (int): The number of outputs.
+        model_config (ModelConfigDict): The model configuration.
+        name (str): The name of the model.
     """
 
     def __init__(
@@ -234,6 +280,26 @@ class CustomFCN(FullyConnectedNetwork):
 class ValueOnlyModel(FullyConnectedNetwork):
     """
     Implements a custom FCN model that appends the mean and stdev for the value function.
+
+    Args:
+        obs_space (gym.spaces.Space): The observation space.
+        action_space (gym.spaces.Space): The action space.
+        num_outputs (int): The number of outputs.
+        model_config (ModelConfigDict): The model configuration.
+        name (str): The name of the model.
+        _sub_model (FullyConnectedNetwork): The sub-model.
+
+    Attributes:
+        _sub_model (FullyConnectedNetwork): The sub-model.
+        _values (TensorType): The value function.
+
+    Methods:
+        __call__(self, input_dict, state=None, seq_lens=None) -> tuple[TensorType, List[TensorType]]:
+            Forward pass of the model.
+        value_function(self) -> TensorType:
+            Returns the value function.
+        import_from_h5(self, h5_file) -> None:
+            Import model weights from an HDF5 file.
     """
 
     def __init__(
@@ -262,6 +328,17 @@ class ValueOnlyModel(FullyConnectedNetwork):
         state: Union[List[Any], None] = None,
         seq_lens: TensorType = None,
     ) -> tuple[TensorType, List[TensorType]]:
+        """
+        Forward pass of the model.
+
+        Args:
+            input_dict (Union[SampleBatch, ModelInputDict]): The input dictionary.
+            state (Union[List[Any], None], optional): The state. Defaults to None.
+            seq_lens (TensorType, optional): The sequence lengths. Defaults to None.
+
+        Returns:
+            tuple[TensorType, List[TensorType]]: The model outputs and state.
+        """
         logits_act, state_out = self._sub_model(
             input_dict=input_dict, state=state, seq_lens=seq_lens
         )
@@ -288,7 +365,7 @@ class ValueOnlyModel(FullyConnectedNetwork):
             RuntimeError: If `forward` method has not been called before.
 
         Returns:
-            The value function as a TensorType object.
+            TensorType: The value function as a TensorType object.
         """
         if self._values is None:
             raise RuntimeError("Need to call forward first")
@@ -310,7 +387,36 @@ class ValueOnlyModel(FullyConnectedNetwork):
 
 class CapaPolicy(Policy):
     """
-    Policy that that returns a substation to act on based on the CAPA heuristic.
+    Policy that returns a substation to act on based on the CAPA heuristic.
+
+    This policy selects a substation to act on based on the CAPA (Criticality, Accessibility, Priority, and Age) heuristic.
+    It determines the action to take by considering the current observation and the available substation actions.
+    The policy is designed to work with a recurrent model.
+
+    Args:
+        observation_space (gym.Space): The observation space of the environment.
+        action_space (gym.Space): The action space of the environment.
+        config (AlgorithmConfigDict): The configuration dictionary for the algorithm.
+
+    Attributes:
+        possible_substation_actions (List[Action]): The list of possible substation actions.
+        converter (ActionConverter): The converter for converting gym actions to grid2op actions.
+        controllable_substations (List[int]): The list of controllable substations.
+
+    Methods:
+        get_initial_state(): Returns the initial RNN state for the current policy.
+        is_recurrent(): Returns whether this policy holds a recurrent model.
+        compute_actions(): Computes actions for the current policy.
+        get_weights(): Returns the weights of the model.
+        set_weights(): Sets the weights of the model.
+        apply_gradients(): Applies gradients to the model.
+        compute_gradients(): Computes gradients for the model.
+        loss(): Computes the loss function for the model.
+        learn_on_batch(): Performs learning on a batch of samples.
+        learn_on_batch_from_replay_buffer(): Performs learning on a batch of samples from the replay buffer.
+        load_batch_into_buffer(): Loads a batch of samples into the buffer.
+        get_num_samples_loaded_into_buffer(): Returns the number of samples loaded into the buffer.
+        learn_on_loaded_batch(): Performs learning on the loaded batch of samples.
     """
 
     def __init__(
@@ -388,7 +494,26 @@ class CapaPolicy(Policy):
         timestep: Optional[int] = None,
         **kwargs: Dict[str, Any],
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-        """Computes actions for the current policy."""
+        """
+        Computes actions for the current policy.
+
+        Args:
+            obs_batch (Dict[str, Any]): The batch of observations.
+            state_batches (List[TensorType]): The batch of states.
+            prev_action_batch (Union[List[TensorStructType], TensorStructType], optional):
+                The batch of previous actions. Defaults to None.
+            prev_reward_batch (Union[List[TensorStructType], TensorStructType], optional):
+                The batch of previous rewards. Defaults to None.
+            info_batch (Optional[Dict[str, List[Any]]], optional): The batch of additional information. Defaults to None.
+            episodes (Optional[List[str]], optional): The list of episodes. Defaults to None.
+            explore (Optional[bool], optional): The exploration flag. Defaults to None.
+            timestep (Optional[int], optional): The timestep. Defaults to None.
+            **kwargs (Dict[str, Any]): Additional keyword arguments.
+
+        Returns:
+            Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+                A tuple containing the computed actions, state batches, and additional information.
+        """
         # setup counter (1st digit of state)
         idx = state_batches[0][0]
 
@@ -487,6 +612,15 @@ class CapaPolicy(Policy):
 class DoNothingPolicy(Policy):
     """
     Policy that always returns a do-nothing action.
+
+    This policy is used when an agent does not need to take any action in the environment.
+    It always returns a do-nothing action, represented by the value 0.
+
+    Args:
+        observation_space (gym.Space): The observation space of the environment.
+        action_space (gym.Space): The action space of the environment.
+        config (AlgorithmConfigDict): Configuration parameters for the policy.
+
     """
 
     def __init__(
@@ -514,7 +648,24 @@ class DoNothingPolicy(Policy):
         timestep: Optional[int] = None,
         **kwargs: Dict[str, Any],
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-        """Computes actions for the current policy."""
+        """
+        Computes actions for the current policy.
+
+        Args:
+            obs_batch (Union[List[Dict[str, Any]], Dict[str, Any]]): Batch of observations.
+            state_batches (Optional[List[TensorType]]): Batch of states.
+            prev_action_batch (Union[List[TensorStructType], TensorStructType]): Batch of previous actions.
+            prev_reward_batch (Union[List[TensorStructType], TensorStructType]): Batch of previous rewards.
+            info_batch (Optional[Dict[str, List[Any]]]): Batch of additional information.
+            episodes (Optional[List[str]]): List of episode IDs.
+            explore (Optional[bool]): Flag indicating whether to explore or not.
+            timestep (Optional[int]): Current timestep.
+            **kwargs (Dict[str, Any]): Additional keyword arguments.
+
+        Returns:
+            Tuple[TensorType, List[TensorType], Dict[str, TensorType]]: Tuple containing the computed actions,
+            a list of state batches, and a dictionary of additional outputs.
+        """
         return [0], [], {}
 
     def get_weights(self) -> ModelWeights:
@@ -566,6 +717,16 @@ class DoNothingPolicy(Policy):
 class SelectAgentPolicy(Policy):
     """
     High level agent that determines whether an action is required.
+
+    This policy class is responsible for determining whether an action is required based on the observation.
+    It implements the necessary methods for computing actions, getting and setting weights, applying gradients,
+    computing gradients, and learning on batches.
+
+    Attributes:
+        observation_space (gym.Space): The observation space of the environment.
+        action_space (gym.Space): The action space of the environment.
+        config (AlgorithmConfigDict): The configuration dictionary for the algorithm.
+
     """
 
     def __init__(
@@ -594,6 +755,24 @@ class SelectAgentPolicy(Policy):
         timestep: Optional[int] = None,
         **kwargs: Dict[str, Any],
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+        """
+        Compute the actions based on the given observations.
+
+        Args:
+            obs_batch (List[float]): The batch of observations.
+            state_batches (Optional[List[TensorType]]): The batch of states (optional).
+            prev_action_batch (Union[List[TensorStructType], TensorStructType]): The batch of previous actions (optional).
+            prev_reward_batch (Union[List[TensorStructType], TensorStructType]): The batch of previous rewards (optional).
+            info_batch (Optional[Dict[str, List[Any]]]): The batch of additional information (optional).
+            episodes (Optional[List[str]]): The list of episode IDs (optional).
+            explore (Optional[bool]): Whether to explore or not (optional).
+            timestep (Optional[int]): The current timestep (optional).
+            **kwargs (Dict[str, Any]): Additional keyword arguments.
+
+        Returns:
+            Tuple[TensorType, List[TensorType], Dict[str, TensorType]]: The computed actions, state outputs, and info.
+
+        """
         state_outs_result: List[Any] = []
         info_result: Dict[str, Any] = {}
 
@@ -656,6 +835,15 @@ class SelectAgentPolicy(Policy):
 class RandomPolicy(Policy):
     """
     Policy that chooses a random substation.
+
+    This policy selects a random substation from the available action keys in the observation batch.
+    It does not take into account any specific logic or observation information to make its decision.
+
+    Attributes:
+        observation_space (gym.Space): The observation space of the environment.
+        action_space (gym.Space): The action space of the environment.
+        config (AlgorithmConfigDict): The configuration dictionary for the algorithm.
+
     """
 
     def __init__(
@@ -683,7 +871,24 @@ class RandomPolicy(Policy):
         timestep: Optional[int] = None,
         **kwargs: Dict[str, Any],
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-        """Computes actions for the current policy."""
+        """
+        Computes actions for the current policy.
+
+        Args:
+            obs_batch (Union[List[Dict[str, Any]], Dict[str, Any]]): The batch of observations.
+            state_batches (Optional[List[TensorType]]): The batch of states (optional).
+            prev_action_batch (Union[List[TensorStructType], TensorStructType]): The batch of previous actions (optional).
+            prev_reward_batch (Union[List[TensorStructType], TensorStructType]): The batch of previous rewards (optional).
+            info_batch (Optional[Dict[str, List[Any]]]): The batch of additional information (optional).
+            episodes (Optional[List[str]]): The list of episode IDs (optional).
+            explore (Optional[bool]): Whether to explore or not (optional).
+            timestep (Optional[int]): The current timestep (optional).
+            **kwargs (Dict[str, Any]): Additional keyword arguments.
+
+        Returns:
+            Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+                A tuple containing the computed actions, state batches, and additional information.
+        """
         # extract the keys from the action dict from the obs batch
         if isinstance(obs_batch, dict):
             action_keys = list(obs_batch["proposed_actions"].keys())
@@ -742,6 +947,12 @@ class RandomPolicy(Policy):
 class ArgMaxPolicy(Policy):
     """
     Policy that chooses a random substation.
+
+    Args:
+        observation_space (gym.Space): The observation space.
+        action_space (gym.Space): The action space.
+        config (AlgorithmConfigDict): The configuration for the algorithm.
+
     """
 
     def __init__(
@@ -769,7 +980,24 @@ class ArgMaxPolicy(Policy):
         timestep: Optional[int] = None,
         **kwargs: Dict[str, Any],
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-        """Computes actions for the current policy."""
+        """
+        Computes actions for the current policy.
+
+        Args:
+            obs_batch (Union[List[Dict[str, Any]], Dict[str, Any]]): The batch of observations.
+            state_batches (Optional[List[TensorType]]): The batch of states.
+            prev_action_batch (Union[List[TensorStructType], TensorStructType]): The batch of previous actions.
+            prev_reward_batch (Union[List[TensorStructType], TensorStructType]): The batch of previous rewards.
+            info_batch (Optional[Dict[str, List[Any]]]): The batch of additional information.
+            episodes (Optional[List[str]]): The list of episode IDs.
+            explore (Optional[bool]): Flag indicating whether to explore or not.
+            timestep (Optional[int]): The current timestep.
+            **kwargs (Dict[str, Any]): Additional keyword arguments.
+
+        Returns:
+            Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
+                A tuple containing the computed actions, state batches, and additional information.
+        """
         # find the index with the highest value in proposed_confidences
         if isinstance(obs_batch, dict):
             proposed_confidences = obs_batch["proposed_confidences"]
@@ -829,6 +1057,17 @@ class ArgMaxPolicy(Policy):
 class SampleValuePolicy(Policy):
     """
     Policy that chooses a random substation.
+
+    This policy selects a random substation based on the proposed confidences
+    provided in the observation batch. It implements the necessary methods
+    required by the Policy class for computing actions, getting and setting weights,
+    applying and computing gradients, and learning on batches.
+
+    Args:
+        observation_space (gym.Space): The observation space of the environment.
+        action_space (gym.Space): The action space of the environment.
+        config (AlgorithmConfigDict): Configuration parameters for the policy.
+
     """
 
     def __init__(
@@ -856,7 +1095,24 @@ class SampleValuePolicy(Policy):
         timestep: Optional[int] = None,
         **kwargs: Dict[str, Any],
     ) -> Tuple[TensorType, List[TensorType], Dict[str, TensorType]]:
-        """Computes actions for the current policy."""
+        """
+        Computes actions for the current policy.
+
+        Args:
+            obs_batch (Union[List[Dict[str, Any]], Dict[str, Any]]): Batch of observations.
+            state_batches (Optional[List[TensorType]]): Batch of states.
+            prev_action_batch (Union[List[TensorStructType], TensorStructType]): Batch of previous actions.
+            prev_reward_batch (Union[List[TensorStructType], TensorStructType]): Batch of previous rewards.
+            info_batch (Optional[Dict[str, List[Any]]]): Batch of additional information.
+            episodes (Optional[List[str]]): List of episode IDs.
+            explore (Optional[bool]): Flag indicating whether to explore or not.
+            timestep (Optional[int]): Current timestep.
+            **kwargs (Dict[str, Any]): Additional keyword arguments.
+
+        Returns:
+            Tuple[TensorType, List[TensorType], Dict[str, TensorType]]: Tuple containing the computed actions,
+            state values, and additional action information.
+        """
         # find the index with the highest value in proposed_confidences
         if isinstance(obs_batch, dict):
             proposed_confidences = obs_batch["proposed_confidences"]

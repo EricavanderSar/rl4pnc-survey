@@ -143,30 +143,9 @@ def generate_split_points(
         reduction_in_days[scenario_id] = []
         splitting_points[scenario_id] = []
         if check_safe_starting_point(env, scenario_id, 0 + int(TIME * 60 / 5) - 1):
-            # _, _, _, _ = env.step(env.action_space())
             splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
         else:
-            # print(f"Day 0 not safe for {scenario_id}, appending anyways.")
-            # _, _, _, _ = env.step(env.action_space())
             splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
-
-            # # no safe starting point found at day 0, skip day
-            # not_safe = True
-            # counter = 1
-            # while not_safe:
-            #     print(f"Day 0 not safe for {scenario_id}, trying day {counter}")
-            #     reduction_in_days[scenario_id].append(True)
-
-            #     if check_safe_starting_point(
-            #         env, scenario_id, (LENGTH_DAY * counter) + int(TIME * 60 / 5) - 1
-            #     ):
-            #         _, _, _, _ = env.step(env.action_space())
-            #         splitting_points[scenario_id].append(int(TIME * 60 / 5) - 1)
-            #         not_safe = False
-
-            # raise AssertionError(
-            #     f"Safe starting point not found for {scenario_id} at day 0"
-            # )
 
         for tsteps in range(LENGTH_DAY * delta, episode_duration, LENGTH_DAY * delta):
             number_of_days = int(tsteps / (LENGTH_DAY * delta))
@@ -237,8 +216,6 @@ def split_chronics_into_days(env: BaseEnv, save_path: str, delta: int) -> None:
                 - 1
             ):  # should be less than total number of days,
                 time_str = f"0{TIME}:00"
-                # # set at the specified starting night time
-                # env.fast_forward_chronics(TIME * 60 / 5)
             else:  # for the last day, go from midnight to midnight
                 time_str = "00:00"
 
@@ -310,9 +287,6 @@ if __name__ == "__main__":
             **custom_config["environment"]["env_config"]["grid2op_kwargs"],
             backend=LightSimBackend(),
         )
-        # setup_env.seed(custom_config["environment"]["env_config"]["seed"])
-        # generate_split_points(setup_env, input_days)
-
         split_chronics_into_days(setup_env, input_save_path, input_days)
     else:
         parser.print_help()

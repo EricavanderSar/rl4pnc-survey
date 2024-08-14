@@ -1,5 +1,5 @@
 """
-Trains PPO baseline agent.
+Trains PPO baseline single agent.
 """
 
 import argparse
@@ -21,6 +21,13 @@ from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
 def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     """
     Loads the json as config and sets it up for training.
+
+    Args:
+        config_path (str): The path to the JSON config file.
+        checkpoint_path (str | None): The path to the checkpoint file, or None if not provided.
+
+    Returns:
+        None
     """
     # load base PPO config and load in hyperparameters
     ppo_config = ppo.PPOConfig().to_dict()

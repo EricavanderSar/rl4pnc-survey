@@ -1,5 +1,5 @@
 """
-Implement PPO in Rllib with an accurate batch size, taken from Erica.
+Implement PPO in Rllib with an accurate batch size, adapted from Erica.
 """
 
 # pylint: skip-file

@@ -21,6 +21,13 @@ from mahrl.evaluation.utils import (
 def run_statistics(path: str, episode_list: list[EpisodeData]) -> None:
     """
     Calls the scenario and global statistics for the evaluation.
+
+    Args:
+        path (str): The path to save the statistics.
+        episode_list (list[EpisodeData]): A list of EpisodeData objects representing the episodes.
+
+    Returns:
+        None
     """
     global_action_sequences = []
     global_topology_list = []

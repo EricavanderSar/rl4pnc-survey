@@ -46,12 +46,12 @@ def setup_gym_spaces(
     Set up the gym spaces for the RL environment.
 
     Args:
-        agent_per_substation (dict[int, int]): A dictionary mapping substation IDs to the number of agents per substation.
+        agent_per_substation (dict[str, int]): A dictionary mapping substation IDs to the number of agents per substation.
         env_info (dict[str, int]): A dictionary containing information about the environment.
 
     Returns:
-        tuple[gym.spaces.Dict, gym.spaces.Dict, gym.spaces.Dict]: A tuple containing the gym spaces for
-            previous observations, proposed actions, and proposed confidences.
+        tuple[gym.spaces.Dict, gym.spaces.Dict, gym.spaces.Dict, gym.spaces.Dict]: A tuple containing the gym spaces for
+            previous observations, proposed actions, proposed action capacities, and proposed confidences.
     """
     gym_previous_obs = gym.spaces.Dict(
         {
@@ -391,9 +391,9 @@ def select_low_level_policy(
     return policies
 
 
-def split_hub_into_agents(agent_per_substation: dict[str, int]) -> dict[str, int]:
+def create_agents(agent_per_substation: dict[str, int]) -> dict[str, int]:
     """
-    Splits the hub into agents.
+    Create agents for all substations.
 
     Args:
         agent_per_substation (dict[int, int]): A dictionary mapping substation indices to the number of actions.
@@ -554,7 +554,7 @@ def setup_config(
             add_dn_agents=False,
             add_dn_action_per_agent=True,
         )
-        agent_per_substation = split_hub_into_agents(agent_per_substation)
+        agent_per_substation = create_agents(agent_per_substation)
 
     original_list_of_substations = []
     for sub_id in agent_per_substation:

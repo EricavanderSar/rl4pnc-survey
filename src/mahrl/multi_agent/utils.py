@@ -1,5 +1,5 @@
 """
-Defines agent policies.
+Utils for all multi-agent policies for training and evaluation.
 """
 
 import random
@@ -22,7 +22,6 @@ def argmax_logic(proposed_confidences: dict[str, float]) -> str:
         str: The selected sub_id.
 
     """
-    # return max(proposed_confidences, key=proposed_confidences.get)
     return max(proposed_confidences, key=lambda x: proposed_confidences[x])
 
 
@@ -31,10 +30,10 @@ def softmax(input_array: np.ndarray[Any, Any]) -> list[float]:
     Compute the softmax function for an input array.
 
     Parameters:
-    x (numpy.ndarray): Input array.
+    input_array (numpy.ndarray): Input array.
 
     Returns:
-    numpy.ndarray: Softmax values of the input array.
+    list[float]: Softmax values of the input array.
     """
     e_x = np.exp(input_array - np.max(input_array))
     return list(e_x / e_x.sum(axis=0))
@@ -76,11 +75,16 @@ def capa_logic(
     Selects a sub_id based on the proposed actions and capa logic.
 
     Args:
-        proposed_actions (dict[str, int]): A dictionary mapping sub_ids to their corresponding proposed actions.
+        proposed_actions (dict[str, BaseAction]): A dictionary mapping sub_ids to their corresponding proposed actions.
+        gym_obs (dict[str, list[int]]): A dictionary containing the gym observations.
+        controllable_substations (dict[str, int]): A dictionary mapping sub_ids to their corresponding controllable status.
+        line_info (dict[str, list[int]]): A dictionary containing information about the lines.
+        substation_order (Optional[list[str]], optional): An optional list specifying the order of substations.
+            Defaults to None.
+        idx (int, optional): An optional index value. Defaults to 0.
 
     Returns:
-        int: The current index.
-        str: The selected sub_id.
+        Tuple[int, str]: A tuple containing the current index and the selected sub_id.
 
     """
     # if no list is created yet, do so

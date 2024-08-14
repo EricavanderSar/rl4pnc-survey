@@ -34,8 +34,12 @@ RENDERFRAME = TypeVar("RENDERFRAME")
 
 class ReconnectingGymEnv(GymEnv):
     """
-    This class wrapps the Grid2Op GymEnv and automatically connects disconnected
+    This class wraps the Grid2Op GymEnv and automatically connects disconnected
     powerlines in the environment.
+
+    Parameters:
+        env (BaseEnv): The Grid2Op environment to wrap.
+        shuffle_chronics (bool): Whether to shuffle the chronics in the environment. Default is True.
     """
 
     def __init__(self, env: BaseEnv, shuffle_chronics: bool = True):
@@ -190,7 +194,32 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         options: Optional[Dict[str, Any]] = None,
     ) -> Tuple[OrderedDict[str, Any], dict[str, Any]]:
         """
-        This function resets the environment with prio sampling.
+        Resets the environment with priority sampling and disables shunts.
+
+        Args:
+            seed (Optional[int]): The random seed to use for resetting the environment. Default is None.
+            options (Optional[Dict[str, Any]]): Additional options for resetting the environment. Default is None.
+
+        Returns:
+            Tuple[OrderedDict[str, Any], dict[str, Any]]:
+                A tuple containing the reset observation and additional information.
+
+        Raises:
+            None
+
+        This function resets the environment with priority sampling and disables shunts.
+        It first samples the next chronics if the environment is configured to shuffle chronics
+        and uses real data from a Multifolder. Then, it calls the `reset` method of the parent
+        class to reset the environment. If a seed is provided, it also sets the seed
+        for the action and observation spaces and retrieves the underlying environment seeds.
+        Next, it resets the initial environment using the `reset` method. Finally, it disables
+        shunts by setting the shunt action to zero and retrieves the gym observation.
+
+        Note:
+            - Disabling shunts may affect the behavior of the environment and the resulting observations.
+
+        Example usage:
+            gym_obs, info = env.no_shunt_reset(seed=42)
         """
         # adapted from the internal GymEnv _aux_reset method
         if self.env_gym._shuffle_chronics and isinstance(
@@ -234,7 +263,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         Args:
             seed (int, optional): Random seed for environment reset. Defaults to None.
-            options (Dict[str, Any], optional): Additional options for environment reset. Defaults to None.
+            options (Dict[str, Any], optional): Additional options for environment reset.
+                Defaults to None.
 
         Returns:
             Tuple[MultiAgentDict, MultiAgentDict]: Tuple containing the initial observations and info.
@@ -244,7 +274,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             self.previous_obs, info = self.prio_reset()
         else:
             self.previous_obs, info = self.env_gym.reset()
-            # self.previous_obs, info = self.no_shunt_reset() #TODO: Integrate shunt reset in others?
 
         return {"high_level_agent": max(self.previous_obs["rho"])}, {"__common__": info}
 
@@ -255,6 +284,23 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
     ) -> Tuple[OrderedDict[str, Any], dict[str, Any]]:
         """
         This function resets the environment with prio sampling.
+
+        Parameters:
+            seed (Optional[int]): The seed value for random number generation. Defaults to None.
+            options (Optional[Dict[str, Any]]): Additional options for resetting the environment. Defaults to None.
+
+        Returns:
+            Tuple[OrderedDict[str, Any], dict[str, Any]]:
+                A tuple containing the reset observation and additional information.
+
+        Raises:
+            None
+
+        This function resets the environment using prio sampling. It samples a chronicle using chronic priority,
+        sets the sampled chronicle as the current chronicle, and resets the environment using the sampled chronicle.
+
+        Note:
+            This method is adapted from the internal GymEnv _aux_reset method.
         """
         # adapted from the internal GymEnv _aux_reset method
         if self.env_gym._shuffle_chronics and isinstance(
@@ -533,14 +579,26 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         self.proposed_confidences: dict[str, float] = OrderedDict()
         self.last_action_agent: Union[str, None] = None
 
-    # pylint: disable=too-many-branches
-    def step(
+    # pylint: disable=too-many-branches, too-many-statements
+    def step(  # noqa: C901
         self, action_dict: MultiAgentDict
     ) -> Tuple[
         MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict
     ]:
         """
         This function performs a single step in the environment.
+
+        Args:
+            action_dict (MultiAgentDict): A dictionary containing the actions of each agent.
+
+        Returns:
+            Tuple[MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict, MultiAgentDict]:
+                A tuple containing the following:
+                - observations (MultiAgentDict): A dictionary containing the observations for each agent.
+                - rewards (MultiAgentDict): A dictionary containing the rewards for each agent.
+                - terminateds (MultiAgentDict): A dictionary indicating whether each agent has terminated.
+                - truncateds (MultiAgentDict): A dictionary indicating whether each agent's trajectory has been truncated.
+                - infos (MultiAgentDict): A dictionary containing additional information for each agent.
         """
 
         # build basic dicts, that are overwritten by acting agents
@@ -779,7 +837,15 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         self, action_dict: MultiAgentDict
     ) -> tuple[dict[str, int], dict[str, float]]:
         """
-        Extract all proposed actions and vluesfrom the action_dict.
+        Extracts all proposed actions and values from the action_dict.
+
+        Args:
+            action_dict (MultiAgentDict): A dictionary containing the proposed actions for each agent.
+
+        Returns:
+            tuple[dict[str, int], dict[str, float]]: A tuple containing two dictionaries:
+                - proposed_actions: A dictionary mapping agent IDs to their proposed actions (integer values).
+                - proposed_confidences: A dictionary mapping agent IDs to their proposed confidences (float values).
         """
         # assert that there are as many keys that start with "value_reinforcement_learning_agent"
         # as there are keys that start with "value_function_agent"
@@ -808,16 +874,23 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                     proposed_actions[agent_id] = int(action)
                 if key.startswith("value_function_agent"):
                     proposed_confidences[agent_id] = float(action)
-            # else:
-            #     # NOTE: The confidence for the do-nothing action is set to 0
-            #     proposed_actions["-1"] = 0
-            #     proposed_confidences["-1"] = 0.0
 
         return proposed_actions, proposed_confidences
 
     def extract_proposed_actions(self, action_dict: MultiAgentDict) -> dict[str, int]:
         """
-        Extract all proposed actions from the action_dict.
+        Extracts all proposed actions from the action_dict.
+
+        Parameters:
+            action_dict (MultiAgentDict): A dictionary containing the proposed actions for each agent.
+
+        Returns:
+            dict[str, int]: A dictionary mapping agent IDs to their proposed actions.
+
+        Notes:
+            - The "do_nothing_agent" key is ignored.
+            - If the environment is rule-based or capacity-based, the local actions are converted to global actions.
+            - If the environment is not rule-based or capacity-based, the local actions are returned as is.
         """
         proposed_actions: dict[str, int] = {}
         for key, local_action in action_dict.items():
@@ -833,26 +906,25 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                     proposed_actions[agent_id] = int(global_action)
                 else:
                     proposed_actions[agent_id] = int(local_action)
-            # else:
-            #     proposed_actions["-1"] = 0
 
         return proposed_actions
 
     def perform_high_level_action(self, action_dict: MultiAgentDict) -> MultiAgentDict:
         """
         Performs HL action for HRL-env.
+
+        Args:
+            action_dict (MultiAgentDict): A dictionary containing the high-level action for each agent.
+
+        Returns:
+            MultiAgentDict: A dictionary containing the observations for each agent after performing the high-level action.
         """
-        # observations: Union[dict[str, int], dict[int, OrderedDict[str, Any]]] = {}
         observations: dict[str, Union[int, OrderedDict[str, Any]]] = {}
         action = action_dict["high_level_agent"]
         if action == 0:  # do something
-            # add an observation key for all agents in self.rl_agent_ids
             for agent_id in self.rl_agent_ids:
-                # observations[agent_id] = gym.spaces.Dict(self.previous_obs) # NOTE For the vf only?
                 observations[agent_id] = self.previous_obs
 
-            # # also add do nothing agent
-            # observations["do_nothing_agent"] = 0
         elif action == 1:  # do nothing
             observations = {"do_nothing_agent": 0}
         else:
