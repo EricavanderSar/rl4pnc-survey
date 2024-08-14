@@ -89,11 +89,6 @@ class CustomPPO(PPO):
         train_batch = standardize_fields(train_batch, ["advantages"])
         # Train
         if self.config._enable_learner_api:
-            # TODO (Kourosh) Clearly define what train_batch_size
-            #  vs. sgd_minibatch_size and num_sgd_iter is in the config.
-            # TODO (Kourosh) Do this inside the Learner so that we don't have to do
-            #  this back and forth communication between driver and the remote
-            #  learner actors.
             is_module_trainable = self.workers.local_worker().is_policy_to_train
             self.learner_group.set_is_module_trainable(is_module_trainable)
             train_results = self.learner_group.update(
@@ -111,14 +106,10 @@ class CustomPPO(PPO):
             # The train results's loss keys are pids to their loss values. But we also
             # return a total_loss key at the same level as the pid keys. So we need to
             # subtract that to get the total set of pids to update.
-            # TODO (Kourosh): We should also not be using train_results as a message
-            #  passing medium to infer which policies to update. We could use
-            #  policies_to_train variable that is given by the user to infer this.
             policies_to_update = list(set(train_results.keys()) - {ALL_MODULES})
         else:
             policies_to_update = list(train_results.keys())
 
-        # TODO (Kourosh): num_grad_updates per each policy should be accessible via
         # train_results
         global_vars = {
             "timestep": self._counters[NUM_AGENT_STEPS_SAMPLED],

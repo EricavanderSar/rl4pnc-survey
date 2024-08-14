@@ -444,7 +444,6 @@ class MultiRllibAgents(BaseAgent):
                     name.split("_")[-1]
                 ] = self._rllib_agents.compute_single_action(gym_obs, policy_id=name)
             elif name == "greedy":
-                # TODO: Implement greedy agent
                 proposed_actions["greedy"] = 0
         return proposed_actions
 
