@@ -5,7 +5,7 @@ setup:
   storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
 
 debugging:
-  seed: &seed 14
+  seed: &seed !randint [0, 100000]
 
 training:
   # tunable parameters
@@ -64,12 +64,16 @@ environment:
           - '0_2_1'
           - '0_3_2'
           - '2_3_6'
-    seed: *seed
     rho_threshold: 0.95
+    stage: train
+    prio: True
+    shuffle_scenarios: True
 
 env_config_val: &env_config_val
   <<: *env_config_train
   env_name: rte_case5_example_per_day_val
+  shuffle_scenarios: False
+  stage: val
 
 evaluation:
   evaluation_interval: 10

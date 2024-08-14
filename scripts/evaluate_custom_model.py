@@ -6,8 +6,8 @@ import argparse
 import importlib
 import os
 import re
+import shutil
 import time
-from statistics import mean
 from typing import Any
 
 import grid2op
@@ -15,17 +15,21 @@ from grid2op.Agent import BaseAgent, DoNothingAgent
 from grid2op.Environment import BaseEnv
 from grid2op.Reward import BaseReward
 from grid2op.Runner import Runner
-from lightsim2grid import LightSimBackend  # pylint: disable=wrong-import-order
 from ray.rllib.algorithms import ppo
 
 from mahrl.evaluation.evaluation_agents import (
     CapaAndGreedyAgent,
     LargeTopologyGreedyAgent,
-    RllibAgent,
+    MultiRllibAgents,
+    RandomAndGreedyAgent,
+    SingleRllibAgent,
 )
 from mahrl.experiments.yaml import load_config
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.grid2op_env.utils import load_actions
+from mahrl.grid2op_env.custom_environment import (
+    CustomizedGrid2OpEnvironment,
+    HierarchicalCustomizedGrid2OpEnvironment,
+)
+from mahrl.grid2op_env.utils import get_original_env_name, load_actions, make_g2op_env
 
 
 def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
@@ -51,10 +55,16 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
         help="Signals to evaluate a Greedy agent.",
     )
     parser.add_argument(
-        "-r",
-        "--rule_based_hierarchical",
+        "-capa",
+        "--capa_hierarchical",
         action="store_true",
         help="Signals to evaluate a Capa and Greedy agent.",
+    )
+    parser.add_argument(
+        "-random",
+        "--random_hierarchical",
+        action="store_true",
+        help="Signals to evaluate a Random and Greedy agent.",
     )
 
     parser.add_argument(
@@ -71,10 +81,17 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
         help="Path to the input file, only for the Rllib agent.",
     )
     parser.add_argument(
-        "-p",
+        "-cp",
         "--checkpoint_name",
         type=str,
         help="Name of the checkpoint, only for the Rllib agent.",
+    )
+
+    parser.add_argument(
+        "-ma",
+        "--multi_agent",
+        action="store_true",
+        help="Flag if the loaded model is a multi-agent model.",
     )
 
     return parser.parse_args()
@@ -82,7 +99,16 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
 
 def instantiate_reward_class(class_name: str) -> Any:
     """
-    Instantiates the Reward class from json string.
+    Instantiates the Reward class from a JSON string.
+
+    Args:
+        class_name (str): The fully qualified name of the class to instantiate.
+
+    Returns:
+        Any: An instance of the specified class.
+
+    Raises:
+        ValueError: If there is a problem instantiating the reward class for evaluation.
     """
     # Split the class name into module and class
     class_name = class_name.replace("<", "")
@@ -101,6 +127,15 @@ def instantiate_reward_class(class_name: str) -> Any:
 def instantiate_opponent_classes(class_name: str) -> Any:
     """
     Instantiates opponent classes from json string.
+
+    Args:
+        class_name (str): The name of the class to instantiate.
+
+    Returns:
+        Any: An instance of the specified class.
+
+    Raises:
+        ValueError: If there is a problem instantiating the opponent class.
     """
     # extract the module and class names
     match = re.match(r"<class '(.*)\.(.*)'>", class_name)
@@ -116,45 +151,61 @@ def instantiate_opponent_classes(class_name: str) -> Any:
     raise ValueError("Problem instantiating opponent class for evaluation.")
 
 
+def find_agent_name(
+    agent_instance: Any,
+    env_config: dict[str, Any],
+) -> str:
+    """
+    Returns a descriptive name for the given agent instance.
+
+    Parameters:
+    agent_instance (Any): The instance of the agent.
+    env_config (dict[str, Any]): The environment configuration.
+
+    Returns:
+    str: A descriptive name for the agent instance.
+    """
+    if "SingleRllibAgent" in str(agent_instance):
+        describe_agent = "single_agent"
+    elif "MultiRllibAgents" in str(agent_instance):
+        describe_agent = (
+            agent_instance.lower_policy_name + "_" + agent_instance.middle_policy_name
+        )
+    elif "CapaAndGreedy" in str(agent_instance):
+        describe_agent = "greedy_capa"
+    elif "RandomAndGreedy" in str(agent_instance):
+        describe_agent = "greedy_random"
+    else:
+        describe_agent = str(agent_instance)
+    return str(describe_agent)
+
+
 def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
     """
     Perform runner on the implemented networks.
+
+    Args:
+        env_config (dict): Configuration dictionary for the environment.
+        agent_instance (BaseAgent): An instance of the agent to be evaluated.
+
+    Returns:
+        None
+
+    Raises:
+        None
     """
-    results_folder = f"{env_config['lib_dir']}/results/{env_config['env_name']}"
+    results_folder = os.path.join(
+        env_config["lib_dir"],
+        "results",
+        env_config["env_name"],
+        env_config["action_space"],
+    )
     # check if the folder exists
     if not os.path.exists(results_folder):
         # if not, create the folder
         os.makedirs(results_folder)
 
-    env = grid2op.make(
-        env_config["env_name"],
-        **env_config["grid2op_kwargs"],
-        backend=LightSimBackend(),
-    )
-
-    thermal_limits = [  # TODO: Remove?
-        1000,
-        1000,
-        1000,
-        1000,
-        1000,
-        1000,
-        1000,
-        760,
-        450,
-        760,
-        380,
-        380,
-        760,
-        380,
-        760,
-        380,
-        380,
-        380,
-        2000,
-        2000,
-    ]
-    env.set_thermal_limit(thermal_limits)
+    env = make_g2op_env(env_config)
 
     params = env.get_params_for_runner()
     params["rewardClass"] = env_config["grid2op_kwargs"]["reward_class"]
@@ -167,8 +218,14 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         del env_config["grid2op_kwargs"]["kwargs_opponent"]
     params.update(env_config["grid2op_kwargs"])
 
+    describe_agent = find_agent_name(agent_instance, env_config)
+
     store_trajectories_folder = os.path.join(
-        env_config["lib_dir"], "runs/action_evaluation"
+        env_config["lib_dir"],
+        "runs/action_evaluation",
+        env_config["env_name"],
+        "opponent" if "opponent_kwargs" in env_config["grid2op_kwargs"] else "regular",
+        describe_agent,
     )
 
     # check if the folder exists
@@ -176,13 +233,17 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         # if not, create the folder
         os.makedirs(store_trajectories_folder)
 
+    # set seed if not done yet
+    if "seed" not in env_config:
+        env_config["seed"] = 16
+
     # run the environment 10 times if an opponent is active, with different seeds
     for i in range(10 if "opponent_kwargs" in env_config["grid2op_kwargs"] else 1):
         env_config["seed"] = env_config["seed"] + i
 
         # define the results folder path
         file_name = (
-            f"{type(agent_instance)}"
+            f"{describe_agent}"
             + f"_{'opponent' if 'opponent_kwargs' in env_config['grid2op_kwargs'] else 'no_opponent'}"
             + f"_{env_config['action_space']}_{env_config['rho_threshold']}_{i}.txt"
         )
@@ -194,44 +255,61 @@ def run_runner(env_config: dict[str, Any], agent_instance: BaseAgent) -> None:
         ) as file:
             file.write(f"Threshold={env_config['rho_threshold']}\n")
 
-        res = Runner(
+        _ = Runner(
             **params,
             agentClass=None,
             agentInstance=agent_instance,
         ).run(
-            path_save=os.path.abspath(
-                f"{store_trajectories_folder}/{env_config['env_name']}"
-            ),
-            # nb_episode=1,
+            path_save=os.path.join(store_trajectories_folder, str(i)),
             nb_episode=len(env.chronics_handler.subpaths),
             max_iter=-1,
             nb_process=1,
         )
 
-        individual_timesteps = []
+    flatten_directories(store_trajectories_folder, env_config)
 
-        for _, chron_name, _, nb_time_step, max_ts in res:
-            with open(
-                f"{results_folder}/{file_name}",
-                "a",
-                encoding="utf-8",
-            ) as file:
-                file.write(
-                    f"\n\tFor chronics with id {chron_name}\n"
-                    + f"\t\t - number of time steps completed: {nb_time_step:.0f} / {max_ts:.0f}"
+
+def flatten_directories(
+    store_trajectories_folder: str, env_config: dict[str, Any]
+) -> None:
+    """
+    Flatten the directory structure by moving all subdirectories and files to the parent directory.
+
+    Args:
+        dir_name (str): The name of the directory.
+        store_trajectories_folder (str): The path to the parent directory where the subdirectories and files are located.
+        env_config (Dict[str, Any]): The environment configuration.
+
+    Returns:
+        None
+    """
+    # Iterate over all directories
+    for dir_name in range(
+        10 if "opponent_kwargs" in env_config["grid2op_kwargs"] else 1
+    ):
+        dir_path = os.path.join(store_trajectories_folder, str(dir_name))
+
+        # Iterate over all subdirectories
+        for root, dirs, files in os.walk(dir_path):
+            for cur_dir in dirs:
+                # Construct full directory path
+                source = os.path.join(root, cur_dir)
+                destination = os.path.join(
+                    store_trajectories_folder, f"{dir_name}_{cur_dir}"
                 )
 
-            individual_timesteps.append(nb_time_step)
+                # Move directory to parent directory and rename
+                shutil.move(source, destination)
 
-        with open(
-            f"{results_folder}/{file_name}",
-            "a",
-            encoding="utf-8",
-        ) as file:
-            file.write(
-                f"\nAverage timesteps survived: {mean(individual_timesteps)}\n{individual_timesteps}\n"
-                + f"Total time = {time.time() - start_time}"
-            )
+            for file in files:
+                # Construct full file path
+                source = os.path.join(root, file)
+                destination = os.path.join(store_trajectories_folder, file)
+
+                # Move file to parent directory
+                shutil.move(source, destination)
+
+        shutil.rmtree(dir_path)
 
 
 def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> None:
@@ -257,6 +335,7 @@ def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> N
             action_space=setup_env.action_space,
             env_config=env_config,
             possible_actions=possible_actions,
+            gym_wrapper=HierarchicalCustomizedGrid2OpEnvironment(env_config),
         ),
     )
 
@@ -278,7 +357,13 @@ def setup_do_nothing_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) 
     )
 
 
-def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
+def setup_rllib_evaluation(
+    file_path: str,
+    checkpoint_name: str,
+    full_config: dict[str, Any],
+    setup_env: BaseEnv,
+    is_multi_agent: bool = False,
+) -> None:
     """
     Set up the evaluation of a custom RLlib model.
 
@@ -289,45 +374,50 @@ def setup_rllib_evaluation(file_path: str, checkpoint_name: str) -> None:
     Returns:
         None
     """
-    # load config
-    config_path = os.path.join(args.file_path, "params.json")
-    config = load_config(config_path)
-    env_config = config["env_config"]
-    # change the env_name from _train to _test
-    env_config["env_name"] = env_config["env_name"].replace("_train", "_test")
 
-    env_config["grid2op_kwargs"]["reward_class"] = instantiate_reward_class(
-        env_config["grid2op_kwargs"]["reward_class"]
+    # # load config
+    env_config = full_config["environment"]["env_config"]
+
+    # replace opp_ or opponent_ in string with empty string
+    full_config["setup"]["experiment_name"] = (
+        full_config["setup"]["experiment_name"]
+        .replace("opponent_", "")
+        .replace("opp_", "")
     )
 
-    # check if "opponent_action_class" is part of env_config["grid2op_kwargs"]
-    if "opponent_action_class" in env_config["grid2op_kwargs"]:
-        env_config["grid2op_kwargs"][
-            "opponent_action_class"
-        ] = instantiate_opponent_classes(
-            env_config["grid2op_kwargs"]["opponent_action_class"]
-        )
-        env_config["grid2op_kwargs"][
-            "opponent_budget_class"
-        ] = instantiate_opponent_classes(
-            env_config["grid2op_kwargs"]["opponent_budget_class"]
-        )
-        env_config["grid2op_kwargs"]["opponent_class"] = instantiate_opponent_classes(
-            env_config["grid2op_kwargs"]["opponent_class"]
-        )
+    lower_name, middle_name = (
+        full_config["setup"]["experiment_name"].split("/")[1].split("_")
+    )
 
-    run_runner(
-        env_config=env_config,
-        agent_instance=RllibAgent(
-            action_space=None,
+    if is_multi_agent:
+        run_runner(
             env_config=env_config,
-            file_path=file_path,
-            policy_name="default_policy",
-            algorithm=ppo.PPO,
-            checkpoint_name=checkpoint_name,
-            gym_wrapper=CustomizedGrid2OpEnvironment(env_config),
-        ),
-    )
+            agent_instance=MultiRllibAgents(
+                action_space=None,
+                env_config=env_config,
+                file_path=file_path,
+                lower_policy_name=lower_name.lower(),
+                middle_policy_name=middle_name.lower(),
+                # lower_policy_name=config["lower_policy_name"],
+                # middle_policy_name=config["middlepolicy_name"],
+                algorithm=ppo.PPO,
+                checkpoint_name=checkpoint_name,
+                gym_wrapper=HierarchicalCustomizedGrid2OpEnvironment(env_config),
+            ),
+        )
+    else:
+        run_runner(
+            env_config=env_config,
+            agent_instance=SingleRllibAgent(
+                action_space=None,
+                env_config=env_config,
+                file_path=file_path,
+                policy_name="reinforcement_learning_policy",
+                algorithm=ppo.PPO,
+                checkpoint_name=checkpoint_name,
+                gym_wrapper=CustomizedGrid2OpEnvironment(env_config),
+            ),
+        )
 
 
 def setup_capa_greedy_evaluation(
@@ -355,6 +445,37 @@ def setup_capa_greedy_evaluation(
             action_space=setup_env.action_space,
             env_config=env_config,
             possible_actions=possible_actions,
+            gym_wrapper=HierarchicalCustomizedGrid2OpEnvironment(env_config),
+        ),
+    )
+
+
+def setup_random_greedy_evaluation(
+    env_config: dict[str, Any], setup_env: BaseEnv
+) -> None:
+    """
+    Set up the evaluation of a greedy agent on a given environment configuration.
+
+    Args:
+        env_config (dict): The configuration of the environment.
+        setup_env (object): The setup environment object.
+
+    Returns:
+        None
+    """
+    actions_path = os.path.abspath(
+        f"{env_config['lib_dir']}/data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
+    )
+
+    possible_actions = load_actions(actions_path, setup_env)
+
+    run_runner(
+        env_config=env_config,
+        agent_instance=RandomAndGreedyAgent(
+            action_space=setup_env.action_space,
+            env_config=env_config,
+            possible_actions=possible_actions,
+            gym_wrapper=HierarchicalCustomizedGrid2OpEnvironment(env_config),
         ),
     )
 
@@ -364,26 +485,33 @@ if __name__ == "__main__":
     init_parser = argparse.ArgumentParser(description="Process possible variables.")
     args = setup_parser(init_parser)
 
+    # load config file
+    config = load_config(args.config)
+    environment_config = config["environment"]["env_config"]
+    # change the env_name from _train to _test
+    environment_config["env_name"] = get_original_env_name(
+        environment_config["env_name"]
+    )
+
+    init_setup_env = grid2op.make(environment_config["env_name"])
+
     # Check which arguments are provided
     if (
-        args.greedy or args.nothing or args.rule_based_hierarchical
+        args.greedy
+        or args.nothing
+        or args.capa_hierarchical
+        or args.random_hierarchical
     ):  # run donothing or greedy evaluation
         if not args.config:
             init_parser.print_help()
         else:
-            # load config file
-            environment_config = load_config(args.config)["environment"]["env_config"]
-            # change the env_name from _train to _test
-            environment_config["env_name"] = environment_config["env_name"].replace(
-                "_train", "_test"
-            )
-            init_setup_env = grid2op.make(environment_config["env_name"])
-
             # start runners
             if args.greedy:
                 setup_greedy_evaluation(environment_config, init_setup_env)
-            elif args.rule_based_hierarchical:
+            elif args.capa_hierarchical:
                 setup_capa_greedy_evaluation(environment_config, init_setup_env)
+            elif args.random_hierarchical:
+                setup_random_greedy_evaluation(environment_config, init_setup_env)
             else:
                 setup_do_nothing_evaluation(environment_config, init_setup_env)
     else:
@@ -395,9 +523,15 @@ if __name__ == "__main__":
                 setup_rllib_evaluation(
                     file_path=args.file_path,
                     checkpoint_name=CHECKPOINT_NAME,
+                    full_config=config,
+                    setup_env=init_setup_env,
+                    is_multi_agent=args.multi_agent,
                 )
             else:
                 setup_rllib_evaluation(
                     file_path=args.file_path,
                     checkpoint_name=args.checkpoint_name,
+                    full_config=config,
+                    setup_env=init_setup_env,
+                    is_multi_agent=args.multi_agent,
                 )

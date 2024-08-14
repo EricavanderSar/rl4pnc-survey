@@ -5,20 +5,20 @@ setup:
   # keep_checkpoints_num: 0
   checkpoint_score_attr: evaluation/episode_reward_mean
   verbose: 1
-  storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/ # 
-  experiment_name: l2rpn_icaps_2021_large/single_agent
+  storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ # /home3/s3374610/mahrl_grid2op/runs/
+  experiment_name: l2rpn_case14_sandbox/single_network
   save_artifact: True
-  num_samples: 1
+  num_samples: 2
 
 debugging:
   seed: &seed !randint [0, 100000]
 
 training:
   # tunable parameters
-  lr: 0.00005 #!grid_search [5e-3, 5e-4, 5e-5] # !grid_search [0.00005, 0.0005, 0.005]
-  num_sgd_iter: 5 # !grid_search [5, 15]
-  sgd_minibatch_size: 518 # !grid_search [256, 518] # !grid_search [32, 64, 128]
-  train_batch_size: 4048 #!grid_search [1024, 4048]
+  lr: !grid_search [5e-3, 5e-4, 5e-5] # !grid_search [0.00005, 0.0005, 0.005]
+  num_sgd_iter: !grid_search [5, 15]
+  sgd_minibatch_size: !grid_search [126, 256, 518] # !grid_search [32, 64, 128]
+  train_batch_size: !grid_search [1024, 2048, 4048]
   model:
     fcnet_hiddens: 
     - 256
@@ -48,10 +48,10 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_name: l2rpn_icaps_2021_large_train
+    env_name: l2rpn_case14_sandbox_original_train
     num_agents: 3
-    action_space: tennet_reduced_reduced
-    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ #  /home3/s3374610/mahrl_grid2op/ # 
+    action_space: tennet
+    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ #  /home3/s3374610/mahrl_grid2op/ #
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
       # general kwargs
@@ -63,22 +63,21 @@ environment:
 
 env_config_val: &env_config_val
   <<: *env_config_train
-  env_name: l2rpn_icaps_2021_large_val
+  env_name: l2rpn_case14_sandbox_val
   shuffle_scenarios: False
   stage: val
 
 evaluation:
   evaluation_interval: 20
-  evaluation_duration: 295 # as many as there are validation episodes
+  evaluation_duration: 100 # as many as there are validation episodes
   evaluation_duration_unit: episodes
-  num_evaluation_workers: 1
   evaluation_config: 
     env_config: *env_config_val # use the validation environment
     explore: True
 
 resources:
   num_gpus: 0
-  num_learner_workers: 1
+  num_learner_workers: 6
 
 rollouts:
-  num_rollout_workers: 1
+  num_rollout_workers: 4

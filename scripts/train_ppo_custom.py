@@ -1,11 +1,11 @@
 """
-Trains PPO baseline agent.
+Trains PPO baseline single agent.
 """
 
 import argparse
 import logging
 
-import gymnasium
+import gymnasium as gym
 import numpy as np
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
@@ -21,10 +21,18 @@ from mahrl.multi_agent.policy import DoNothingPolicy, SelectAgentPolicy
 def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     """
     Loads the json as config and sets it up for training.
+
+    Args:
+        config_path (str): The path to the JSON config file.
+        checkpoint_path (str | None): The path to the checkpoint file, or None if not provided.
+
+    Returns:
+        None
     """
     # load base PPO config and load in hyperparameters
     ppo_config = ppo.PPOConfig().to_dict()
     custom_config = load_config(config_path)
+
     if checkpoint_path:
         custom_config["setup"]["checkpoint_path"] = checkpoint_path
 
@@ -35,8 +43,8 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
             policy_class=SelectAgentPolicy,
-            observation_space=gymnasium.spaces.Box(-np.inf, np.inf),  # only the max rho
-            action_space=gymnasium.spaces.Discrete(2),  # choose one of agents
+            observation_space=gym.spaces.Box(-np.inf, np.inf),  # only the max rho
+            action_space=gym.spaces.Discrete(2),  # choose one of agents
             config=(
                 AlgorithmConfig()
                 .training(
@@ -54,15 +62,15 @@ def setup_config(config_path: str, checkpoint_path: str | None) -> None:
             ),
         ),
         "reinforcement_learning_policy": PolicySpec(  # performs RL topology
-            policy_class=None,  # use default policy of PPO
+            policy_class=None,
             observation_space=None,  # infer automatically from env
-            action_space=None,  # infer automatically from env
+            action_space=None,
             config=None,
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
             policy_class=DoNothingPolicy,
-            observation_space=gymnasium.spaces.Discrete(1),  # no observation space
-            action_space=gymnasium.spaces.Discrete(1),  # only perform do-nothing
+            observation_space=gym.spaces.Discrete(1),  # no observation space
+            action_space=gym.spaces.Discrete(1),  # only perform do-nothing
             config=(
                 AlgorithmConfig()
                 .training(_enable_learner_api=False)

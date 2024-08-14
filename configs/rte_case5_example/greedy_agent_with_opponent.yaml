@@ -1,0 +1,24 @@
+environment:
+  env_config: &env_config_train
+    seed: 14
+    env_name: rte_case5_example
+    action_space: tennet
+    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 
+    grid2op_kwargs:
+      # general kwargs
+      reward_class: !ScaledL2RPNReward
+      # kwargs specific to opponents
+      opponent_attack_cooldown: 144 # max 2 attacks per day
+      opponent_attack_duration: 48 # 4 hours in a day
+      opponent_budget_per_ts: 0.333343333333 # taken from blazej, (opponent_attack_duration / opponent_attack_cooldown) + 1e-5
+      opponent_init_budget: 144
+      opponent_action_class: !PowerlineSetAction 
+      opponent_class: !RandomLineOpponent
+      opponent_budget_class: !BaseActionBudget
+      opponent_space_type: !ReconnectingOpponentSpace #reconnecting_opponent
+      kwargs_opponent:
+        lines_attacked: #['0_1_0', '0_2_1', '0_3_2', '0_4_3', '1_2_4', '2_3_5', '2_3_6', '3_4_7'
+          - '0_3_2'
+          - '0_4_3'
+    rho_threshold: 0.95
+    stage: val

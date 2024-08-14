@@ -2,10 +2,12 @@
 Describes classes of agents that can be evaluated.
 """
 
+# pylint: disable=too-many-lines
+
 import os
 import random
 from collections import Counter, OrderedDict
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import grid2op
 import numpy as np
@@ -13,24 +15,39 @@ from grid2op.Action import ActionSpace, BaseAction
 from grid2op.Agent import BaseAgent, GreedyAgent
 from grid2op.dtypes import dt_float
 from grid2op.Environment import BaseEnv
-from grid2op.gym_compat import GymEnv
 from grid2op.Observation import BaseObservation
 from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
+from ray.rllib.env.multi_agent_env import MultiAgentEnv
 
 from mahrl.experiments.utils import (
-    calculate_action_space_asymmetry,
-    calculate_action_space_medha,
-    calculate_action_space_tennet,
     find_list_of_agents,
     find_substation_per_lines,
     get_capa_substation_id,
 )
+from mahrl.grid2op_env.utils import load_actions, reconnecting_and_abbc
+from mahrl.multi_agent.utils import argmax_logic, capa_logic
 
 
-class RllibAgent(BaseAgent):
+class SingleRllibAgent(BaseAgent):
     """
     Class that runs a RLlib model in the Grid2Op environment.
+
+    Parameters:
+        action_space (ActionSpace): The action space of the environment.
+        env_config (dict[str, Any]): Configuration parameters for the environment.
+        file_path (str): The path to the directory containing the checkpoint file.
+        policy_name (str): The name of the policy to use from the checkpoint.
+        algorithm (Algorithm): The RLlib algorithm to use.
+        checkpoint_name (str): The name of the checkpoint file.
+        gym_wrapper (MultiAgentEnv): The gym wrapper for the environment.
+
+    Attributes:
+        _rllib_agent (Agent): The RLlib agent loaded from the checkpoint.
+        gym_wrapper (MultiAgentEnv): The gym wrapper for the environment.
+        threshold (float): The threshold value for the 'rho' observation.
+        reconnect_line (list[BaseAction]): The list of reconnecting line actions.
+
     """
 
     def __init__(
@@ -41,7 +58,7 @@ class RllibAgent(BaseAgent):
         policy_name: str,
         algorithm: Algorithm,
         checkpoint_name: str,
-        gym_wrapper: GymEnv,
+        gym_wrapper: MultiAgentEnv,
     ):
         BaseAgent.__init__(self, action_space)
 
@@ -57,11 +74,23 @@ class RllibAgent(BaseAgent):
         # setup threshold
         self.threshold = env_config["rho_threshold"]
 
+        # setup reconnecting line
+        self.reconnect_line: list[BaseAction] = []
+
     def act(
         self, observation: BaseObservation, reward: BaseReward, done: bool = False
     ) -> BaseAction:
         """
         Returns a grid2op action based on a RLlib observation.
+
+        Parameters:
+            observation (BaseObservation): The observation from the environment.
+            reward (BaseReward): The reward from the environment.
+            done (bool, optional): Whether the episode is done or not. Defaults to False.
+
+        Returns:
+            BaseAction: The action to take in the environment.
+
         """
 
         # Grid2Op to RLlib observation
@@ -73,184 +102,393 @@ class RllibAgent(BaseAgent):
         if np.max(gym_obs["rho"]) > self.threshold:
             # get action as int
             action = self._rllib_agent.compute_single_action(
-                gym_obs, policy_id="default_policy"
+                gym_obs, policy_id="reinforcement_learning_policy"
             )
             # convert Rllib action to grid2op
-            return self.gym_wrapper.env_gym.action_space.from_gym(action)
-        # else
-        action = self.gym_wrapper.grid2op_env.action_space({})
-        return action
+            g2op_action = self.gym_wrapper.env_gym.action_space.from_gym(action)
+
+        else:
+            g2op_action = self.gym_wrapper.grid2op_env.action_space({})
+
+        # add reconnecting action, if needed
+        if self.reconnect_line:
+            for line in self.reconnect_line:
+                g2op_action = g2op_action + line
+            self.reconnect_line = []
+
+        self.reconnect_line, _ = reconnecting_and_abbc(
+            self.gym_wrapper.grid2op_env, observation, self.reconnect_line
+        )
+
+        return g2op_action
 
 
-class LargeTopologyGreedyAgent(GreedyAgent):
+# pylint: disable=too-many-instance-attributes
+class MultiRllibAgents(BaseAgent):
     """
-    Defines the behaviour of a Greedy Agent that can perform topology changes based
-    on a provided set of possible actions. Optimized for networks with a large hub.
-    It does not search through all actions in the hub, but rather looks at all actions
-    outside the hub. If any match the criteria (5% decrease or below threshold), that is
-    taken, otherwise hub actions are randomized and tested with the same criteria.
+    Class that runs a multi-agent RLlib model in the Grid2Op environment.
+
+    Args:
+        action_space (ActionSpace): The action space of the environment.
+        env_config (dict[str, Any]): Configuration parameters for the environment.
+        file_path (str): The path to the file.
+        lower_policy_name (str): The name of the lower policy.
+        middle_policy_name (str): The name of the middle policy.
+        algorithm (Algorithm): The RLlib algorithm to use.
+        checkpoint_name (str): The name of the checkpoint.
+        gym_wrapper (MultiAgentEnv): The gym wrapper for the environment.
+
+    Attributes:
+        lower_policy_name (str): The name of the lower policy.
+        middle_policy_name (str): The name of the middle policy.
+        policy_names (list[str]): The names of the policies.
+        gym_wrapper (MultiAgentEnv): The gym wrapper for the environment.
+        greedy (bool): Flag indicating whether to use greedy agents.
+        threshold (float): The threshold value.
+        reconnect_line (list[BaseAction]): The list of reconnecting actions.
+
+    Methods:
+        act(observation: BaseObservation, reward: BaseReward, done: bool = False) -> BaseAction:
+            Returns a grid2op action based on an RLlib observation.
     """
 
     def __init__(
         self,
         action_space: ActionSpace,
         env_config: dict[str, Any],
-        possible_actions: list[BaseAction],
+        file_path: str,
+        lower_policy_name: str,
+        middle_policy_name: str,
+        algorithm: Algorithm,
+        checkpoint_name: str,
+        gym_wrapper: MultiAgentEnv,
     ):
-        GreedyAgent.__init__(self, action_space)
-        self.tested_action: list[BaseAction] = []
-        self.action_space = action_space
-        self.possible_actions = possible_actions
+        BaseAgent.__init__(self, action_space)
 
-        # Assuming self.tested_action is your list of dictionaries
-        counts = Counter(
-            action.as_dict()["set_bus_vect"]["modif_subs_id"][-1]
-            for action in possible_actions
-        )
+        self.lower_policy_name = lower_policy_name
+        self.middle_policy_name = middle_policy_name
+        self.policy_names: list[str] = []
+        self.gym_wrapper = gym_wrapper
+        self.greedy = False
 
-        # Get a list of numbers that occur more than 1000 times
-        # Split the list into two: one with frequent numbers and one without
-        self.hub_actions: list[BaseAction] = []
-        self.other_actions: list[BaseAction] = []
+        # load PPO
+        checkpoint_path = os.path.join(file_path, checkpoint_name)
 
-        for action in possible_actions:
-            if counts[action.as_dict()["set_bus_vect"]["modif_subs_id"][-1]] > 1000:
-                self.hub_actions.append(action)
-            else:
-                self.other_actions.append(action)
+        if self.lower_policy_name == "rl":
+            # find all folders in checkpoint path that start with reinforcement learning
+            self.policy_names = [
+                name
+                for name in os.listdir(os.path.join(checkpoint_path, "policies"))
+                if name.startswith("reinforcement_learning")
+            ]
+        elif self.lower_policy_name in ("rl_v", "rlv"):
+            self.policy_names = [
+                name
+                for name in os.listdir(os.path.join(checkpoint_path, "policies"))
+                if name.startswith("value_reinforcement_learning")
+                or name.startswith("value_function")
+            ]
+        elif self.lower_policy_name == "greedy":
+            self.controllable_substations = find_list_of_agents(
+                self.gym_wrapper.grid2op_env,
+                env_config["action_space"],
+            )
 
-        # create the action space of all non-hub actions to be tested
-        self.tested_action = [self.action_space({})] + self.other_actions
+            actions_path = os.path.abspath(
+                f"{env_config['lib_dir']}/data/action_spaces/{env_config['env_name']}/{env_config['action_space']}.json",
+            )
+
+            possible_actions = load_actions(actions_path, self.gym_wrapper.grid2op_env)
+
+            # set up greedy agents
+            self.agents = create_greedy_agent_per_substation(
+                self.gym_wrapper.grid2op_env,
+                env_config,
+                self.controllable_substations,
+                possible_actions,
+            )
+            self.greedy = True
+
+        if self.middle_policy_name not in ("capa", "random", "argmax", "sample"):
+            # learned middle agent, also load this
+            self.policy_names.append("choose_substation_policy")
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]
+        self.reconnect_line: list[BaseAction] = []
 
-        random.seed(env_config["seed"])
+        # load all the agents
+        self._rllib_agents = algorithm.from_checkpoint(
+            checkpoint_path, policy_ids=self.policy_names
+        )
 
-        # self.timesteps_saved = 0
+        if self.middle_policy_name == "capa":
+            self.controllable_substations = find_list_of_agents(
+                self.gym_wrapper.grid2op_env,
+                env_config["action_space"],
+            )
 
-    def act(
-        self,
-        observation: BaseObservation,
-        reward: Optional[BaseReward],
-        done: Optional[bool] = False,
-    ) -> BaseAction | None:
+            # extract line and substation information
+            self.line_info = find_substation_per_lines(
+                self.gym_wrapper.grid2op_env,
+                list(
+                    find_list_of_agents(
+                        self.gym_wrapper.grid2op_env, env_config["action_space"]
+                    ).keys()
+                ),
+            )
+
+            self.idx = 0
+            self.substation_to_act_on: list[str] = []
+
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
+    def act(  # noqa: C901
+        self, observation: BaseObservation, reward: BaseReward, done: bool = False
+    ) -> BaseAction:
         """
-        By definition, all "greedy" agents are acting the same way. The only thing that can differentiate multiple
-        agents is the actions that are tested.
+        Returns a grid2op action based on a RLlib observation.
 
-        These actions are defined in the method :func:`._get_tested_action`. This :func:`.act` method implements the
-        greedy logic: take the actions that maximizes the instantaneous reward on the simulated action.
+        Args:
+            observation (BaseObservation): The RLlib observation.
+            reward (BaseReward): The reward.
+            done (bool, optional): Whether the episode is done. Defaults to False.
 
-        Parameters
-        ----------
-        observation: :class:`grid2op.Observation.Observation`
-            The current observation of the :class:`grid2op.Environment.Environment`
+        Returns:
+            BaseAction: The grid2op action.
 
-        reward: ``float``
-            The current reward. This is the reward obtained by the previous action
-
-        done: ``bool``
-            Whether the episode has ended or not. Used to maintain gym compatibility
-
-        Returns
-        -------
-        res: :class:`grid2op.Action.Action`
-            The action chosen by the bot / controller / agent.
-
+        Raises:
+            ValueError: If the middle policy name is invalid.
         """
-        # if the threshold is exceeded, act
-        if np.max(observation.to_dict()["rho"]) > self.threshold:
-            # first find the best action in all non-hub actions
-            if len(self.tested_action) > 1:
-                min_other_rho = np.inf
-                best_other_action_idx = 0
+        # Grid2Op to RLlib observation
+        gym_obs = self.gym_wrapper.env_gym.observation_space.to_gym(observation)
+        gym_obs = OrderedDict(
+            (k, gym_obs[k]) for k in self.gym_wrapper.observation_space.spaces
+        )
 
-                for idx, action in enumerate(self.tested_action):
-                    simul_observation, _, _, simul_info = observation.simulate(action)
-                    rho: float = np.max(simul_observation.to_dict()["rho"])
-                    if not simul_info["exception"] and rho < min_other_rho:
-                        min_other_rho = rho
-                        best_other_action_idx = idx
+        # setup environment loop
+        if np.max(gym_obs["rho"]) > self.threshold:
+            if self.greedy:
+                proposed_actions: dict[str, int] = {}
+                for key, agent in self.agents.items():
+                    g2op_act = agent.act(observation, reward=None)
+                    global_gym_act = int(
+                        self.gym_wrapper.env_gym.action_space.to_gym(g2op_act)
+                    )
+                    local_gym_act: Optional[int] = next(
+                        (
+                            k
+                            for k, v in self.gym_wrapper.local_to_global_action_map[
+                                str(key)
+                            ].items()
+                            if v == global_gym_act
+                        ),
+                        None,
+                    )
+                    if local_gym_act is not None:
+                        proposed_actions[str(key)] = local_gym_act
+            else:
+                # collect proposed actions
+                proposed_actions = self.get_proposed_actions(gym_obs)
 
-                # if this best action passes the criteria, execute.
-                # otherwise, randomize the hub actions and loop through those
-                if (
-                    min_other_rho < self.threshold
-                    or np.max(observation.to_dict()["rho"]) - min_other_rho > 0.05
-                ):
-                    return self.tested_action[best_other_action_idx]
+            # determine which agent has to act
+            if self.middle_policy_name == "capa":
+                assert self.lower_policy_name != "rl_v"
 
-            # simulate randomized hub actions
-            if len(self.hub_actions) > 1:
-                min_hub_rho, best_hub_action_idx, action_found = self.check_hub_actions(
-                    observation
+                # turn proposed actions into grid2op actions
+                g2op_proposed_actions = {
+                    sub_id: self.gym_wrapper.local_to_global_action_map[sub_id][action]
+                    for sub_id, action in proposed_actions.items()
+                }
+
+                self.idx, sub_id = capa_logic(
+                    g2op_proposed_actions,
+                    gym_obs,
+                    self.controllable_substations,
+                    self.line_info,
+                    self.substation_to_act_on,
+                    self.idx,
+                )
+                self.idx += 1
+            elif self.middle_policy_name == "random":
+                # assert self.lower_policy_name != "rl_v"
+                # take a random item in self.policy_names and extract the last int
+                sub_id = random.choice(self.policy_names).split("_")[-1]
+            elif self.middle_policy_name == "rl":
+                # assert self.lower_policy_name != "rl_v"
+                # give appropriate observation
+                mid_rl_obs = OrderedDict(
+                    {
+                        "previous_obs": gym_obs,
+                        "proposed_actions": proposed_actions,
+                    }
+                )
+                sub_id = self._rllib_agents.compute_single_action(
+                    mid_rl_obs, policy_id="choose_substation_policy"
                 )
 
-                if action_found is not None:
-                    return action_found
+                # map Sub_ID to global
+                sub_id = self.gym_wrapper.middle_to_substation_map[str(sub_id)]
+            elif self.middle_policy_name in ("rl_v", "rlv"):
+                # assert self.lower_policy_name == "rl_v"
+                # collect proposed confidences as well
+                proposed_confidences = self.get_proposed_confidences(gym_obs)
 
-                # Compare the minimum values and print the result
-                if min_other_rho < min_hub_rho:
-                    # Best action was found in non-hub actions
-                    return self.tested_action[best_other_action_idx]
+                # give appropriate observation
+                mid_rlv_obs = OrderedDict(
+                    {
+                        "previous_obs": gym_obs,
+                        "proposed_actions": proposed_actions,
+                        "proposed_confidences": proposed_confidences,
+                    }
+                )
+                sub_id = self._rllib_agents.compute_single_action(
+                    mid_rlv_obs, policy_id="choose_substation_policy"
+                )
 
-                # Best action was found in hub actions
-                return self.hub_actions[best_hub_action_idx]
+                # map Sub_ID to global
+                sub_id = self.gym_wrapper.middle_to_substation_map[str(sub_id)]
 
-        # if the threshold is not exceeded, do nothing
-        return self.tested_action[0]
+            elif self.middle_policy_name == "argmax":
+                # collect proposed confidences
+                proposed_confidences = self.get_proposed_confidences(gym_obs)
 
-    def check_hub_actions(
-        self, observation: BaseObservation
-    ) -> tuple[float, int, BaseAction | None]:
+                # select sub_id with argmax
+                sub_id = argmax_logic(proposed_confidences)
+            elif self.middle_policy_name == "sample":
+                # collect proposed confidences
+                proposed_confidences = self.get_proposed_confidences(gym_obs)
+
+                # sample sub_id
+                sub_id = argmax_logic(proposed_confidences)
+            else:
+                raise ValueError("Invalid middle policy name.")
+
+            if not self.greedy:
+                # call correct agent, get action as int
+                policy_id = [
+                    name
+                    for name in self.policy_names
+                    if name.endswith(sub_id)
+                    and (
+                        name.startswith("reinforcement_learning")
+                        or name.startswith("value_reinforcement_learning")
+                    )
+                ]
+                assert len(policy_id) == 1
+
+            # convert local action to global action through mapping
+            if sub_id != "-1":
+                action = self.gym_wrapper.local_to_global_action_map[sub_id][
+                    proposed_actions[sub_id]
+                ]
+            else:
+                action = 0  # do nothing
+
+            # convert Rllib action to grid2op
+            g2op_action = self.gym_wrapper.env_gym.action_space.from_gym(action)
+
+        else:
+            # stable, do nothing
+            self.idx = 0
+            g2op_action = self.gym_wrapper.grid2op_env.action_space({})
+
+        # add reconnecting action, if needed
+        if self.reconnect_line:
+            for line in self.reconnect_line:
+                g2op_action = g2op_action + line
+            self.reconnect_line = []
+
+        self.reconnect_line, _ = reconnecting_and_abbc(
+            self.gym_wrapper.grid2op_env, observation, self.reconnect_line
+        )
+
+        return g2op_action
+
+    def get_proposed_confidences(self, gym_obs: dict[str, Any]) -> dict[str, float]:
         """
-        Returns the best hub action that was found, and executes it immediately when it's good enough.
+        Get the proposed confidences for each policy.
+
+        Args:
+            gym_obs (dict[str, Any]): The observation from the OpenAI Gym environment.
+
+        Returns:
+            dict[str, float]: A dictionary mapping policy names to their proposed confidences.
         """
-        min_hub_rho = np.inf
-        best_hub_action_idx = 0
+        # collect proposed confidences
+        proposed_confidences: dict[str, float] = {}
+        for name in self.policy_names:
+            if name.startswith("value_function"):
+                proposed_confidences[name.split("_")[-1]] = float(
+                    self._rllib_agents.compute_single_action(gym_obs, policy_id=name)
+                )
+        return proposed_confidences
 
-        # randomize tested_actions every time
-        # create a list of indices
-        indices = list(range(len(self.hub_actions)))
-
-        # shuffle the indices
-        random.shuffle(list(range(len(self.hub_actions))))
-
-        # create a new list of shuffled actions
-        shuffled_actions = [self.hub_actions[i] for i in indices]
-
-        for idx, action in enumerate(shuffled_actions):
-            (
-                simul_observation,
-                _,
-                _,
-                simul_info,
-            ) = observation.simulate(action)
-            rho: float = np.max(simul_observation.to_dict()["rho"])
-            if not simul_info["exception"] and rho < min_hub_rho:
-                min_hub_rho = rho
-                best_hub_action_idx = indices[idx]
-
-            # early stopping
-            if (min_hub_rho < self.threshold) or (
-                np.max(observation.to_dict()["rho"]) - min_hub_rho > 0.05
-            ):  # 5% less load predicted or load below threshold
-                return 0.0, 0, self.hub_actions[best_hub_action_idx]
-
-        return min_hub_rho, best_hub_action_idx, None
-
-    def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
+    def get_proposed_actions(self, gym_obs: dict[str, Any]) -> dict[str, int]:
         """
-        Adds all possible actions to be tested.
+        Get the proposed actions for the given gym observation.
+
+        Args:
+            gym_obs (dict[str, Any]): The gym observation.
+
+        Returns:
+            dict[str, int]: A dictionary mapping policy names to proposed actions.
+
         """
-        raise NotImplementedError("Not implemented.")
+        # collect proposed actions
+        proposed_actions: dict[str, int] = {}
+        for name in self.policy_names:
+            if name.startswith("reinforcement_learning") or name.startswith(
+                "value_reinforcement_learning"
+            ):
+                proposed_actions[
+                    name.split("_")[-1]
+                ] = self._rllib_agents.compute_single_action(gym_obs, policy_id=name)
+            elif name == "greedy":
+                proposed_actions["greedy"] = 0
+        return proposed_actions
 
 
 class TopologyGreedyAgent(GreedyAgent):
     """
-    Defines the behaviour of a Greedy Agent that can perform topology changes based
+    Defines the base behaviour of a Greedy Agent that can perform topology changes based
     on a provided set of possible actions.
+
+    Parameters
+    ----------
+    action_space: :class:`grid2op.ActionSpace.ActionSpace`
+        The action space of the environment.
+
+    env_config: dict[str, Any]
+        The configuration of the environment.
+
+    possible_actions: list[:class:`grid2op.Action.BaseAction`]
+        The list of possible actions that the agent can perform.
+
+    Attributes
+    ----------
+    tested_action: list[:class:`grid2op.Action.BaseAction`]
+        The list of tested actions.
+
+    action_space: :class:`grid2op.ActionSpace.ActionSpace`
+        The action space of the environment.
+
+    possible_actions: list[:class:`grid2op.Action.BaseAction`]
+        The list of possible actions that the agent can perform.
+
+    threshold: float
+        The threshold value for the maximum instantaneous reward.
+
+    timesteps_saved: int
+        The number of timesteps saved.
+
+    Methods
+    -------
+    act(observation, reward, done=False)
+        Implements the greedy logic to choose the best action based on the observation and reward.
+
+    _get_tested_action(observation)
+        Adds all possible actions to be tested.
+
     """
 
     def __init__(
@@ -267,7 +505,8 @@ class TopologyGreedyAgent(GreedyAgent):
         # setup threshold
         self.threshold = env_config["rho_threshold"]
 
-        random.seed(env_config["seed"])
+        if "seed" in env_config:
+            random.seed(env_config["seed"])
 
         self.timesteps_saved = 0
 
@@ -339,6 +578,17 @@ class TopologyGreedyAgent(GreedyAgent):
     def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
         """
         Adds all possible actions to be tested.
+
+        Parameters
+        ----------
+        observation: :class:`grid2op.Observation.BaseObservation`
+            The current observation of the environment.
+
+        Returns
+        -------
+        res: list[:class:`grid2op.Action.BaseAction`]
+            The list of possible actions to be tested.
+
         """
         if not self.tested_action:
             # add the do nothing
@@ -349,10 +599,9 @@ class TopologyGreedyAgent(GreedyAgent):
         return self.tested_action
 
 
-class CapaAndGreedyAgent(GreedyAgent):
+class ReconnectingGreedyAgent(GreedyAgent):
     """
-    Defines the behaviour of a Greedy Agent that can perform topology changes based
-    on a provided set of possible actions.
+    Greedy agent that automatically reconnects lines and goes back to base topology.
     """
 
     def __init__(
@@ -360,32 +609,310 @@ class CapaAndGreedyAgent(GreedyAgent):
         action_space: ActionSpace,
         env_config: dict[str, Any],
         possible_actions: list[BaseAction],
+        gym_wrapper: MultiAgentEnv,
     ):
+        """
+        Initializes a ReconnectingGreedyAgent.
+
+        Args:
+            action_space (ActionSpace): The action space of the agent.
+            env_config (dict[str, Any]): The environment configuration.
+            possible_actions (list[BaseAction]): The list of possible actions.
+            gym_wrapper (MultiAgentEnv): The gym wrapper for the environment.
+        """
         GreedyAgent.__init__(self, action_space)
         self.tested_action: list[BaseAction] = []
         self.action_space = action_space
         self.possible_actions = possible_actions
+        self.gym_wrapper = gym_wrapper
 
         # setup threshold
         self.threshold = env_config["rho_threshold"]
 
+        if "seed" in env_config:
+            random.seed(env_config["seed"])
+
+        self.reconnect_line: list[BaseAction] = []
+        self.hub_actions: list[BaseAction] = []
+
+    def reconnect_and_return(
+        self,
+        action: Union[int, BaseAction],
+        observation: BaseObservation,
+        hub: bool = False,
+    ) -> BaseAction:
+        """
+        Reconnects lines and returns the action.
+
+        Args:
+            action (Union[int, BaseAction]): The action to be taken.
+            observation (BaseObservation): The current observation.
+            hub (bool, optional): Whether the action is for a hub. Defaults to False.
+
+        Returns:
+            BaseAction: The action after reconnecting lines.
+        """
+        if isinstance(action, int):
+            if hub:
+                g2op_action = self.hub_actions[action]
+            else:
+                g2op_action = self.tested_action[action]
+        else:
+            g2op_action = action
+
+        # add reconnecting action, if needed
+        if self.reconnect_line:
+            for line in self.reconnect_line:
+                g2op_action = g2op_action + line
+            self.reconnect_line = []
+
+        self.reconnect_line, _ = reconnecting_and_abbc(
+            self.gym_wrapper.grid2op_env, observation, self.reconnect_line
+        )
+
+        return g2op_action
+
+
+class LargeTopologyGreedyAgent(ReconnectingGreedyAgent):
+    """
+    Defines the behaviour of a Greedy Agent that can perform topology changes based
+    on a provided set of possible actions. Optimized for networks with a large hub.
+    It does not search through all actions in the hub, but rather looks at all actions
+    outside the hub. If any match the criteria (5% decrease or below threshold), that is
+    taken, otherwise hub actions are randomized and tested with the same criteria.
+    """
+
+    def __init__(
+        self,
+        action_space: ActionSpace,
+        env_config: dict[str, Any],
+        possible_actions: list[BaseAction],
+        gym_wrapper: MultiAgentEnv,
+    ):
+        ReconnectingGreedyAgent.__init__(
+            self, action_space, env_config, possible_actions, gym_wrapper
+        )
+
+        # Assuming self.tested_action is your list of dictionaries
+        counts = Counter(
+            action.as_dict()["set_bus_vect"]["modif_subs_id"][-1]
+            for action in possible_actions
+        )
+
+        # Get a list of numbers that occur more than 1000 times
+        # Split the list into two: one with frequent numbers and one without
+        self.hub_actions: list[BaseAction] = []
+        self.other_actions: list[BaseAction] = []
+
+        for action in possible_actions:
+            if counts[action.as_dict()["set_bus_vect"]["modif_subs_id"][-1]] > 1000:
+                self.hub_actions.append(action)
+            else:
+                self.other_actions.append(action)
+
+        # create the action space of all non-hub actions to be tested
+        self.tested_action = [self.action_space({})] + self.other_actions
+
+    def act(
+        self,
+        observation: BaseObservation,
+        reward: Optional[BaseReward],
+        done: Optional[bool] = False,
+    ) -> BaseAction | None:
+        """
+        By definition, all "greedy" agents are acting the same way. The only thing that can differentiate multiple
+        agents is the actions that are tested.
+
+        These actions are defined in the method :func:`._get_tested_action`. This :func:`.act` method implements the
+        greedy logic: take the actions that maximizes the instantaneous reward on the simulated action.
+
+        Parameters
+        ----------
+        observation: :class:`grid2op.Observation.Observation`
+            The current observation of the :class:`grid2op.Environment.Environment`
+
+        reward: ``float``
+            The current reward. This is the reward obtained by the previous action
+
+        done: ``bool``
+            Whether the episode has ended or not. Used to maintain gym compatibility
+
+        Returns
+        -------
+        res: :class:`grid2op.Action.Action`
+            The action chosen by the bot / controller / agent.
+
+        """
+        # if the threshold is exceeded, act
+        if np.max(observation.to_dict()["rho"]) > self.threshold:
+            # first find the best action in all non-hub actions
+            if len(self.tested_action) > 1:
+                min_other_rho = np.inf
+                best_other_action_idx = 0
+
+                for idx, action in enumerate(self.tested_action):
+                    simul_observation, _, _, simul_info = observation.simulate(action)
+                    rho: float = np.max(simul_observation.to_dict()["rho"])
+                    if not simul_info["exception"] and rho < min_other_rho:
+                        min_other_rho = rho
+                        best_other_action_idx = idx
+
+                # if this best action passes the criteria, execute.
+                # otherwise, randomize the hub actions and loop through those
+                if (
+                    min_other_rho < self.threshold
+                    or np.max(observation.to_dict()["rho"]) - min_other_rho > 0.05
+                ):
+                    return self.reconnect_and_return(best_other_action_idx, observation)
+                    # return self.tested_action[best_other_action_idx]
+
+            # simulate randomized hub actions
+            if len(self.hub_actions) > 1:
+                min_hub_rho, best_hub_action_idx, action_found = self.check_hub_actions(
+                    observation
+                )
+
+                if action_found is not None:
+                    return self.reconnect_and_return(best_hub_action_idx, observation)
+                    # return action_found
+
+                # Compare the minimum values and print the result
+                if min_other_rho < min_hub_rho:
+                    # Best action was found in non-hub actions
+                    # return self.tested_action[best_other_action_idx]
+                    return self.reconnect_and_return(best_other_action_idx, observation)
+
+                # Best action was found in hub actions
+                # return self.hub_actions[best_hub_action_idx]
+                return self.reconnect_and_return(best_hub_action_idx, observation)
+
+        # if the threshold is not exceeded, do nothing
+        return self.reconnect_and_return(0, observation)
+
+    def check_hub_actions(
+        self, observation: BaseObservation
+    ) -> tuple[float, int, BaseAction | None]:
+        """
+        Returns the best hub action that was found, and executes it immediately when it's good enough.
+
+        Parameters:
+            observation (BaseObservation): The observation object representing the current state of the environment.
+
+        Returns:
+            tuple[float, int, BaseAction | None]: A tuple containing the following values:
+                - min_hub_rho (float): The minimum value of the 'rho' attribute in the simulated observations.
+                - best_hub_action_idx (int): The index of the best hub action found.
+                - best_hub_action (BaseAction | None): The best hub action found, or None if no action is found.
+
+        """
+        min_hub_rho = np.inf
+        best_hub_action_idx = 0
+
+        # randomize tested_actions every time
+        # create a list of indices
+        indices = list(range(len(self.hub_actions)))
+
+        # shuffle the indices
+        random.shuffle(list(range(len(self.hub_actions))))
+
+        # create a new list of shuffled actions
+        shuffled_actions = [self.hub_actions[i] for i in indices]
+
+        for idx, action in enumerate(shuffled_actions):
+            (
+                simul_observation,
+                _,
+                _,
+                simul_info,
+            ) = observation.simulate(action)
+            rho: float = np.max(simul_observation.to_dict()["rho"])
+            if not simul_info["exception"] and rho < min_hub_rho:
+                min_hub_rho = rho
+                best_hub_action_idx = indices[idx]
+
+            # early stopping
+            if (min_hub_rho < self.threshold) or (
+                np.max(observation.to_dict()["rho"]) - min_hub_rho > 0.05
+            ):  # 5% less load predicted or load below threshold
+                return 0.0, 0, self.hub_actions[best_hub_action_idx]
+
+        return min_hub_rho, best_hub_action_idx, None
+
+    def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
+        """
+        Adds all possible actions to be tested.
+
+        Parameters:
+        observation (BaseObservation): The observation used to determine the possible actions.
+
+        Returns:
+        list[BaseAction]: A list of all possible actions to be tested.
+        """
+        raise NotImplementedError("Not implemented.")
+
+
+class CapaAndGreedyAgent(ReconnectingGreedyAgent):
+    """
+    Defines the behaviour of a Greedy Agent that can perform topology changes based
+    on a provided set of possible actions.
+
+    Parameters
+    ----------
+    action_space: ActionSpace
+        The action space of the environment.
+
+    env_config: dict[str, Any]
+        The configuration of the environment.
+
+    possible_actions: list[BaseAction]
+        The list of possible actions that the agent can take.
+
+    gym_wrapper: MultiAgentEnv
+        The gym wrapper for the environment.
+
+    Attributes
+    ----------
+    controllable_substations: list[str]
+        The list of controllable substations.
+
+    agents: dict[str, GreedyAgent]
+        The dictionary of greedy agents per substation.
+
+    line_info: dict[str, str]
+        The dictionary mapping lines to substations.
+
+    idx: int
+        The index used for iterating over substations.
+
+    substation_to_act_on: list[str]
+        The list of substations to act on.
+
+    Methods
+    -------
+    act(observation, reward, done=False)
+        Implements the greedy logic to choose the action.
+
+    _get_tested_action(observation)
+        Adds all possible actions to be tested.
+    """
+
+    def __init__(
+        self,
+        action_space: ActionSpace,
+        env_config: dict[str, Any],
+        possible_actions: list[BaseAction],
+        gym_wrapper: MultiAgentEnv,
+    ):
+        ReconnectingGreedyAgent.__init__(
+            self, action_space, env_config, possible_actions, gym_wrapper
+        )
+
         setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
 
-        # get changeable substations
-        if env_config["action_space"] == "asymmetry":
-            _, _, self.controllable_substations = calculate_action_space_asymmetry(
-                setup_env
-            )
-        elif env_config["action_space"] == "medha":
-            _, _, self.controllable_substations = calculate_action_space_medha(
-                setup_env
-            )
-        elif env_config["action_space"] == "tennet":
-            _, _, self.controllable_substations = calculate_action_space_tennet(
-                setup_env
-            )
-        else:
-            raise ValueError("No action valid space is defined.")
+        self.controllable_substations = find_list_of_agents(
+            setup_env,
+            env_config["action_space"],
+        )
 
         # set up greedy agents
         self.agents = create_greedy_agent_per_substation(
@@ -399,7 +926,7 @@ class CapaAndGreedyAgent(GreedyAgent):
         )
 
         self.idx = 0
-        self.substation_to_act_on: list[int] = []
+        self.substation_to_act_on: list[str] = []
 
     def act(
         self,
@@ -416,25 +943,25 @@ class CapaAndGreedyAgent(GreedyAgent):
 
         Parameters
         ----------
-        observation: :class:`grid2op.Observation.Observation`
-            The current observation of the :class:`grid2op.Environment.Environment`
+        observation: BaseObservation
+            The current observation of the environment.
 
-        reward: ``float``
-            The current reward. This is the reward obtained by the previous action
+        reward: float, optional
+            The current reward. This is the reward obtained by the previous action.
 
-        done: ``bool``
-            Whether the episode has ended or not. Used to maintain gym compatibility
+        done: bool, optional
+            Whether the episode has ended or not. Used to maintain gym compatibility.
 
         Returns
         -------
-        res: :class:`grid2op.Action.Action`
-            The action chosen by the bot / controller / agent.
-
+        res: BaseAction
+            The action chosen by the agent.
         """
         obs_batch = observation.to_dict()
         if np.max(obs_batch["rho"]) > self.threshold:
             # if no list is created yet, do so
-            if self.idx == 0:
+            if self.idx == 0 or not self.substation_to_act_on:
+                self.idx = 0
                 self.substation_to_act_on = get_capa_substation_id(
                     self.line_info, obs_batch, self.controllable_substations
                 )
@@ -447,24 +974,33 @@ class CapaAndGreedyAgent(GreedyAgent):
                 single_substation = self.substation_to_act_on[
                     self.idx % len(self.controllable_substations)
                 ]
-
-                self.idx += 1
-                chosen_action = self.agents[single_substation].act(
+                chosen_action = self.agents[str(single_substation)].act(
                     observation, reward=None
                 )
+                self.idx += 1
 
                 # if it's not the do nothing action, return action
                 # if it's the do nothing action, continue the loop
                 if chosen_action.as_dict():
-                    return chosen_action
+                    return self.reconnect_and_return(chosen_action, observation)
 
         # grid is safe or no action is found, reset list count and return DoNothing
         self.idx = 0
-        return self.action_space({})
+        return self.reconnect_and_return(self.action_space({}), observation)
 
     def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
         """
         Adds all possible actions to be tested.
+
+        Parameters
+        ----------
+        observation: BaseObservation
+            The current observation of the environment.
+
+        Returns
+        -------
+        res: list[BaseAction]
+            The list of possible actions to be tested.
         """
         if not self.tested_action:
             # add the do nothing
@@ -475,10 +1011,41 @@ class CapaAndGreedyAgent(GreedyAgent):
         return self.tested_action
 
 
-class RandomAndGreedyAgent(GreedyAgent):
+class RandomAndGreedyAgent(ReconnectingGreedyAgent):
     """
     Defines the behaviour of a Greedy Agent that can perform topology changes based
     on a provided set of possible actions.
+
+    Parameters
+    ----------
+    action_space: ActionSpace
+        The action space of the environment.
+
+    env_config: dict[str, Any]
+        The configuration of the environment.
+
+    possible_actions: list[BaseAction]
+        The list of possible actions that the agent can take.
+
+    gym_wrapper: MultiAgentEnv
+        The gym wrapper for the environment.
+
+    Attributes
+    ----------
+    controllable_substations: dict[str, Substation]
+        A dictionary mapping the names of controllable substations to their corresponding Substation objects.
+
+    agents: dict[str, GreedyAgent]
+        A dictionary mapping the names of controllable substations to their corresponding GreedyAgent objects.
+
+    Methods
+    -------
+    act(observation: BaseObservation, reward: Optional[BaseReward], done: Optional[bool] = False) -> BaseAction:
+        Takes an observation, reward, and done flag as input and returns the action chosen by the agent.
+
+    _get_tested_action(observation: BaseObservation) -> list[BaseAction]:
+        Adds all possible actions to be tested.
+
     """
 
     def __init__(
@@ -486,47 +1053,23 @@ class RandomAndGreedyAgent(GreedyAgent):
         action_space: ActionSpace,
         env_config: dict[str, Any],
         possible_actions: list[BaseAction],
+        gym_wrapper: MultiAgentEnv,
     ):
-        GreedyAgent.__init__(self, action_space)
-        self.tested_action: list[BaseAction] = []
-        self.action_space = action_space
-        self.possible_actions = possible_actions
-
-        # setup threshold
-        self.threshold = env_config["rho_threshold"]
+        ReconnectingGreedyAgent.__init__(
+            self, action_space, env_config, possible_actions, gym_wrapper
+        )
 
         setup_env = grid2op.make(env_config["env_name"], **env_config["grid2op_kwargs"])
 
-        # get changeable substations
-        if env_config["action_space"] == "asymmetry":
-            _, _, controllable_substations = calculate_action_space_asymmetry(setup_env)
-        elif env_config["action_space"] == "medha":
-            _, _, controllable_substations = calculate_action_space_medha(setup_env)
-        elif env_config["action_space"] == "tennet":
-            _, _, controllable_substations = calculate_action_space_tennet(setup_env)
-        else:
-            raise ValueError("No action valid space is defined.")
+        self.controllable_substations = find_list_of_agents(
+            setup_env,
+            env_config["action_space"],
+        )
 
         # set up greedy agents
         self.agents = create_greedy_agent_per_substation(
-            setup_env, env_config, controllable_substations, possible_actions
+            setup_env, env_config, self.controllable_substations, possible_actions
         )
-
-        # get changeable substations
-        if env_config["action_space"] == "asymmetry":
-            _, _, self.controllable_substations = calculate_action_space_asymmetry(
-                setup_env
-            )
-        elif env_config["action_space"] == "medha":
-            _, _, self.controllable_substations = calculate_action_space_medha(
-                setup_env
-            )
-        elif env_config["action_space"] == "tennet":
-            _, _, self.controllable_substations = calculate_action_space_tennet(
-                setup_env
-            )
-        else:
-            raise ValueError("No action valid space is defined.")
 
     def act(
         self,
@@ -543,28 +1086,43 @@ class RandomAndGreedyAgent(GreedyAgent):
 
         Parameters
         ----------
-        observation: :class:`grid2op.Observation.Observation`
-            The current observation of the :class:`grid2op.Environment.Environment`
+        observation: BaseObservation
+            The current observation of the environment.
 
-        reward: ``float``
-            The current reward. This is the reward obtained by the previous action
+        reward: float, optional
+            The current reward. This is the reward obtained by the previous action.
 
-        done: ``bool``
-            Whether the episode has ended or not. Used to maintain gym compatibility
+        done: bool, optional
+            Whether the episode has ended or not. Used to maintain gym compatibility.
 
         Returns
         -------
-        res: :class:`grid2op.Action.Action`
-            The action chosen by the bot / controller / agent.
+        res: BaseAction
+            The action chosen by the agent.
 
         """
-        substation_to_act_on = np.random.choice(self.controllable_substations)
+        substation_to_act_on = np.random.choice(
+            list(self.controllable_substations.keys())
+        )
 
-        return self.agents[substation_to_act_on].act(observation, reward=None)
+        g2op_act = self.agents[substation_to_act_on].act(observation, reward=None)
+
+        return self.reconnect_and_return(g2op_act, observation)
 
     def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
         """
         Adds all possible actions to be tested.
+
+        Parameters
+        ----------
+        observation: BaseObservation
+            The current observation of the environment.
+
+        Returns
+        -------
+        res: list[BaseAction]
+            The list of possible actions to be tested.
+
         """
         if not self.tested_action:
             # add the do nothing
@@ -576,43 +1134,65 @@ class RandomAndGreedyAgent(GreedyAgent):
 
 
 def get_actions_per_substation(
-    controllable_substations: dict[int, int],
     possible_substation_actions: list[BaseAction],
-) -> dict[int, list[BaseAction]]:
+    agent_per_substation: dict[str, int],
+    add_dn_action_per_agent: bool = True,
+) -> dict[str, list[BaseAction]]:
     """
     Get the actions per substation.
-    """
-    actions_per_substation: dict[int, list[BaseAction]] = {
-        substation: [] for substation in list(controllable_substations.keys())
-    }
 
-    print(f"empty actions_per_substation {actions_per_substation}")
+    Args:
+        possible_substation_actions (list[BaseAction]): A list of possible substation actions.
+        agent_per_substation (dict[str, int]):
+            A dictionary mapping substation indices to the number of agents per substation.
+        add_dn_action_per_agent (bool, optional): Whether to add a DoNothing action per agent. Defaults to True.
+
+    Returns:
+        dict[str, list[BaseAction]]: A dictionary mapping substation indices to a list of corresponding actions.
+    """
+
+    actions_per_substation: dict[str, list[BaseAction]] = {}
 
     # get possible actions related to that substation actions_per_substation
     for action in possible_substation_actions[1:]:  # exclude the DoNothing action
-        sub_id = int(action.as_dict()["set_bus_vect"]["modif_subs_id"][-1])
-        actions_per_substation[sub_id].append(action)
+        sub_id = str(action.as_dict()["set_bus_vect"]["modif_subs_id"][-1])
+        if str(sub_id) not in actions_per_substation:
+            if add_dn_action_per_agent:
+                actions_per_substation[str(sub_id)] = [possible_substation_actions[0]]
+            else:
+                actions_per_substation[str(sub_id)] = []
 
-    print(f"action per substations")
+        actions_per_substation[str(sub_id)].append(action)
+
     return actions_per_substation
 
 
 def create_greedy_agent_per_substation(
     env: BaseEnv,
     env_config: dict[str, Any],
-    controllable_substations: dict[int, int],
+    agent_per_substation: dict[str, int],
     possible_substation_actions: list[BaseAction],
-) -> dict[int, TopologyGreedyAgent]:
+) -> dict[str, TopologyGreedyAgent]:
     """
     Create a greedy agent for each substation.
+
+    Args:
+        env (BaseEnv): The environment in which the agents will operate.
+        env_config (dict[str, Any]): Configuration parameters for the environment.
+        agent_per_substation (dict[str, int]): A dictionary mapping substation IDs to the number of agents per substation.
+        possible_substation_actions (list[BaseAction]): A list of possible actions for each substation.
+
+    Returns:
+        dict[str, TopologyGreedyAgent]: A dictionary mapping substation IDs to the corresponding greedy agent.
+
     """
     actions_per_substation = get_actions_per_substation(
-        controllable_substations, possible_substation_actions
+        possible_substation_actions, agent_per_substation, add_dn_action_per_agent=True
     )
 
     # initialize greedy agents for all controllable substations
     agents = {}
-    for sub_id in list(controllable_substations.keys()):
+    for sub_id in list(agent_per_substation.keys()):
         agents[sub_id] = TopologyGreedyAgent(
             env.action_space, env_config, actions_per_substation[sub_id]
         )

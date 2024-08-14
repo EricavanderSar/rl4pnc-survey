@@ -4,22 +4,36 @@ Utilities in the grid2op experiments.
 
 import logging
 import os
+import random
 from typing import Any, Dict, List, OrderedDict, Union
 
 import numpy as np
 import ray
+import torch
 from grid2op.Environment import BaseEnv
 from ray import air, tune
 from ray.air.integrations.mlflow import MLflowLoggerCallback
 from ray.rllib.algorithms import Algorithm
-from ray.rllib.models import ModelCatalog
+from ray.tune.schedulers.hb_bohb import HyperBandForBOHB
+from ray.tune.search import ConcurrencyLimiter
+from ray.tune.search.bayesopt import BayesOptSearch
+from ray.tune.search.bohb import TuneBOHB
 
-from mahrl.models.mlp import SimpleMlp
 
-
-def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
+def calculate_action_space_asymmetry(
+    env: BaseEnv, add_dn_agents: bool = False, add_dn_action_per_agent: bool = False
+) -> tuple[int, int, dict[str, int]]:
     """
     Function prints and returns the number of legal actions and topologies without symmetries.
+
+    Parameters:
+        env (BaseEnv): The environment object.
+        add_dn_agents (bool): Flag indicating whether to add do-nothing agents.
+        add_dn_action_per_agent (bool): Flag indicating whether to add a do-nothing action per agent.
+
+    Returns:
+        tuple[int, int, dict[str, int]]: A tuple containing the number of legal actions,
+            the number of topologies without symmetries, and a dictionary of controllable substations.
     """
 
     nr_substations = len(env.sub_info)
@@ -38,8 +52,11 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, 
 
         alpha = 2 ** (nr_elements - 1) - (2**nr_non_lines - 1)
         action_space += alpha if alpha > 1 else 0
-        if alpha > 1:
-            controllable_substations[sub] = alpha
+        # if alpha > 1:  # without do nothings for single substations
+        if (add_dn_agents and alpha > 0) or (alpha > 1):
+            controllable_substations[str(sub)] = alpha
+            if add_dn_action_per_agent:
+                controllable_substations[str(sub)] += 1
         possible_topologies *= max(alpha, 1)
 
     logging.info(f"actions {action_space}")
@@ -48,9 +65,20 @@ def calculate_action_space_asymmetry(env: BaseEnv) -> tuple[int, int, dict[int, 
     return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
+def calculate_action_space_medha(
+    env: BaseEnv, add_dn_agents: bool = False, add_dn_action_per_agent: bool = False
+) -> tuple[int, int, dict[str, int]]:
     """
-    Function prints and returns the number of legal actions and topologies following Subrahamian (2021).
+    Calculates the number of legal actions and possible topologies based on Subrahamian (2021).
+
+    Args:
+        env (BaseEnv): The environment object.
+        add_dn_agents (bool, optional): Whether to add demand agents. Defaults to False.
+        add_dn_action_per_agent (bool, optional): Whether to add demand action per agent. Defaults to False.
+
+    Returns:
+        tuple[int, int, dict[str, int]]: A tuple containing the number of legal actions, possible topologies,
+        and a dictionary of controllable substations.
     """
     nr_substations = len(env.sub_info)
 
@@ -70,19 +98,30 @@ def calculate_action_space_medha(env: BaseEnv) -> tuple[int, int, dict[int, int]
         gamma = 2**nr_non_lines - 1 - nr_non_lines
         combined = alpha - beta - gamma
         action_space += combined if combined > 1 else 0
-        if combined > 1:
-            controllable_substations[sub] = combined
+        if (add_dn_agents and combined > 0) or (combined > 1):
+            controllable_substations[str(sub)] = combined
+            if add_dn_action_per_agent:
+                controllable_substations[str(sub)] += 1
+
         possible_topologies *= max(combined, 1)
 
-    logging.info(f"actions {action_space}")
-    logging.info(f"topologies {possible_topologies}")
-    logging.info(f"controllable substations {controllable_substations}")
     return action_space, possible_topologies, controllable_substations
 
 
-def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, dict[int, int]]:
+def calculate_action_space_tennet(
+    env: BaseEnv, add_dn_agents: bool = False, add_dn_action_per_agent: bool = False
+) -> tuple[int, int, dict[str, int]]:
     """
-    Function prints and returns the number of legal actions and topologies following the proposed action space.
+    Calculate the number of legal actions and topologies following the proposed action space.
+
+    Args:
+        env (BaseEnv): The environment object.
+        add_dn_agents (bool, optional): Whether to add demand agents. Defaults to False.
+        add_dn_action_per_agent (bool, optional): Whether to add demand action per agent. Defaults to False.
+
+    Returns:
+        tuple[int, int, dict[str, int]]: A tuple containing the number of legal actions, the number of possible topologies,
+        and a dictionary mapping controllable substations to their respective number of topologies.
     """
     nr_substations = len(env.sub_info)
 
@@ -121,93 +160,138 @@ def calculate_action_space_tennet(env: BaseEnv) -> tuple[int, int, dict[int, int
         ) / 2  # remove symmetries
 
         action_space += int(combined) if combined > 1 else 0
-        if combined > 1:
-            controllable_substations[sub] = combined
+        if (add_dn_agents and combined > 0) or (combined > 1):
+            controllable_substations[str(sub)] = combined
+            if add_dn_action_per_agent:
+                controllable_substations[str(sub)] += 1
+
         possible_topologies *= max(combined, 1)
 
-    logging.info(f"actions {action_space}")
-    logging.info(f"topologies {possible_topologies}")
-    logging.info(f"controllable substations {controllable_substations}")
     return action_space, possible_topologies, controllable_substations
 
 
 def get_capa_substation_id(
-    line_info: dict[int, list[int]],
+    line_info: dict[str, list[int]],
     obs_batch: Union[List[Dict[str, Any]], Dict[str, Any]],
-    controllable_substations: dict[int, int],
-) -> list[int]:
+    controllable_substations: dict[str, int],
+) -> list[str]:
     """
     Returns the substation id of the substation to act on according to CAPA.
+
+    Parameters:
+    - line_info: A dictionary containing information about the lines and substations.
+    - obs_batch: The observation batch, which can be a list of dictionaries or a single dictionary.
+    - controllable_substations: A dictionary containing the controllable substations.
+
+    Returns:
+    - A list of substation ids, ordered based on the maximum rho value and the mean rho value.
+
+    Raises:
+    - ValueError: If the observation batch is not supported.
     """
     # calculate the mean rho per substation
-    connected_rhos: dict[int, list[float]] = {agent: [] for agent in line_info}
+    connected_rhos: dict[str, list[float]] = {agent: [] for agent in line_info}
     for sub_idx in line_info:
         for line_idx in line_info[sub_idx]:
+            # extract rho
             if isinstance(obs_batch, OrderedDict):
-                connected_rhos[sub_idx].append(
-                    obs_batch["previous_obs"]["rho"][0][line_idx]
-                    # obs_batch["original_obs"]["rho"][0][line_idx]
-                )
-            elif isinstance(obs_batch, dict):
-                connected_rhos[sub_idx].append(
-                    obs_batch["previous_obs"]["rho"][line_idx]
-                    # obs_batch["original_obs"]["rho"][line_idx]
-                )
+                if "previous_obs" in obs_batch:
+                    rho = obs_batch["previous_obs"]["rho"][0][line_idx]
+                else:
+                    rho = obs_batch["rho"][line_idx]
             else:
                 raise ValueError("The observation batch is not supported.")
+
+            # add rho to sub
+            if rho > 0:
+                connected_rhos[sub_idx].append(rho)
+            else:  # line is disconnected, set to 3
+                connected_rhos[sub_idx].append(3.0)
+
     for sub_idx in connected_rhos:
-        connected_rhos[sub_idx] = [float(np.mean(connected_rhos[sub_idx]))]
+        # connected_rhos[sub_idx] = [float(np.mean(connected_rhos[sub_idx]))]
+        connected_rhos[sub_idx] = [
+            float(np.max(connected_rhos[sub_idx])),
+            float(np.mean(connected_rhos[sub_idx])),
+        ]
 
     # set non-controllable substations to 0
     for sub_idx in connected_rhos:
-        if sub_idx not in list(controllable_substations.keys()):
+        if str(sub_idx) not in list(controllable_substations.keys()):
             connected_rhos[sub_idx] = [0.0]
 
-    # order the substations by the mean rho, maximum first
-    connected_rhos = dict(
-        sorted(connected_rhos.items(), key=lambda item: item[1], reverse=True)
+    # order the substations by the max rho, using min rho as tiebreaker
+    ordered_keys = sorted(
+        connected_rhos.keys(),
+        key=lambda x: (connected_rhos[x][0], connected_rhos[x][1]),
+        reverse=True,
     )
 
-    # # find substation with max average rho
-    # max_value = max(connected_rhos.values())
-    # return [key for key, value in connected_rhos.items() if value == max_value][0]
-
     # return the ordered entries
-    # NOTE: When there are two equal max values, the first one is returned first
-    return list(connected_rhos.keys())
+    return list(ordered_keys)
 
 
-def find_list_of_agents(env: BaseEnv, action_space: str) -> dict[int, int]:
+def find_list_of_agents(
+    env: BaseEnv,
+    action_space: str,
+    add_dn_agents: bool = False,
+    add_dn_action_per_agent: bool = False,
+) -> dict[str, int]:
     """
     Function that returns the number of controllable substations.
+
+    Parameters:
+        env (BaseEnv): The environment object.
+        action_space (str): The type of action space.
+        add_dn_agents (bool): Whether to add distribution network agents.
+        add_dn_action_per_agent (bool): Whether to add distribution network actions per agent.
+
+    Returns:
+        dict[str, int]: A dictionary mapping agent names to the number of controllable substations.
+
+    Raises:
+        ValueError: If the action space is not supported.
     """
     if action_space.startswith("asymmetry"):
-        _, _, list_of_agents = calculate_action_space_asymmetry(env)
+        _, _, list_of_agents = calculate_action_space_asymmetry(
+            env, add_dn_agents, add_dn_action_per_agent
+        )
         return list_of_agents
     if action_space.startswith("medha"):
-        _, _, list_of_agents = calculate_action_space_medha(env)
+        _, _, list_of_agents = calculate_action_space_medha(
+            env, add_dn_agents, add_dn_action_per_agent
+        )
         return list_of_agents
     if action_space.startswith("tennet"):
-        _, _, list_of_agents = calculate_action_space_tennet(env)
+        _, _, list_of_agents = calculate_action_space_tennet(
+            env, add_dn_agents, add_dn_action_per_agent
+        )
         return list_of_agents
     raise ValueError("The action space is not supported.")
 
 
 def find_substation_per_lines(
-    env: BaseEnv, list_of_agents: list[int]
-) -> dict[int, list[int]]:
+    env: BaseEnv, list_of_agents: list[str]
+) -> dict[str, list[int]]:
     """
     Returns a dictionary connecting line ids to substations.
+
+    Args:
+        env (BaseEnv): The environment object.
+        list_of_agents (list[str]): A list of agent names.
+
+    Returns:
+        dict[str, list[int]]: A dictionary connecting line ids to substations.
     """
-    line_info: dict[int, list[int]] = {agent: [] for agent in list_of_agents}
+    line_info: dict[str, list[int]] = {agent: [] for agent in list_of_agents}
     for sub_idx in list_of_agents:
-        for or_id in env.observation_space.get_obj_connect_to(substation_id=sub_idx)[
-            "lines_or_id"
-        ]:
+        for or_id in env.observation_space.get_obj_connect_to(
+            substation_id=int(sub_idx)
+        )["lines_or_id"]:
             line_info[sub_idx].append(or_id)
-        for ex_id in env.observation_space.get_obj_connect_to(substation_id=sub_idx)[
-            "lines_ex_id"
-        ]:
+        for ex_id in env.observation_space.get_obj_connect_to(
+            substation_id=int(sub_idx)
+        )["lines_ex_id"]:
             line_info[sub_idx].append(ex_id)
 
     return line_info
@@ -218,18 +302,127 @@ def run_training(
 ) -> None:
     """
     Function that runs the training script.
+
+    Args:
+        config (dict): A dictionary containing the configuration parameters for training.
+        setup (dict): A dictionary containing the setup parameters for training.
+        algorithm (Algorithm): An instance of the Algorithm class representing the training algorithm.
+
+    Returns:
+        None
     """
     # init ray
-    # ray.shutdown()
-    ray.init(ignore_reinit_error=False)
+    ray.init()
 
-    ModelCatalog.register_custom_model("fcn", SimpleMlp)
+    if "debugging" in config and "seed" in config["debugging"]:
+        set_reproducibillity(config["debugging"]["seed"])
 
-    # Create tuner
+        # set seed in env
+        config["env_config"]["seed"] = config["debugging"]["seed"]
+        config["evaluation_config"]["env_config"]["seed"] = config["debugging"]["seed"]
+
+    tuner = get_gridsearch_tuner(setup, config, algorithm)
+
+    # Launch tuning
+    try:
+        tuner.fit()
+    finally:
+        # Close ray instance
+        ray.shutdown()
+
+    # # save config to params.json in the runs file that is created
+    # with open(
+    #     os.path.join(
+    #         setup["storage_path"],
+    #         # "mlruns",
+    #         # "configs",
+    #         "params.json",
+    #     ),
+    #     "w",
+    #     encoding="utf-8",
+    # ) as config_file:
+    #     config_file.write(str(config))
+
+
+def get_gridsearch_tuner(
+    setup: dict[str, Any], config: dict[str, Any], algorithm: Algorithm
+) -> tune.Tuner:
+    """
+    Returns a GridSearch tuner for hyperparameter optimization.
+
+    Args:
+        setup (dict): A dictionary containing setup parameters.
+        config (dict): A dictionary containing hyperparameter configurations.
+        algorithm (Algorithm): The algorithm to be tuned.
+
+    Returns:
+        tune.Tuner: A GridSearch tuner object.
+
+    """
     tuner = tune.Tuner(
         algorithm,
         param_space=config,
-        tune_config=tune.TuneConfig(num_samples=setup["num_samples"]),
+        tune_config=tune.TuneConfig(
+            num_samples=setup["num_samples"],
+        ),
+        run_config=air.RunConfig(
+            name="mlflow",
+            callbacks=[
+                MLflowLoggerCallback(
+                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+                    experiment_name=setup["experiment_name"],
+                    save_artifact=setup["save_artifact"],
+                )
+            ],
+            stop={"timesteps_total": setup["nb_timesteps"]},
+            storage_path=os.path.abspath(setup["storage_path"]),
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=setup["checkpoint_freq"],
+                checkpoint_at_end=setup["checkpoint_at_end"],
+                checkpoint_score_attribute=setup["checkpoint_score_attr"],
+                # num_to_keep=setup["keep_checkpoints_num"],
+            ),
+            verbose=setup["verbose"],
+        ),
+    )
+    return tuner
+
+
+def get_bohb_tuner(
+    setup: dict[str, Any], config: dict[str, Any], algorithm: Algorithm
+) -> tune.Tuner:
+    """
+    Returns a BOHB tuner for hyperparameter optimization.
+
+    Args:
+        setup (dict): A dictionary containing setup parameters.
+        config (dict): A dictionary containing hyperparameter configurations.
+        algorithm (Algorithm): The algorithm to be tuned.
+
+    Returns:
+        tune.Tuner: The BOHB tuner.
+
+    """
+    # Create tuner
+    algo = TuneBOHB()
+    algo = ray.tune.search.ConcurrencyLimiter(algo, max_concurrent=4)
+    scheduler = HyperBandForBOHB(
+        time_attr="training_iteration",
+        max_t=10,
+        reduction_factor=4,
+        stop_last_trials=False,
+    )
+
+    tuner = tune.Tuner(
+        algorithm,
+        param_space=config,
+        tune_config=tune.TuneConfig(
+            metric="custom_metrics/corrected_ep_len_mean",
+            mode="max",
+            search_alg=algo,
+            scheduler=scheduler,
+            num_samples=10,
+        ),
         run_config=air.RunConfig(
             name="mlflow",
             callbacks=[
@@ -250,23 +443,68 @@ def run_training(
             verbose=setup["verbose"],
         ),
     )
+    return tuner
 
-    # Launch tuning
-    try:
-        tuner.fit()
-    finally:
-        # Close ray instance
-        ray.shutdown()
 
-    # save config to params.json in the runs file that is created
-    with open(
-        os.path.join(
-            setup["storage_path"],
-            # "mlruns",
-            # "configs",
-            "params.json",
+def get_bayesian_tuner(
+    setup: dict[str, Any], config: dict[str, Any], algorithm: Algorithm
+) -> tune.Tuner:
+    """
+    Returns a Bayesian tuner for hyperparameter optimization.
+
+    Args:
+        setup (dict): A dictionary containing setup parameters.
+        config (dict): A dictionary containing hyperparameter configurations.
+        algorithm (Algorithm): The algorithm to be used for tuning.
+
+    Returns:
+        tune.Tuner: A Bayesian tuner for hyperparameter optimization.
+    """
+    tuner = tune.Tuner(
+        algorithm,
+        param_space=config,
+        tune_config=tune.TuneConfig(
+            metric="evaluation/episode_reward_mean",
+            mode="max",
+            search_alg=ConcurrencyLimiter(
+                BayesOptSearch(utility_kwargs={"kind": "ucb", "kappa": 2.5, "xi": 0.0}),
+                max_concurrent=4,
+            ),
+            num_samples=14,
         ),
-        "w",
-        encoding="utf-8",
-    ) as config_file:
-        config_file.write(str(config))
+        run_config=air.RunConfig(
+            name="mlflow",
+            callbacks=[
+                MLflowLoggerCallback(
+                    tracking_uri=os.path.join(setup["storage_path"], "mlruns"),
+                    experiment_name=setup["experiment_name"],
+                    save_artifact=setup["save_artifact"],
+                )
+            ],
+            stop={"timesteps_total": setup["nb_timesteps"]},
+            storage_path=os.path.abspath(setup["storage_path"]),
+            checkpoint_config=air.CheckpointConfig(
+                checkpoint_frequency=setup["checkpoint_freq"],
+                checkpoint_at_end=setup["checkpoint_at_end"],
+                checkpoint_score_attribute=setup["checkpoint_score_attr"],
+                num_to_keep=setup["keep_checkpoints_num"],
+            ),
+            verbose=setup["verbose"],
+        ),
+    )
+    return tuner
+
+
+def set_reproducibillity(seed: int) -> None:
+    """
+    Set the random seed for reproducibility.
+
+    Parameters:
+        seed (int): The seed value to set for random number generators.
+
+    Returns:
+        None
+    """
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
