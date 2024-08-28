@@ -616,7 +616,7 @@ if __name__ == "__main__":
         "--middle",
         type=str,
         default="rl",
-        help="The type of middle level agent (capa or rl).",
+        help="Specify the type of coordinator you want to use (rl, rlv, capa, random, sample, argmax). Default: rl",
     )
 
     parser.add_argument(
@@ -624,7 +624,7 @@ if __name__ == "__main__":
         "--lower",
         type=str,
         default="rl",
-        help="The type of middle level agent (greedy or rl).",
+        help="Specify the type of regional agents you want to use (rl, rlv, greedy). Default: rl",
     )
 
     # Parse the command-line arguments
