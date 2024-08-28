@@ -29,7 +29,7 @@ if __name__ == "__main__":
         "--test",
         type=int,
         default=20,
-        help="Percentage of scenarios to be used for testing. Default = 10%.",
+        help="Percentage of scenarios to be used for testing. Default = 20%.",
     )
 
     parser.add_argument(
