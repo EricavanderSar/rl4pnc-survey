@@ -12,10 +12,10 @@ module load Anaconda3/2022.05
 echo "Start updating conda"
 conda init
 conda update conda
-echo "Create mahrl_grid2op env"
-time conda create -n mahrl_grid2op python=3.10
+echo "Create rl4pnc env"
+time conda create -n rl4pnc python=3.10
 echo "********** activate Env **********"
-source activate mahrl_grid2op
+source activate rl4pnc
 export PYTHONPATH=$PYTHONPATH:$PWD
 python -m pip install .
 pip install -e .

@@ -24,9 +24,9 @@ def update_wandb(project):
     # Update parameters in WandB that can be used for grouping and filtering
     # wandb.login(key="6f33124a4b4139d3e5e7700cf9a9f6739e69c247")
     api = wandb.Api()
-    wandb_path = f"mahrl4grid2op/{project}"
+    wandb_path = f"rl4pnc4grid2op/{project}"
     print("Updating parameters in WandB Project: ", wandb_path)
-    runs = api.runs(f"mahrl4grid2op/{project}")
+    runs = api.runs(f"rl4pnc4grid2op/{project}")
     print(f"Matching runs: {len(runs)}")
     for run in tqdm(runs, total=len(runs)):
         update_rw_config(run)

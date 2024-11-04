@@ -14,11 +14,11 @@ from tqdm import tqdm  # for easy progress bar
 import pandas as pd
 from grid2op.Episode import EpisodeData
 from ray.rllib.algorithms import ppo
-from mahrl.evaluation.evaluation_agents import RllibAgent
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.grid2op_env.custom_env2 import RlGrid2OpEnv
-from mahrl.experiments.yaml import load_config
-from mahrl.evaluation.utils import instantiate_reward_class
+from rl4pnc.evaluation.evaluation_agents import RllibAgent
+from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from rl4pnc.grid2op_env.custom_env2 import RlGrid2OpEnv
+from rl4pnc.experiments.yaml import load_config
+from rl4pnc.evaluation.utils import instantiate_reward_class
 
 
 def get_latest_checkpoint(agent_path):
@@ -369,7 +369,7 @@ if __name__ == "__main__":
     test_case = args.test_case
     # Get location of studied agent
     studie_path = args.path
-    lib_dir = "/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/"
+    lib_dir = "/Users/ericavandersar/Documents/Python_Projects/Research/rl4pnc/"
 
     # chronics copied from test set in Snellius
     chronics = "0020  0047  0076  0129  0154  0164  0196  0230  0287  0332  0360  0391  0454  0504  0516  0539  0580  0614  0721  0770  0842  0868  0879  0925  0986 0023  0065  0103  0141  0156  0172  0206  0267  0292  0341  0369  0401  0474  0505  0529  0545  0595  0628  0757  0774  0844  0869  0891  0950  0993 0026  0066  0110  0144  0157  0179  0222  0274  0303  0348  0381  0417  0481  0511  0531  0547  0610  0636  0763  0779  0845  0870  0895  0954  0995 0030  0075  0128  0153  0162  0192  0228  0286  0319  0355  0387  0418  0486  0513  0533  0565  0612  0703  0766  0812  0852  0871  0924  0962  1000"

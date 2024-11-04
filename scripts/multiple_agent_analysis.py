@@ -9,7 +9,7 @@ from functools import partial
 from pathos.multiprocessing import ProcessingPool as Pool
 
 from agent_evaluation import eval_single_agent
-from mahrl.grid2op_env.utils import load_actions
+from rl4pnc.grid2op_env.utils import load_actions
 
 
 def actions_per_agent(env_name, agents, main_folder, lib_dir, reset_topo=False):
@@ -122,7 +122,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-l",
         "--lib_dir",
-        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/",
+        default="/Users/ericavandersar/Documents/Python_Projects/Research/rl4pnc/",
         type=str,
         help="The directory of the python libary - to find the action spaces etc.",
     )

@@ -14,7 +14,7 @@ import grid2op
 from grid2op.Environment import BaseEnv
 from lightsim2grid import LightSimBackend
 
-from mahrl.experiments.yaml import load_config
+from rl4pnc.experiments.yaml import load_config
 
 RHO_THRESHOLD = 1
 LENGTH_DAY = 288

@@ -19,17 +19,17 @@ from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 from ray.rllib.models import ModelCatalog
 
-from mahrl.experiments.yaml import load_config
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.grid2op_env.custom_env2 import RlGrid2OpEnv
-from mahrl.multi_agent.policy import (
+from rl4pnc.experiments.yaml import load_config
+from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from rl4pnc.grid2op_env.custom_env2 import RlGrid2OpEnv
+from rl4pnc.multi_agent.policy import (
     DoNothingPolicy,
     SelectAgentPolicy,
     DoNothingPolicy2,
     SelectAgentPolicy2
 )
-from mahrl.experiments.utils import run_training
-from mahrl.models.linear_model import LinFCN
+from rl4pnc.experiments.utils import run_training
+from rl4pnc.models.linear_model import LinFCN
 
 REPORT_END = False
 
@@ -138,7 +138,7 @@ if __name__ == "__main__":
         "-wd",
         "--workdir",
         type=str,
-        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/",
+        default="/Users/ericavandersar/Documents/Python_Projects/Research/Rl4Pnc/",
         help="path do store results.",
     )
     parser.add_argument(

@@ -4,7 +4,7 @@ Script that splits the scenarios into train, test and validation sets.
 
 import argparse
 
-from mahrl.grid2op_env.utils import make_train_test_val_split
+from rl4pnc.grid2op_env.utils import make_train_test_val_split
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process possible variables.")

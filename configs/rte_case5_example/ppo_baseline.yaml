@@ -4,7 +4,7 @@ setup:
   checkpoint_freq: 2 # number of iterations between checkpoints (1 iteration = 1 agent update?)
   verbose: 0
   my_log_level: 1
-  storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
+  storage_path: ./runs #/Users/barberademol/Documents/GitHub/rl4pnc/runs/ #/home3/s3374610/rl4pnc/runs/
   folder_name: "Default params"
   experiment_name: "PPOSingle_Case5_default" # name in WandB
   save_artifact: True
@@ -61,7 +61,7 @@ environment:
     shuffle_scenarios: True
     env_name: rte_case5_example_train
     action_space: medha
-    lib_dir: !workdir #/Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/
+    lib_dir: !workdir #/Users/barberademol/Documents/GitHub/rl4pnc/ # /home3/s3374610/rl4pnc/
     max_tsteps: *train_batch_size
     grid2op_kwargs:
       # general kwargs

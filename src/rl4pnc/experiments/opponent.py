@@ -9,8 +9,8 @@ from grid2op.Action import ActionSpace as BaseActionSpace
 from grid2op.Action import BaseAction
 from grid2op.Environment import BaseEnv
 from grid2op.Observation.baseObservation import BaseObservation
-from grid2op.Opponent.BaseOpponent import BaseOpponent
-from grid2op.Opponent.OpponentSpace import OpponentSpace
+from grid2op.Opponent.baseOpponent import BaseOpponent
+from grid2op.Opponent.opponentSpace import OpponentSpace
 
 
 class ReconnectingOpponentSpace(OpponentSpace):

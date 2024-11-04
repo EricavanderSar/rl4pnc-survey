@@ -13,7 +13,7 @@ ENVNAME=l2rpn_case14_sandbox_train #l2rpn_icaps_2021_large_train
 NUMBER_DAYS=2
 
 echo "Activate envirnonment"
-source activate mahrl_grid2op
+source activate rl4pnc
 export PYTHONPATH=$PYTHONPATH:$PWD
 
 echo "Run code:"

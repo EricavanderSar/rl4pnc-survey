@@ -8,7 +8,7 @@ import importlib
 from grid2op.Episode import EpisodeData
 from grid2op.Reward import BaseReward
 
-from mahrl.evaluation import evaluation_metrics
+from rl4pnc.evaluation import evaluation_metrics
 
 
 def load_episodes(path: str) -> list[EpisodeData]:

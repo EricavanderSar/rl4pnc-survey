@@ -12,7 +12,7 @@
 ENVNAME=l2rpn_icaps_2021_large #rte_case14_realistic #
 
 echo "Activate envirnonment"
-source activate mahrl_grid2op
+source activate rl4pnc
 export PYTHONPATH=$PYTHONPATH:$PWD
 
 echo "Run code:"

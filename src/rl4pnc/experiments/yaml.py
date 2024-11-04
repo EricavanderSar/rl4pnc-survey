@@ -25,12 +25,12 @@ from ray.rllib.core.rl_module.marl_module import MultiAgentRLModuleSpec
 from yaml.loader import FullLoader, Loader, UnsafeLoader
 from yaml.nodes import MappingNode, ScalarNode, SequenceNode
 
-from mahrl.experiments.callback import CustomMetricsCallback
-from mahrl.experiments.opponent import ReconnectingOpponentSpace
-from mahrl.experiments.rewards import LossReward, ScaledL2RPNReward, AlphaZeroRW, LossRewardRescaled2, LossRewardNew
+from rl4pnc.experiments.callback import CustomMetricsCallback
+from rl4pnc.experiments.opponent import ReconnectingOpponentSpace
+from rl4pnc.experiments.rewards import LossReward, ScaledL2RPNReward, AlphaZeroRW, LossRewardRescaled2, LossRewardNew
 from grid2op.Reward import L2RPNReward,LinesCapacityReward
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.multi_agent.policy import (
+from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from rl4pnc.multi_agent.policy import (
     DoNothingPolicy,
     SelectAgentPolicy,
     policy_mapping_fn,

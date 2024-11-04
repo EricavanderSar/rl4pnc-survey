@@ -9,7 +9,7 @@ import logging
 import numpy as np
 from grid2op.Episode import EpisodeData
 
-from mahrl.evaluation.utils import (
+from rl4pnc.evaluation.utils import (
     load_episodes,
     save_global_statistics,
     save_scenario_statistics,

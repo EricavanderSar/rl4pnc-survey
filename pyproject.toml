@@ -10,21 +10,21 @@ build-backend = "setuptools.build_meta"
 
 # Package name
 
-name = "mahrl"
+name = "rl4pnc"
 version = "0.1.0"
 
 # Authors
 
 authors = [
-    {name = "bcdemol", email = "b.c.de.mol@student.rug.nl"},
+    {name = "EricavanderSar", email = "ericavandersar@gmail.com"},
 ]
 
 # Package info
 
-description = "Implementing MAHRL for Grid2Op topology control."
+description = "Implementing RL for Grid2Op topology control."
 readme = "README.md"
 
-keywords = ["hrl", "marl", "grid2op"]
+keywords = ["rl", "hrl", "marl", "grid2op"]
 
 license = {text = "BSD-3-Clause"}
 

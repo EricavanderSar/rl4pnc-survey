@@ -4,7 +4,7 @@ setup:
   checkpoint_freq: 2
   verbose: 0
   my_log_level: 1
-  storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
+  storage_path: ./runs #/Users/barberademol/Documents/GitHub/rl4pnc/runs/ #/home3/s3374610/rl4pnc/runs/
   folder_name: "Test14"
   experiment_name: "Testing"
   optimize: False
@@ -67,7 +67,7 @@ environment:
     env_name: rte_case14_realistic_train
     action_space: medha_DN_onechange
     mask: 5
-    lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/
+    lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/rl4pnc/
     grid2op_kwargs:
       # general kwargs
       reward_class: !ScaledL2RPNReward

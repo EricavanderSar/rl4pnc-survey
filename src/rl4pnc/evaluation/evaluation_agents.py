@@ -19,7 +19,7 @@ from grid2op.Reward import BaseReward
 from ray.rllib.algorithms import Algorithm
 from ray.rllib.policy.policy import Policy
 
-from mahrl.experiments.utils import (
+from rl4pnc.experiments.utils import (
     calculate_action_space_asymmetry,
     calculate_action_space_medha,
     calculate_action_space_tennet,

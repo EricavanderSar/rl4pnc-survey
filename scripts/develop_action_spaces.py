@@ -9,7 +9,7 @@ import os
 import grid2op
 from lightsim2grid import LightSimBackend
 
-from mahrl.experiments.action_spaces import (
+from rl4pnc.experiments.action_spaces import (
     get_action_space,
     get_space_numpy,
     save_to_json,

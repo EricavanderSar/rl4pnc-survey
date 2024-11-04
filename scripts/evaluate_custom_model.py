@@ -19,15 +19,15 @@ from grid2op.Runner import Runner
 from ray.rllib.algorithms import ppo
 from ray.rllib.algorithms import Algorithm
 
-from mahrl.evaluation.evaluation_agents import (
+from rl4pnc.evaluation.evaluation_agents import (
     CapaAndGreedyAgent,
     RllibAgent,
     TopologyGreedyAgent,
 )
-from mahrl.evaluation.utils import instantiate_reward_class
-from mahrl.experiments.yaml import load_config
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.grid2op_env.utils import load_actions
+from rl4pnc.evaluation.utils import instantiate_reward_class
+from rl4pnc.experiments.yaml import load_config
+from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from rl4pnc.grid2op_env.utils import load_actions
 
 
 def get_algorithm(alg_name) -> Algorithm:
@@ -77,7 +77,7 @@ def setup_parser(parser: argparse.ArgumentParser) -> argparse.Namespace:
     parser.add_argument(
         "-f",
         "--file_path",
-        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/scripts/runs/"
+        default="/Users/ericavandersar/Documents/Python_Projects/Research/rl4pnc/scripts/runs/"
                 "CustomPPO_2024-03-04_10-44-37/"
                 "CustomPPO_CustomizedGrid2OpEnvironment_d0927_00000_0_2024-03-04_10-44-37",
         type=str,

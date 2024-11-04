@@ -8,8 +8,8 @@ import os
 import gymnasium as gym
 from ray.tune.registry import register_env
 
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.grid2op_env.observation_converter import ObsConverter
+from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from rl4pnc.grid2op_env.observation_converter import ObsConverter
 
 
 class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):

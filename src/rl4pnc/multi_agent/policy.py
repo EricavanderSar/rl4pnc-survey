@@ -29,14 +29,14 @@ from ray.rllib.utils.typing import (
     TensorType,
 )
 
-from mahrl.experiments.utils import (
+from rl4pnc.experiments.utils import (
     calculate_action_space_asymmetry,
     calculate_action_space_medha,
     calculate_action_space_tennet,
     get_capa_substation_id,
     find_list_of_agents
 )
-from mahrl.grid2op_env.utils import load_actions, setup_converter, rename_env
+from rl4pnc.grid2op_env.utils import load_actions, setup_converter, rename_env
 
 
 def policy_mapping_fn(

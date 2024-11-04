@@ -6,9 +6,9 @@ import grid2op
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from mahrl.grid2op_env.observation_converter import ObsConverter
-from mahrl.evaluation.evaluation_agents import get_actions_per_substation
+from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from rl4pnc.grid2op_env.observation_converter import ObsConverter
+from rl4pnc.evaluation.evaluation_agents import get_actions_per_substation
 
 
 class MultiAgentG2OpEnv(CustomizedGrid2OpEnvironment):

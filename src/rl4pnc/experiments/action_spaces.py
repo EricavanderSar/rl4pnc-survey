@@ -21,7 +21,7 @@ from grid2op.Observation import BaseObservation
 from grid2op.Environment import BaseEnv, MultiEnvMultiProcess, SingleEnvMultiProcess
 from lightsim2grid import LightSimBackend
 
-from mahrl.grid2op_env.utils import get_possible_topologies
+from rl4pnc.grid2op_env.utils import get_possible_topologies
 
 def get_changeable_substations_tennet(env: BaseEnv) -> list[int]:
     """
@@ -628,11 +628,11 @@ def save_to_json(
 #     for env_name in envs:
 #         environment = grid2op.make(env_name, test=True)
 #
-#         file_path = f"/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/action_spaces/{env_name}/asymmetry.json"
+#         file_path = f"/Users/barberademol/Documents/GitHub/rl4pnc/experiments/action_spaces/{env_name}/asymmetry.json"
 #         save_to_json(get_asymmetrical_action_space(environment), file_path)
 #
-#         file_path = f"/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/action_spaces/{env_name}/medha.json"
+#         file_path = f"/Users/barberademol/Documents/GitHub/rl4pnc/experiments/action_spaces/{env_name}/medha.json"
 #         save_to_json(get_medha_action_space(environment), file_path)
 #
-#         file_path = f"/Users/barberademol/Documents/GitHub/mahrl_grid2op/experiments/action_spaces/{env_name}/tennet.json"
+#         file_path = f"/Users/barberademol/Documents/GitHub/rl4pnc/experiments/action_spaces/{env_name}/tennet.json"
 #         save_to_json(get_tennet_action_space(environment), file_path)

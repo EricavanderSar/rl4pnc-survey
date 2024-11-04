@@ -10,14 +10,14 @@ from grid2op.Action import BaseAction
 from ray.rllib.utils.typing import MultiAgentDict
 from ray.tune.registry import register_env
 
-from mahrl.evaluation.evaluation_agents import (
+from rl4pnc.evaluation.evaluation_agents import (
     create_greedy_agent_per_substation,
     get_actions_per_substation,
 )
-from mahrl.experiments.utils import (
+from rl4pnc.experiments.utils import (
     find_list_of_agents,
 )
-from mahrl.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
+from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 
 OBSTYPE = TypeVar("OBSTYPE")
 ACTTYPE = TypeVar("ACTTYPE")

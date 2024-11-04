@@ -4,7 +4,7 @@ setup:
   checkpoint_freq: 10
   verbose: 0
   my_log_level: 1
-  storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
+  storage_path: ./runs #/Users/barberademol/Documents/GitHub/rl4pnc/runs/ #/home3/s3374610/rl4pnc/runs/
   folder_name: "Case14_Real"
   experiment_name: "Case14_Real"
   optimize: False

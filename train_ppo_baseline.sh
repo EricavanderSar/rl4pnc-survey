@@ -17,7 +17,7 @@ RESDIR=Case14_Enhancements
 # function to handle the SIGTERM signal
 function handle_interrupt {
     echo "Caught SIGTERM signal, sync with wandb..."
-#    srun mkdir -p "$HOME/mahrl/runs" && cp -r $WORKDIR/runs $HOME/mahrl/
+#    srun mkdir -p "$HOME/rl4pnc/runs" && cp -r $WORKDIR/runs $HOME/rl4pnc/
     cd $HOME/ray_results/$RESDIR
     for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
     exit 1
@@ -27,14 +27,14 @@ function handle_interrupt {
 trap handle_interrupt TERM
 
 echo "Activate envirnonment"
-source activate mahrl_grid2op
+source activate rl4pnc
 export PYTHONPATH=$PYTHONPATH:$PWD
 
 #Create output directory on scratch
 echo "Copy necessary files"
 mkdir $WORKDIR
-srun cp -r $HOME/mahrl_grid2op/configs $WORKDIR/configs
-srun cp -r $HOME/mahrl_grid2op/data $WORKDIR/data
+srun cp -r $HOME/rl4pnc/configs $WORKDIR/configs
+srun cp -r $HOME/rl4pnc/data $WORKDIR/data
 #mkdir $WORKDIR/data_grid2op/
 #srun find $HOME/data_grid2op -type d -name "${ENVNAME}*" -print0 | xargs -0 -I {} cp -r {} $WORKDIR/data_grid2op/
 

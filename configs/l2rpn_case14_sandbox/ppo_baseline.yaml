@@ -4,7 +4,7 @@ setup:
   checkpoint_freq: 2
   verbose: 0
   my_log_level: 1
-  storage_path: ./runs #/Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/
+  storage_path: ./runs
   folder_name: "TestSandbox14"
   experiment_name: "TestSb14"
   optimize: False
@@ -67,7 +67,7 @@ environment:
     env_name: l2rpn_case14_sandbox_train
     action_space: medha
     mask: 5
-    lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/
+    lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/rl4pnc/
     grid2op_kwargs:
       # general kwargs
       reward_class: !AlphaZeroRW

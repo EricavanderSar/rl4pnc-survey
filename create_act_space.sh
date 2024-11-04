@@ -1,6 +1,6 @@
 #!/bin/bash
 #set job requirements
-#SBATCH --job-name="mahrl_create_act_space"
+#SBATCH --job-name="rl4pnc_create_act_space"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
@@ -10,10 +10,10 @@
 
 
 ENVNAME=l2rpn_icaps_2021_large #rte_case14_realistic #
-SAVE_PATH=$HOME/mahrl_grid2op/data/action_spaces/
+SAVE_PATH=$HOME/rl4pnc/data/action_spaces/
 
 echo "Activate envirnonment"
-source activate mahrl_grid2op
+source activate rl4pnc
 export PYTHONPATH=$PYTHONPATH:$PWD
 
 echo "Run code:"

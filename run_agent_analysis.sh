@@ -11,10 +11,10 @@
 
 ENVNAME=l2rpn_case14_sandbox
 RESDIR=$HOME/ray_results/Case14_Sandbox_ActSpaces
-LIBDIR=$HOME/mahrl_grid2op/
+LIBDIR=$HOME/rl4pnc/
 
 echo "Activate envirnonment"
-source activate mahrl_grid2op
+source activate rl4pnc
 export PYTHONPATH=$PYTHONPATH:$PWD
 
 echo "Run code:"

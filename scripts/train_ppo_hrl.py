@@ -14,21 +14,21 @@ from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
 
-from mahrl.experiments.utils import (
+from rl4pnc.experiments.utils import (
     find_list_of_agents,
     find_substation_per_lines,
     run_training,
 )
-from mahrl.experiments.yaml import load_config
-# from mahrl.grid2op_env.custom_environment import (
+from rl4pnc.experiments.yaml import load_config
+# from rl4pnc.grid2op_env.custom_environment import (
 #     GreedyHierarchicalCustomizedGrid2OpEnvironment,
 #     HierarchicalCustomizedGrid2OpEnvironment,
 # )
-from mahrl.grid2op_env.hierarchical_envs_tennet import (
+from rl4pnc.grid2op_env.hierarchical_envs_tennet import (
     GreedyHierarchicalCustomizedGrid2OpEnvironment,
     HierarchicalCustomizedGrid2OpEnvironment,
 )
-from mahrl.multi_agent.policy import (
+from rl4pnc.multi_agent.policy import (
     ArgMaxPolicy,
     CapaPolicy,
     DoNothingPolicy,
@@ -399,7 +399,7 @@ if __name__ == "__main__":
         "-wd",
         "--workdir",
         type=str,
-        default="/Users/ericavandersar/Documents/Python_Projects/Research/mahrl_grid2op/",
+        default="/Users/ericavandersar/Documents/Python_Projects/Research/rl4pnc/",
         help="path do store results.",
     )
 

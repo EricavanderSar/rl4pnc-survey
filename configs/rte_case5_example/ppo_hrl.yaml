@@ -2,7 +2,7 @@ setup:
   nb_timesteps: &nb_timesteps 1000000
   checkpoint_freq: 10000
   verbose: 1
-  storage_path: /Users/barberademol/Documents/GitHub/mahrl_grid2op/runs/ #/home3/s3374610/mahrl_grid2op/runs/ 
+  storage_path: /Users/barberademol/Documents/GitHub/rl4pnc/runs/ #/home3/s3374610/rl4pnc/runs/ 
 
 debugging:
   seed: &seed 14
@@ -45,7 +45,7 @@ environment:
     env_name: rte_case5_example
     num_agents: 3
     action_space: asymmetry
-    lib_dir: /Users/barberademol/Documents/GitHub/mahrl_grid2op/ # /home3/s3374610/mahrl_grid2op/ 
+    lib_dir: /Users/barberademol/Documents/GitHub/rl4pnc/ # /home3/s3374610/rl4pnc/ 
     max_tsteps: *nb_timesteps
     grid2op_kwargs:
       # general kwargs
