@@ -197,17 +197,82 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
     return env
 
 
-class ChronPrioMatrix:
+class ChronPrioVect:
+    """
+        This class can be used when episodes are already split in smaller pieces for training.
+        Each smaller episode gets a priority value: chronic_scores
+    """
     def __init__(self, env: grid2op.Environment):
+        # Get the list of available chronics
+        avail_chron = env.chronics_handler.real_data.available_chronics()
+
+        # Get the length of each chronic, as it can vary per piece
+        self.chronic_lengths: dict[str, int] = {}
+        for chronic in avail_chron:
+            env.set_id(chronic)
+            env.reset()
+            self.chronic_lengths[chronic.split("/")[-1]] = env.max_episode_duration()
+
+        self.name_len = len(avail_chron[0].split("/")[-1])
+
+        # initialize training chronic sampling weights
+        self.chron_scores = torch.ones(len(avail_chron)) * 2.0  # NOTE: Why *2?
+        self.chronic_idx = 0
+        # not used in this case since we have small episodes we dont ffw
+        # initialized to generalize.
+        self.cur_ffw = 0
+
+    def sample_chron(self) -> int:
+        """
+        Samples a training chronic based on the chronic scores.
+
+        Returns:
+            int: The index of the sampled chronic.
+
+        """
+        dist = torch.distributions.categorical.Categorical(
+            logits=torch.Tensor(self.chron_scores)
+        )
+        self.chronic_idx = dist.sample().item()
+        return self.chronic_idx
+
+    def update_prios(self, steps_surv: int) -> None:
+        """
+        Updates the priority scores based on the number of steps survived.
+
+        Args:
+            steps_surv (int): The number of steps survived.
+
+        """
+        scores = (
+            1
+            - np.sqrt(
+                steps_surv
+                / self.chronic_lengths[str(self.chronic_idx).zfill(self.name_len)]
+            )
+            * 2.0
+        )
+
+        chronic_idx_str = str(self.chronic_idx).lstrip("0")
+        if chronic_idx_str == "":  # if chronic_idx_str is empty
+            chronic_idx_str = "0"
+
+        self.chron_scores[int(chronic_idx_str)] = scores
+
+
+class ChronPrioMatrix(ChronPrioVect):
+    """
+        The ChronPrioMatrix class defines a matrix that keeps track of the difficulty starting in some position (ffw)
+        in the current chronic.
+    """
+    def __init__(self, env: grid2op.Environment):
+        super().__init__(env)
         self.max_ep_dur = env.max_episode_duration()
         # initialize training chronic sampling weights
         self.ffw_size = 288
         self.max_ffw = int(np.ceil(self.max_ep_dur / self.ffw_size))
         avail_chron = env.chronics_handler.real_data.available_chronics()
         self.chron_scores = torch.ones(len(avail_chron), self.max_ffw) * 2.0
-
-        self.cur_ffw = 0
-        self.chronic_idx = None
 
     def sample_chron(self):
         # sample training chronic

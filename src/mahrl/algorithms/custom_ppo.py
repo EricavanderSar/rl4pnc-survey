@@ -1,3 +1,7 @@
+"""
+Implement PPO in Rllib with an accurate batch size.
+"""
+
 import logging
 from typing import List, Optional, Union
 import numpy as np
@@ -33,130 +37,23 @@ from ray.rllib.utils.typing import SampleBatchType
 logger = logging.getLogger(__name__)
 
 
-def custom_synchronous_parallel_sample(
-    *,
-    worker_set: WorkerSet,
-    max_agent_steps: Optional[int] = None,
-    max_env_steps: Optional[int] = None,
-    concat: bool = True,
-) -> Union[List[SampleBatchType], SampleBatchType]:
-    """ ******* ADJUSTED VERSION OF RLlib BY EVDS **********
-    In this version only the steps of the trainable agents are saved
-    in the batches.
-
-    ********************************************************
-    Runs parallel and synchronous rollouts on all remote workers.
-
-    Waits for all workers to return from the remote calls.
-
-    If no remote workers exist (num_workers == 0), use the local worker
-    for sampling.
-
-    Alternatively to calling `worker.sample.remote()`, the user can provide a
-    `remote_fn()`, which will be applied to the worker(s) instead.
-
-    Args:
-        worker_set: The WorkerSet to use for sampling.
-        remote_fn: If provided, use `worker.apply.remote(remote_fn)` instead
-            of `worker.sample.remote()` to generate the requests.
-        max_agent_steps: Optional number of agent steps to be included in the
-            final batch.
-        max_env_steps: Optional number of environment steps to be included in the
-            final batch.
-        concat: Whether to concat all resulting batches at the end and return the
-            concat'd batch.
-
-    Returns:
-        The list of collected sample batch types (one for each parallel
-        rollout worker in the given `worker_set`).
-
-    Examples:
-        >>> # Define an RLlib Algorithm.
-        >>> algorithm = ... # doctest: +SKIP
-        >>> # 2 remote workers (num_workers=2):
-        >>> batches = synchronous_parallel_sample(algorithm.workers) # doctest: +SKIP
-        >>> print(len(batches)) # doctest: +SKIP
-        2
-        >>> print(batches[0]) # doctest: +SKIP
-        SampleBatch(16: ['obs', 'actions', 'rewards', 'terminateds', 'truncateds'])
-        >>> # 0 remote workers (num_workers=0): Using the local worker.
-        >>> batches = synchronous_parallel_sample(algorithm.workers) # doctest: +SKIP
-        >>> print(len(batches)) # doctest: +SKIP
-        1
-    """
-    # Only allow one of `max_agent_steps` or `max_env_steps` to be defined.
-    assert not (max_agent_steps is not None and max_env_steps is not None)
-    agent_or_env_steps = 0
-    max_agent_or_env_steps = max_agent_steps or max_env_steps or None
-    all_sample_batches: List[SampleBatchType] = []
-
-    policies_to_train = worker_set.local_worker().get_policies_to_train()
-    # print(f"policies to train {policies_to_train}")
-    steps_per_policy = np.zeros(len(policies_to_train))
-    worker_set.local_worker()
-    # Stop collecting batches as soon as one criterium is met.
-    while (max_agent_or_env_steps is None and agent_or_env_steps == 0) or (
-        max_agent_or_env_steps is not None
-        and agent_or_env_steps < max_agent_or_env_steps
-    ):
-        # No remote workers in the set -> Use local worker for collecting
-        # samples.
-        if worker_set.num_remote_workers() <= 0:
-            sample_batches = [worker_set.local_worker().sample()]
-        # Loop over remote workers' `sample()` method in parallel.
-        else:
-            sample_batches = worker_set.foreach_worker(
-                lambda w: w.sample(), local_worker=False, healthy_only=True
-            )
-            if worker_set.num_healthy_remote_workers() <= 0:
-                # There is no point staying in this loop, since we will not be able to
-                # get any new samples if we don't have any healthy remote workers left.
-                break
-        # Update our counters for the stopping criterion of the while loop.
-        if max_agent_steps:
-            new_batches = []
-            for batch in sample_batches:
-                # print(f'batch {batch}')
-                filtered_policy_batches = {
-                    pid: batch
-                    for pid, batch in batch.policy_batches.items()
-                    if pid in policies_to_train
-                }
-                # print('filtered policy batches: ', filtered_policy_batches)
-                if len(filtered_policy_batches):
-                    new_batches.append(
-                        MultiAgentBatch.wrap_as_needed(
-                            filtered_policy_batches, batch.env_steps()
-                        )
-                    )
-            sample_batches = new_batches
-            # print('sample_batches: ', [batch.policy_batches.values() for batch in sample_batches])
-
-        for batch in sample_batches:
-            if max_agent_steps:
-                # print('agent steps per trainable policy: ', steps_per_policy)
-                # print('adding steps: ', [batch.count for batch in batch.policy_batches.values()])
-                steps_per_policy += np.array([batch.count for batch in batch.policy_batches.values()])
-                # print('agent steps per trainable policy: ', steps_per_policy)
-                agent_or_env_steps = np.min(steps_per_policy)
-            else:
-                agent_or_env_steps += batch.env_steps()
-        all_sample_batches.extend(sample_batches)
-        # print("agent or env steps:", agent_or_env_steps)
-
-    if concat is True:
-        full_batch = concat_samples(all_sample_batches)
-        # Discard collected incomplete episodes in episode mode.
-        # if max_episodes is not None and episodes >= max_episodes:
-        #    last_complete_ep_idx = len(full_batch) - full_batch[
-        #        SampleBatch.DONES
-        #    ].reverse().index(1)
-        #    full_batch = full_batch.slice(0, last_complete_ep_idx)
-        return full_batch
-    return all_sample_batches
-
-
 class CustomPPO(PPO):
+    """
+    Custom implementation of the Proximal Policy Optimization (PPO) algorithm.
+
+    This class extends the base PPO class and provides a custom training step and
+    a custom synchronous parallel sample method.
+
+    Attributes:
+        config (dict): The configuration dictionary for the PPO algorithm.
+        workers (WorkerSet): The set of workers used for sampling and training.
+
+    Methods:
+        training_step(): Defines the custom training step for the PPO algorithm.
+        custom_synchronous_parallel_sample(): Runs parallel and synchronous rollouts
+            on all remote workers.
+
+    """
     def __init__(
             self,
             config: Optional["AlgorithmConfig"] = None,
@@ -170,17 +67,29 @@ class CustomPPO(PPO):
 
     def training_step(self) -> ResultDict:
         """
-        Defines the custom training step.
+        Defines the custom training step for the PPO algorithm.
+
+        This method performs the following steps:
+        1. Collects SampleBatches from sample workers until a full batch is obtained.
+        2. Standardizes advantages in the training batch.
+        3. Trains the model using the collected batch.
+        4. Updates the weights on all remote workers.
+        5. Updates the KL scale and warns about possible issues.
+        6. Updates global variables on the local worker.
+
+        Returns:
+            The training results as a dictionary.
+
         """
         # Collect SampleBatches from sample workers until we have a full batch.
         with self._timers[SAMPLE_TIMER]:
             if self.config.count_steps_by == "agent_steps":
-                train_batch = custom_synchronous_parallel_sample(
+                train_batch = self.custom_synchronous_parallel_sample(
                     worker_set=self.workers,
                     max_agent_steps=self.config.train_batch_size,
                 )
             else:
-                train_batch = custom_synchronous_parallel_sample(
+                train_batch = self.custom_synchronous_parallel_sample(
                     worker_set=self.workers,
                     max_env_steps=self.config.train_batch_size
                 )
@@ -197,11 +106,6 @@ class CustomPPO(PPO):
         train_batch = standardize_fields(train_batch, ["advantages"])
         # Train
         if self.config._enable_learner_api:
-            # TODO (Kourosh) Clearly define what train_batch_size
-            #  vs. sgd_minibatch_size and num_sgd_iter is in the config.
-            # TODO (Kourosh) Do this inside the Learner so that we don't have to do
-            #  this back and forth communication between driver and the remote
-            #  learner actors.
             is_module_trainable = self.workers.local_worker().is_policy_to_train
             self.learner_group.set_is_module_trainable(is_module_trainable)
             train_results = self.learner_group.update(
@@ -219,14 +123,10 @@ class CustomPPO(PPO):
             # The train results's loss keys are pids to their loss values. But we also
             # return a total_loss key at the same level as the pid keys. So we need to
             # subtract that to get the total set of pids to update.
-            # TODO (Kourosh): We should also not be using train_results as a message
-            #  passing medium to infer which policies to update. We could use
-            #  policies_to_train variable that is given by the user to infer this.
             policies_to_update = list(set(train_results.keys()) - {ALL_MODULES})
         else:
             policies_to_update = list(train_results.keys())
 
-        # TODO (Kourosh): num_grad_updates per each policy should be accessible via
         # train_results
         global_vars = {
             "timestep": self._counters[NUM_AGENT_STEPS_SAMPLED],
@@ -254,7 +154,6 @@ class CustomPPO(PPO):
                 self.workers.local_worker().set_weights(weights)
 
         if self.config._enable_learner_api:
-
             kl_dict = {}
             if self.config.use_kl_loss:
                 for pid in policies_to_update:
@@ -325,6 +224,129 @@ class CustomPPO(PPO):
         self.workers.local_worker().set_global_vars(global_vars)
 
         return train_results
+
+    def custom_synchronous_parallel_sample(
+            self,
+            *,
+            worker_set: WorkerSet,
+            max_agent_steps: Optional[int] = None,
+            max_env_steps: Optional[int] = None,
+            concat: bool = True,
+    ) -> Union[List[SampleBatchType], SampleBatchType]:
+        """******* ADJUSTED VERSION OF RLlib BY EVDS **********
+        In this version only the steps of the trainable agents are saved
+        in the batches.
+
+        ********************************************************
+        Runs parallel and synchronous rollouts on all remote workers.
+
+        Waits for all workers to return from the remote calls.
+
+        If no remote workers exist (num_workers == 0), use the local worker
+        for sampling.
+
+        Alternatively to calling `worker.sample.remote()`, the user can provide a
+        `remote_fn()`, which will be applied to the worker(s) instead.
+
+        Args:
+            worker_set: The WorkerSet to use for sampling.
+            remote_fn: If provided, use `worker.apply.remote(remote_fn)` instead
+                of `worker.sample.remote()` to generate the requests.
+            max_agent_steps: Optional number of agent steps to be included in the
+                final batch.
+            max_env_steps: Optional number of environment steps to be included in the
+                final batch.
+            concat: Whether to concat all resulting batches at the end and return the
+                concat'd batch.
+
+        Returns:
+            The list of collected sample batch types (one for each parallel
+            rollout worker in the given `worker_set`).
+
+        Examples:
+            >>> # Define an RLlib Algorithm.
+            >>> algorithm = ... # doctest: +SKIP
+            >>> # 2 remote workers (num_workers=2):
+            >>> batches = synchronous_parallel_sample(algorithm.workers) # doctest: +SKIP
+            >>> print(len(batches)) # doctest: +SKIP
+            2
+            >>> print(batches[0]) # doctest: +SKIP
+            SampleBatch(16: ['obs', 'actions', 'rewards', 'terminateds', 'truncateds'])
+            >>> # 0 remote workers (num_workers=0): Using the local worker.
+            >>> batches = synchronous_parallel_sample(algorithm.workers) # doctest: +SKIP
+            >>> print(len(batches)) # doctest: +SKIP
+            1
+        """
+        # Only allow one of `max_agent_steps` or `max_env_steps` to be defined.
+        assert not (max_agent_steps is not None and max_env_steps is not None)
+        agent_or_env_steps = 0
+        max_agent_or_env_steps = max_agent_steps or max_env_steps or None
+        all_sample_batches: List[SampleBatchType] = []
+
+        policies_to_train = worker_set.local_worker().get_policies_to_train()
+        # print(f"policies to train {policies_to_train}")
+        steps_per_policy = np.zeros(len(policies_to_train))
+        worker_set.local_worker()
+        # Stop collecting batches as soon as one criterium is met.
+        while (max_agent_or_env_steps is None and agent_or_env_steps == 0) or (
+                max_agent_or_env_steps is not None
+                and agent_or_env_steps < max_agent_or_env_steps
+        ):
+            # No remote workers in the set -> Use local worker for collecting
+            # samples.
+            if worker_set.num_remote_workers() <= 0:
+                sample_batches = [worker_set.local_worker().sample()]
+            # Loop over remote workers' `sample()` method in parallel.
+            else:
+                sample_batches = worker_set.foreach_worker(
+                    lambda w: w.sample(), local_worker=False, healthy_only=True
+                )
+                if worker_set.num_healthy_remote_workers() <= 0:
+                    # There is no point staying in this loop, since we will not be able to
+                    # get any new samples if we don't have any healthy remote workers left.
+                    break
+            # Update our counters for the stopping criterion of the while loop.
+            if max_agent_steps:
+                new_batches = []
+                for batch in sample_batches:
+                    # print(f'batch {batch}')
+                    filtered_policy_batches = {
+                        pid: batch
+                        for pid, batch in batch.policy_batches.items()
+                        if pid in policies_to_train
+                    }
+                    # print('filtered policy batches: ', filtered_policy_batches)
+                    if len(filtered_policy_batches):
+                        new_batches.append(
+                            MultiAgentBatch.wrap_as_needed(
+                                filtered_policy_batches, batch.env_steps()
+                            )
+                        )
+                sample_batches = new_batches
+                # print('sample_batches: ', [batch.policy_batches.values() for batch in sample_batches])
+
+            for batch in sample_batches:
+                if max_agent_steps:
+                    # print('agent steps per trainable policy: ', steps_per_policy)
+                    # print('adding steps: ', [batch.count for batch in batch.policy_batches.values()])
+                    steps_per_policy += np.array([batch.count for batch in batch.policy_batches.values()])
+                    # print('agent steps per trainable policy: ', steps_per_policy)
+                    agent_or_env_steps = np.min(steps_per_policy)
+                else:
+                    agent_or_env_steps += batch.env_steps()
+            all_sample_batches.extend(sample_batches)
+            # print("agent or env steps:", agent_or_env_steps)
+
+        if concat is True:
+            full_batch = concat_samples(all_sample_batches)
+            # Discard collected incomplete episodes in episode mode.
+            # if max_episodes is not None and episodes >= max_episodes:
+            #    last_complete_ep_idx = len(full_batch) - full_batch[
+            #        SampleBatch.DONES
+            #    ].reverse().index(1)
+            #    full_batch = full_batch.slice(0, last_complete_ep_idx)
+            return full_batch
+        return all_sample_batches
 
     @override(Algorithm)
     def load_checkpoint(self, checkpoint_dir: str) -> None:

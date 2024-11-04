@@ -50,3 +50,6 @@ echo "sync with wandb..."
 cd $HOME/ray_results/$RESDIR
 for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
 
+echo "Update WandB"
+  time srun python -u scripts/update_wandb.py -p $RESDIR
+echo "Finished update"

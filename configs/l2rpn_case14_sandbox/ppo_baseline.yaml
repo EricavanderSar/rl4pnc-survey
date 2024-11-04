@@ -63,7 +63,7 @@ multi_agent:
 environment:
   env_config: &env_config_train
     env_type: new_env #old_env #
-    shuffle_scenarios: True
+#    shuffle_scenarios: True # This is not used in my version of custom_env (since I use g2op direct instead of gymenv)
     env_name: l2rpn_case14_sandbox_train
     action_space: medha
     mask: 5
@@ -77,7 +77,8 @@ environment:
     input: [ "p_i", "r", "o", "d" ]
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
-    prio: False
+    prio: True
+    use_ffw: True
     normalize: maxmin
     reset_topo: 0.5
 
