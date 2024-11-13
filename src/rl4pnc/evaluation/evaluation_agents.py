@@ -119,7 +119,7 @@ class HeuristicsAgent(BaseAgent):
                 max_rhos = np.zeros(len(subs_changed))
                 rewards = np.zeros(len(subs_changed))
                 for i, sub in enumerate(subs_changed):
-                    action = self.env_g2op.action_space(
+                    action = self.action_space(
                         {"set_bus": {
                             "substations_id":
                                 [(sub, np.ones(observation.sub_info[sub], dtype=int))]
@@ -130,7 +130,9 @@ class HeuristicsAgent(BaseAgent):
                     max_rhos[i] = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
                     rewards[i] = rw
                 if max_rhos[np.argmax(rewards)] < cur_max_rho:
+                    # add the best revert action.
                     current_action += action_options[np.argmax(rewards)]
+                    # print(current_action)
         return current_action
 
     def disconnection_rule(self, observation: BaseObservation, current_action: BaseAction) -> BaseAction:
