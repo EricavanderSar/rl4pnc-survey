@@ -17,7 +17,7 @@ time conda create -n rl4pnc python=3.10
 echo "********** activate Env **********"
 source activate rl4pnc
 export PYTHONPATH=$PYTHONPATH:$PWD
-pip install -e ".[dev]
+pip install -e .
 echo "************** done: environment packages installed *************"
 
 echo "************* install lightsim2grid ***************"
