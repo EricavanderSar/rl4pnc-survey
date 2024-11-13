@@ -17,14 +17,13 @@ time conda create -n rl4pnc python=3.10
 echo "********** activate Env **********"
 source activate rl4pnc
 export PYTHONPATH=$PYTHONPATH:$PWD
-python -m pip install .
-pip install -e .
+pip install -e ".[dev]
 echo "************** done: environment packages installed *************"
 
 echo "************* install lightsim2grid ***************"
 git clone https://github.com/BDonnot/lightsim2grid.git      
 cd lightsim2grid
-git checkout v0.7.3
+git checkout v0.9.2
 git submodule init
 git submodule update
 make
