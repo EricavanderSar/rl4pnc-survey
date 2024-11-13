@@ -70,7 +70,7 @@ def get_env_config(studie_path, test_case, rules, libdir, opponent=False):
 def run_agent(agent,
               store_trajectories_folder,
               env_config,
-              chronics,
+              chronics_name,
               libdir,
               opponent,
               ):
@@ -85,8 +85,19 @@ def run_agent(agent,
     # save env_config to file
     with open(os.path.join(store_trajectories_folder, "env_config.json"), "w") as outfile:
         outfile.write(json.dumps(env_config, indent=4, default=default_serializer))
-    nb_episodes = len(chronics)
 
+    # Select the chronics to be tested
+    if chronics_name:
+        env_chron = grid2op.make(f"{env_config['env_name']}_{chronics_name}")
+    else:
+        env_chron = grid2op.make(f"{env_config['env_name']}")
+    chronics = [os.path.basename(d) for d in env_chron.chronics_handler.real_data.available_chronics()]
+
+    # # case 14 chronics copied from test set in Snellius > FOR TESTING A limited set.
+    # chronics = "0020  0047  0076  0129  0154  0164  "  # 0196  0230  0287  0332  0360  0391  0454  0504  0516  0539  0580  0614  0721  0770  0842  0868  0879  0925  0986 0023  0065  0103  0141  0156  0172  0206  0267  0292  0341  0369  0401  0474  0505  0529  0545  0595  0628  0757  0774  0844  0869  0891  0950  0993 0026  0066  0110  0144  0157  0179  0222  0274  0303  0348  0381  0417  0481  0511  0531  0547  0610  0636  0763  0779  0845  0870  0895  0954  0995 0030  0075  0128  0153  0162  0192  0228  0286  0319  0355  0387  0418  0486  0513  0533  0565  0612  0703  0766  0812  0852  0871  0924  0962  1000"
+    # chronics = chronics.split()
+    nb_episodes = len(chronics)
+    del env_chron
 
     try:
         env = grid2op.make(env_config["env_name"], backend=LightSimBackend(), **env_config["grid2op_kwargs"])
@@ -371,7 +382,7 @@ def eval_single_rlagent(test_case,
                         rules: dict,
                         opponent: bool,
                         lib_dir,
-                        test_chronics,
+                        chronics,
                         unique_id,
                         ):
     # Get environment configuration from agent studied
@@ -398,7 +409,7 @@ def eval_single_rlagent(test_case,
     run_agent(agent,
               store_trajectories_folder,
               env_config,
-              test_chronics,
+              chronics,
               libdir=lib_dir,
               opponent=opponent)
 
@@ -465,7 +476,10 @@ if __name__ == "__main__":
     parser.add_argument("-a", "--agent_type", default="heur", choices=["heur", "rl"],
                         help="Agent type can be either heuristic (heur) or RL-based (rl).")
 
-    parser.add_argument("-o", "--opponent", default=True, action='store_true')
+    parser.add_argument("-o", "--opponent", default=False, action='store_true')
+    parser.add_argument("-c", "--chronics", default="test", choices=["test", "train", "val", ""],
+                        help="Which part of the data set should be used for evaluation? "
+                             "if empty  all data will be evaluated")
 
     parser.add_argument(
         "-p",
@@ -497,17 +511,18 @@ if __name__ == "__main__":
         "-j",
         "--job_id",
         type=str,
-        default="Test_Opp",
+        default="Test_Reset",
         help="job_id of this evaluation, this way each evaluation gets an extra unique identifier.",
     )
 
     # rule based part:
     parser.add_argument("-at", "--activation_threshold", type=float, default=0.95)
-    parser.add_argument('-lr', '--line_reco', default=True, action='store_true')
-    parser.add_argument('-ld', '--line_disc', default=True, action='store_true')
-    parser.add_argument("-rt", "--reset_topo", type=float, default=2.0)
+    parser.add_argument('-lr', '--line_reco', default=False, action='store_true')
+    parser.add_argument('-ld', '--line_disc', default=False, action='store_true')
+    parser.add_argument("-rt", "--reset_topo", type=float, default=2.0,
+                        help="Threshold to revert to reference topology. If max_rho<RT revert to ref topo.")
     parser.add_argument("-s", "--simulate", default=False, action='store_true',
-                        help="If simulate is True: Simulate the proposed action")
+                        help="If simulate is True: Simulate the proposed topo action before executing it.")
 
     args = parser.parse_args()
 
@@ -515,10 +530,6 @@ if __name__ == "__main__":
     # Get location of studied agent
     studie_path = args.path
     lib_dir = args.lib_dir
-
-    # case 14 chronics copied from test set in Snellius
-    chronics = "0020  0047  0076  0129  0154  0164  " #0196  0230  0287  0332  0360  0391  0454  0504  0516  0539  0580  0614  0721  0770  0842  0868  0879  0925  0986 0023  0065  0103  0141  0156  0172  0206  0267  0292  0341  0369  0401  0474  0505  0529  0545  0595  0628  0757  0774  0844  0869  0891  0950  0993 0026  0066  0110  0144  0157  0179  0222  0274  0303  0348  0381  0417  0481  0511  0531  0547  0610  0636  0763  0779  0845  0870  0895  0954  0995 0030  0075  0128  0153  0162  0192  0228  0286  0319  0355  0387  0418  0486  0513  0533  0565  0612  0703  0766  0812  0852  0871  0924  0962  1000"
-    test_chronics = chronics.split()
 
     # Rule based configuration:
     rules = {"activation_threshold": args.activation_threshold,
@@ -533,12 +544,12 @@ if __name__ == "__main__":
                                                 rules,
                                                 args.opponent,
                                                 lib_dir,
-                                                test_chronics,
+                                                args.chronics,
                                                 args.job_id,)
     else:
         all_data, df, env = eval_heuristic_agent(studie_path,
                                                  lib_dir,
-                                                 test_chronics,
+                                                 args.chronics,
                                                  rules,
                                                  args.opponent,
                                                  args.job_id,
