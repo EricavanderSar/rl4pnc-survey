@@ -4,6 +4,7 @@ Utils for evaluation of agents.
 import os
 from typing import Any
 import importlib
+import inspect
 
 from grid2op.Episode import EpisodeData
 from grid2op.Reward import BaseReward
@@ -150,13 +151,15 @@ def save_scenario_statistics(
             f"Max action sequence length: {evaluation_metrics.get_max_action_sequence_length(action_sequences)}\n"
         )
 
+
 def instantiate_reward_class(class_name: str) -> Any:
     """
     Instantiates the Reward class from json string.
     """
     # Split the class name into module and class
-    class_name = class_name.replace("<", "")
+    package_name = __name__.split(".", 1)[0]
     module_name, class_name = class_name.rsplit(".", 1)
+    module_name = f"{package_name}." + module_name.split(".", 1)[1]
     class_name = class_name.split(" ", 1)[0]
     # Import the module dynamically
     module = importlib.import_module(module_name)

@@ -1,6 +1,5 @@
 """
-This script develops three variants of actions spaces (asymmetrical, based on medha and
-based on TenneT) for a specified grid2op environment.
+Script to define different action spaces.
 """
 
 import argparse
@@ -94,7 +93,7 @@ if __name__ == "__main__":
         "--action_space",
         type=str,
         help="Action space to be used.",
-        default="medha",
+        default="assym",
         choices=["assym", "medha", "tennet", "binbinchen", "curriculumagent", "alphazero"]
     )
     parser.add_argument(
@@ -105,18 +104,18 @@ if __name__ == "__main__":
         help="Path the action spaces must be saved.",
     )
     # Extra options to adjust the action_space
-    parser.add_argument('-dn', '--extra_donothing', default=True, action='store_true',
+    parser.add_argument('-dn', '--extra_donothing', default=False, action='store_true',
                         help="adding extra do nothing actions for subs that dont have any other config to action space"
                         )
-    parser.add_argument('-sh', "--adjust_shunt", type=str, default="all", choices=["", "all", "opt"],
+    parser.add_argument('-sh', "--adjust_shunt", type=str, default="", choices=["", "all", "opt"],
                         help="For subs with shunt the reversed action can be better."
                              "options: - all will add also reversed actions to action space"
                              "         - opt will pick the best action reversed or normal"
                         )
-    parser.add_argument('-rf', "--rho_filter",  type=float, default=1.0,
+    parser.add_argument('-rf', "--rho_filter",  type=float, default=2.0,
                         help="Filter all actions with rho value larger than -rf. If >=2.0 no filtering is applied."
                         )
-    parser.add_argument('-g', '--greedy_filter', default=True, action='store_true',
+    parser.add_argument('-g', '--greedy_filter', default=False, action='store_true',
                         help="apply a greedy agent to select the best actions"
                         )
     parser.add_argument('-ps', "--act_pool_size", type=int, default=30,

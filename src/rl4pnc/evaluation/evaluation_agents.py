@@ -6,6 +6,8 @@ import os
 import random
 from collections import Counter, OrderedDict, defaultdict
 from typing import Any, Optional
+import pickle
+from datetime import date, datetime
 
 import grid2op
 import numpy as np
@@ -29,13 +31,172 @@ from rl4pnc.experiments.utils import (
 )
 
 
-class RllibAgent(BaseAgent):
+class HeuristicsAgent(BaseAgent):
+    """
+    This agent executes heuristic rules based on the rule_config given.
+
+    rule_config can contain:
+    -   rho_threshold: float value. Activation threshold of the lower level agent.
+    -   line_reco: Boolean value. If True: attempt to reconnect all disconnected power lines if
+        this is beneficial for the max rho value.
+    -   line_disc: Boolean value. If True: manually disconnect a line during sustained periods of
+        overflow in order to avoid permanent damage. Reconnect the line back soon after the
+        cooldown period ends.
+    -   reset_topo: float value. Revert Threshold. If the max load rho < reset_topo, the agent
+        will execute actions to revert to the reference topology.
+    """
+
+    def __init__(
+        self,
+        action_space: ActionSpace,
+        rule_config: dict,
+    ):
+        BaseAgent.__init__(self, action_space)
+        self.activation_thresh = rule_config.get("activation_threshold", 0.95)
+        self.line_reco = rule_config.get("line_reco", False)
+        self.line_disc = rule_config.get("line_disc", False)
+        self.ts_overflow_lines = np.zeros(action_space.n_line)
+        self.reset_topo = rule_config.get("reset_topo", 2.0)
+        self.simulate = rule_config.get("simulate", False)
+        self.rho_max = 0
+
+    def activate_agent(self, observation: BaseObservation):
+        return self.rho_max > self.activation_thresh
+
+    def act(self, observation: BaseObservation, reward: float, done : bool=False) -> BaseAction:
+        current_action = self.action_space({})
+        self.rho_max = (observation.rho.max() if observation.rho.max() > 0 else 2)
+        if self.line_reco:
+            current_action = self.reconnection_rule(observation, current_action)
+        if self.reset_topo < 2.0:
+            current_action = self.revert_to_reference_topo(observation, current_action)
+        if self.line_disc:
+            current_action = self.disconnection_rule(observation, current_action=current_action)
+        return current_action
+
+    def reconnection_rule(self, observation: BaseObservation, current_action: BaseAction) -> BaseAction:
+        """
+        This methods reconnects all disconnected lines if this improves the current rho max values based on simulation.
+        """
+        line_stat_s = observation.line_status
+        cooldown = observation.time_before_cooldown_line
+        can_be_reco = ~line_stat_s & (cooldown == 0)
+        if can_be_reco.any():
+            (
+                sim_obs,
+                _,
+                _,
+                _,
+            ) = observation.simulate(current_action)
+            cur_max_rho = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
+            for id_ in (can_be_reco).nonzero()[0]:
+                # reconnect all lines that improve the current action
+                action = current_action + self.action_space({"set_line_status": [(id_, +1)]})
+                (
+                    sim_obs,
+                    _,
+                    _,
+                    _,
+                ) = observation.simulate(action)
+                if cur_max_rho > (sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2):
+                    current_action = action
+        return current_action
+
+    def revert_to_reference_topo(self, observation: BaseObservation, current_action: BaseAction) -> BaseAction:
+        if (self.rho_max < self.reset_topo) and (observation.current_step < observation.max_step-1):
+            # Get all subs that are not in default topology
+            subs_changed = np.unique(observation._topo_vect_to_sub[observation.topo_vect != 1])
+            if len(subs_changed):
+                (
+                    sim_obs,
+                    _,
+                    _,
+                    _,
+                ) = observation.simulate(current_action)
+                cur_max_rho = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
+                # Simulate going back to reference topology for each substation that has changed
+                action_options = []
+                max_rhos = np.zeros(len(subs_changed))
+                rewards = np.zeros(len(subs_changed))
+                for i, sub in enumerate(subs_changed):
+                    action = self.env_g2op.action_space(
+                        {"set_bus": {
+                            "substations_id":
+                                [(sub, np.ones(observation.sub_info[sub], dtype=int))]
+                        }
+                        })
+                    action_options.append(action)
+                    sim_obs, rw, done, info = observation.simulate(current_action+action)
+                    max_rhos[i] = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
+                    rewards[i] = rw
+                if max_rhos[np.argmax(rewards)] < cur_max_rho:
+                    current_action += action_options[np.argmax(rewards)]
+        return current_action
+
+    def disconnection_rule(self, observation: BaseObservation, current_action: BaseAction) -> BaseAction:
+        # This method manually disconnect a line during sustained periods of overflow in order to avoid permanent
+        # damage. Reconnect the line back soon after the cooldown period ends.
+        # This can help when parameters.NB_TIMESTEP_RECONNECTION > parameters.NB_TIMESTEP_COOLDOWN_LINE
+        if any(observation.rho>1.0):
+            self.ts_overflow_lines= np.where(observation.rho>1.0, self.ts_overflow_lines + 1, 0)
+            # print("Testing disconnection rule, ts overflowlines: ", self.ts_overflow_lines)
+            # print("obs rho: ", observation.rho)
+            if any(self.ts_overflow_lines>1):
+                # Manually disconnet lines that are overflowed for more then 1 time step.
+                id_ = np.argmax(self.ts_overflow_lines)
+                current_action += self.action_space({"set_line_status": [(id_, -1)]})
+                # print(current_action)
+        else:
+            self.ts_overflow_lines = np.zeros(self.action_space.n_line)
+
+        return current_action
+
+    def simulate_combinations(self,
+                              observation: BaseObservation,
+                              topo_action: BaseAction,
+                              rb_action: BaseAction) -> BaseAction:
+        comb_action = rb_action + topo_action
+        if self.simulate:
+            # Test if the proposed topo_action improves the result.
+            sim_obs, _, _, _ = observation.simulate(rb_action)
+            cur_max_rho = (sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2)
+            sim_obs, _, _, _ = observation.simulate(comb_action)
+            if cur_max_rho > (sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2):
+                # combined with the rule based action.
+                action = comb_action
+            else:
+                # or excl the rule based action.
+                sim_obs, _, _, _ = observation.simulate(topo_action)
+                if cur_max_rho > (sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2):
+                    action = topo_action
+                else:
+                    # Proposed topo_action is not better than rb_action only -> Take rule based action.
+                    action = rb_action
+        else:
+            action = comb_action
+        return action
+
+
+class RenameUnpickler(pickle.Unpickler):
+    # Make old agents compatable with evaluation function.
+    # Rename module mahrl to rl4pnc
+    def find_class(self, module, name):
+        renamed_module = module
+        # print(f"module: {module}")
+        # print(f"name: {name}")
+        if "mahrl" in module:
+            renamed_module = "rl4pnc." + module.split(".",1)[1]
+        return super(RenameUnpickler, self).find_class(renamed_module, name)
+
+
+def renamed_load(file_obj):
+    return RenameUnpickler(file_obj).load()
+
+
+class RllibAgent(HeuristicsAgent):
     """
     Class that runs a RLlib model in the Grid2Op environment.
-    EVDS Additions (24-05-2024):
-        - Load only rl policy instead of entire algorithm (no training is needed)
-        - Add line reconnections
-        - Make compatible with changes in custom environment
+
     """
 
     def __init__(
@@ -44,14 +205,22 @@ class RllibAgent(BaseAgent):
         env_config: dict[str, Any],
         file_path: str,
         policy_name: str,
-        algorithm: Algorithm,
         checkpoint_name: str,
         gym_wrapper: GymEnv,
     ):
-        BaseAgent.__init__(self, action_space)
+        HeuristicsAgent.__init__(self, action_space, env_config["rules"])
 
         # load neural network of (eg) PPO agent.
         checkpoint_path = os.path.join(file_path, checkpoint_name, "policies", policy_name)
+        date_executed = datetime.strptime(file_path.rsplit("_", 2)[1], '%Y-%m-%d').date()
+        if date_executed < date(2024, 11, 4):
+            # update pickle file when old module was used
+            pklfile = os.path.join(checkpoint_path, "policy_state.pkl")
+            with open(pklfile, 'rb') as f:
+                data = renamed_load(f)
+            with open(pklfile, 'wb') as f:  # open a text file
+                pickle.dump(data, f)  # serialize the list
+
         self._rllib_agent = Policy.from_checkpoint(checkpoint_path)
         # print("agent observation space is : ", self._rllib_agent.observation_space)
         # self._rllib_agent.observation_space =
@@ -62,12 +231,8 @@ class RllibAgent(BaseAgent):
         # setup env
         self.gym_wrapper = gym_wrapper
 
-        # setup threshold
-        self.threshold = env_config["rho_threshold"]
-        self.reset_topo = env_config.get("reset_topo", True)
-
     def act(
-        self, observation: BaseObservation, reward: BaseReward, done: bool = False
+        self, observation: BaseObservation, reward: float, done: bool = False
     ) -> BaseAction:
         """
         Returns a grid2op action based on a RLlib observation.
@@ -75,19 +240,10 @@ class RllibAgent(BaseAgent):
 
         # Grid2Op to RLlib observation
         self.gym_wrapper.update_obs(observation)
+        # First do rule based part of the agent, line reconnections, disconnections and reverrt topo if needed.
+        rb_action = HeuristicsAgent.act(self, observation, reward, done)
 
-        if False in observation.line_status:
-            # reconnect lines if possible
-            disc_lines = np.where(observation.line_status == False)[0]
-            for i in disc_lines:
-                act = None
-                # Reconnecting the line when cooldown and maintenance is over:
-                if (observation.time_next_maintenance[i] != 0) & (observation.time_before_cooldown_line[i] == 0):
-                    status = np.arange(observation.n_line) == i
-                    act = self.action_space({"change_line_status": status})
-                    if act is not None:
-                        return act
-        if observation.rho.max() > self.threshold:
+        if HeuristicsAgent.activate_agent(self, observation):
             # Get action from trained RL-agent when in danger.
             if not any(len(obs_el.shape) > 1 for obs_el in self.gym_wrapper.cur_obs.values()):
                 # Convert the observation dictionary to a NumPy array
@@ -105,31 +261,13 @@ class RllibAgent(BaseAgent):
                 policy_id="reinforcement_learning_policy"
             )
             # convert Rllib action to grid2op
-            return self.gym_wrapper.env_gym.action_space.from_gym(gym_action)
-        elif self.reset_topo and observation.rho.max() < 0.8:
-            # Go back to the reference topology when safe
-            # Get all subs that are not in default topology
-            subs_changed = np.unique(observation._topo_vect_to_sub[observation.topo_vect != 1])
-            if len(subs_changed):
-                action_options = []
-                max_rhos = np.zeros(len(subs_changed))
-                rewards = np.zeros(len(subs_changed))
-                for i, sub in enumerate(subs_changed):
-                    action = self.action_space(
-                        {"set_bus": {
-                            "substations_id":
-                                [(sub, np.ones(observation.sub_info[sub], dtype=int))]
-                        }
-                        })
-                    action_options.append(action)
-                    sim_obs, rw, done, info = observation.simulate(action)
-                    max_rhos[i] = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
-                    rewards[i] = rw
-                if max_rhos[np.argmax(rewards)] < 0.8:
-                    return action_options[np.argmax(rewards)]
+            topo_action = self.gym_wrapper.env_gym.action_space.from_gym(gym_action)
+            action = HeuristicsAgent.simulate_combinations(self, observation, topo_action, rb_action)
         else:
-            # Return do-nothing action.
-            return self.action_space({})
+            action = rb_action
+
+        return action
+
 
 
 class LargeTopologyGreedyAgent(GreedyAgent):
@@ -297,7 +435,7 @@ class LargeTopologyGreedyAgent(GreedyAgent):
         raise NotImplementedError("Not implemented.")
 
 
-class TopologyGreedyAgent(GreedyAgent):
+class RhoGreedyAgent(HeuristicsAgent):
     """
     Defines the behaviour of a Greedy Agent that can perform topology changes based
     on a provided set of possible actions.
@@ -309,13 +447,11 @@ class TopologyGreedyAgent(GreedyAgent):
         env_config: dict[str, Any],
         possible_actions: list[BaseAction],
     ):
-        GreedyAgent.__init__(self, action_space)
+        HeuristicsAgent.__init__(self, action_space, env_config["rules"])
         self.tested_action: list[BaseAction] = []
         self.action_space = action_space
         self.possible_actions = possible_actions
-
-        # setup threshold
-        self.threshold = env_config["rho_threshold"]
+        self.simulate = True
 
         random.seed(env_config["seed"])
 
@@ -351,11 +487,12 @@ class TopologyGreedyAgent(GreedyAgent):
             The action chosen by the bot / controller / agent.
 
         """
-        # get all possible actions to be tested
-        self.tested_action = self._get_tested_action(observation)
-
+        # First do rule based part of the agent, line reconnections, disconnections and reverrt topo if needed.
+        rb_action = HeuristicsAgent.act(self, observation, reward, done)
         # if the threshold is exceeded, act
-        if np.max(observation.to_dict()["rho"]) > self.threshold:
+        if HeuristicsAgent.activate_agent(self, observation):
+            # get all possible actions to be tested
+            self.tested_action = self._get_tested_action(observation)
             # simulate all possible actions and choose the best
             if len(self.tested_action) > 1:
                 resulting_rho_observations = np.full(
@@ -368,23 +505,25 @@ class TopologyGreedyAgent(GreedyAgent):
                         _,
                         _,
                         simul_info,
-                    ) = observation.simulate(action)
+                    ) = observation.simulate(action + rb_action)
                     resulting_rho_observations[i] = np.max(
                         simul_observation.to_dict()["rho"]
                     )
                     # Include extra safeguard to prevent exception actions with converging powerflow
                     if simul_info["exception"]:
                         resulting_rho_observations[i] = 999999
-
+                # Get action with the lowest simulated rho_max(t+1)
                 rho_idx = int(np.argmin(resulting_rho_observations))
-                best_action = self.tested_action[rho_idx]
+                topo_action = self.tested_action[rho_idx]
 
+                # Combine Greedy topology action with rb_action
+                action = HeuristicsAgent.simulate_combinations(self, observation, topo_action, rb_action)
             else:
-                best_action = self.tested_action[0]
-        # if the threshold is not exceeded, do nothing
+                action = rb_action
+        # if the threshold is not exceeded, do nothing / no topology action.
         else:
-            best_action = self.tested_action[0]
-        return best_action
+            action = rb_action
+        return action
 
     def _get_tested_action(self, observation: BaseObservation) -> list[BaseAction]:
         """
@@ -642,7 +781,7 @@ def create_greedy_agent_per_substation(
     env_config: dict[str, Any],
     controllable_substations: dict[int, int],
     possible_substation_actions: list[BaseAction],
-) -> dict[int, TopologyGreedyAgent]:
+) -> dict[int, RhoGreedyAgent]:
     """
     Create a greedy agent for each substation.
     """
@@ -651,7 +790,7 @@ def create_greedy_agent_per_substation(
     # initialize greedy agents for all controllable substations
     agents = {}
     for sub_id in list(controllable_substations.keys()):
-        agents[sub_id] = TopologyGreedyAgent(
+        agents[sub_id] = RhoGreedyAgent(
             env.action_space, env_config, actions_per_substation[sub_id]
         )
 

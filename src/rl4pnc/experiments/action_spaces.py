@@ -23,6 +23,7 @@ from lightsim2grid import LightSimBackend
 
 from rl4pnc.grid2op_env.utils import get_possible_topologies
 
+
 def get_changeable_substations_tennet(env: BaseEnv) -> list[int]:
     """
     Find all substations that have more than four lines and can therefore be acted upon
@@ -255,8 +256,8 @@ def get_optshunt_actions(env: BaseEnv, actions: list[BaseAction]) -> list[BaseAc
             if rhos_normal.mean() > rhos_rev.mean():
                 actions[idx] = act_rev
                 count += 1
-                # print(f'Action adjusted to reverse topo: {rev_topo}')
-                # print(actions[idx])
+                print(f'Action adjusted to reverse topo: {rev_topo}')
+                print(actions[idx])
             # else:
             #     # print('Action remains the same.')
             #     # print(actions[idx])

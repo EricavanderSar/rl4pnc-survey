@@ -1,7 +1,7 @@
 # TODO: Checki f reconnection goes well in evaluation because it's  only on the grid2op side.
 
 """
-Class to evaluate custom RL models.
+Class to evaluate custom RL models. (BARBERAS version -> TODO: DELETE?)
 """
 import argparse
 import importlib
@@ -22,7 +22,7 @@ from ray.rllib.algorithms import Algorithm
 from rl4pnc.evaluation.evaluation_agents import (
     CapaAndGreedyAgent,
     RllibAgent,
-    TopologyGreedyAgent,
+    RhoGreedyAgent,
 )
 from rl4pnc.evaluation.utils import instantiate_reward_class
 from rl4pnc.experiments.yaml import load_config
@@ -232,7 +232,7 @@ def setup_greedy_evaluation(env_config: dict[str, Any], setup_env: BaseEnv) -> N
 
     run_runner(
         env_config=env_config,
-        agent_instance=TopologyGreedyAgent(
+        agent_instance=RhoGreedyAgent(
             action_space=setup_env.action_space,
             env_config=env_config,
             possible_actions=possible_actions,

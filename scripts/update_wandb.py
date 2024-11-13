@@ -1,4 +1,6 @@
-
+"""
+Updates parameters in WandB such that they can be used for grouping in WandB
+"""
 import argparse
 import wandb
 from tqdm import tqdm

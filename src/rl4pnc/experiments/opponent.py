@@ -29,6 +29,7 @@ class ReconnectingOpponentSpace(OpponentSpace):
         attack_cooldown: int,
         budget_per_timestep: float = 0.0,
         action_space: BaseActionSpace | None = None,
+        _local_dir_cls=None,
     ) -> None:
         """
         Extend constructor to initialize remedial actions for line reconnection
@@ -56,7 +57,16 @@ class ReconnectingOpponentSpace(OpponentSpace):
 
     def init_opponent(self, partial_env: BaseEnv, **kwargs: dict[Any, Any]) -> None:
         """
-        Populate repair action map
+        Initialize the opponent agent.
+
+        This method populates the repair action map and initializes the opponent agent.
+
+        Args:
+            partial_env (BaseEnv): The partial environment.
+            **kwargs (dict): Additional keyword arguments.
+
+        Returns:
+            None
         """
         # Call OpponentSpace's init method
         super().init_opponent(partial_env, **kwargs)
@@ -70,6 +80,16 @@ class ReconnectingOpponentSpace(OpponentSpace):
     def reset(self) -> None:
         """
         Reset attack running and remedial action
+
+        This method resets the attack running and remedial action of the opponent agent.
+        It calls the `reset` method of the parent class `OpponentSpace` to reset the
+        opponent's state. It also resets the attacked line ID and the remedial action.
+
+        Parameters:
+            None
+
+        Returns:
+            None
         """
         # Call OpponentSpace's reset
         super().reset()
@@ -77,7 +97,7 @@ class ReconnectingOpponentSpace(OpponentSpace):
         # Reset attack running
         self._attacked_line_id = None
 
-        # Reset remdial action
+        # Reset remedial action
         self._remedial_action = None
 
     def attack(
@@ -89,6 +109,14 @@ class ReconnectingOpponentSpace(OpponentSpace):
         """
         Override attack to immediately reconnect attacked line after
         the attack has finished
+
+        Args:
+            observation (BaseObservation): The observation of the environment.
+            agent_action (BaseAction): The action taken by the agent.
+            env_action (BaseAction): The action taken by the environment.
+
+        Returns:
+            Tuple[BaseAction, int]: A tuple containing the attack action and its duration.
         """
 
         # Run super method
@@ -135,7 +163,24 @@ class ReconnectingOpponentSpace(OpponentSpace):
         None,
     ]:
         """
-        Gets state for simulation and deep copy.
+        Gets the state for simulation and deep copy.
+
+        Returns:
+            tuple: A tuple containing the state information for the agent and the opponent.
+                The agent's state is represented by a tuple with the following elements:
+                    - budget (float): The current budget of the agent.
+                    - previous_fails (bool): Indicates whether the agent had previous failures.
+                    - current_attack_duration (int): The duration of the current attack.
+                    - current_attack_cooldown (int): The cooldown period after the current attack.
+                    - last_attack (BaseAction): The last attack performed by the agent.
+                    - _remedial_action (BaseAction | None): The remedial action taken by the agent.
+                    - _remedial_actions (dict[int, BaseAction]): Dictionary mapping line IDs to remedial actions.
+                    - _attacked_line_id (int | None): The ID of the line being attacked by the agent.
+
+                The opponent's state is obtained by calling the `get_state()` method of the opponent object.
+
+            None: This method does not return any value for the opponent's state.
+
         """
         # used for simulate
         state_me = (
@@ -167,9 +212,22 @@ class ReconnectingOpponentSpace(OpponentSpace):
         opp_state: None = None,
     ) -> None:
         """
-        Sets state for simulation and deep copy.
-        """
+        Sets the state for the simulation and performs a deep copy.
 
+        Args:
+            my_state (tuple): A tuple containing the state information for the agent.
+                The tuple should have the following elements:
+                - budget (float): The budget of the agent.
+                - previous_fails (bool): A flag indicating whether the agent has previous fails.
+                - current_attack_duration (int): The duration of the current attack.
+                - current_attack_cooldown (int): The cooldown of the current attack.
+                - last_attack (BaseAction): The last attack performed by the agent.
+                - remedial_action (BaseAction | None): The remedial action taken by the agent.
+                - remedial_actions (dict[int, BaseAction]): A dictionary mapping line IDs to remedial actions.
+                - attacked_line_id (int | None): The ID of the line being attacked.
+
+            opp_state (None, optional): The state of the opponent agent. Defaults to None.
+        """
         # used for simulate (and for deep copy)
         if opp_state is not None:
             self.opponent.set_state(opp_state)

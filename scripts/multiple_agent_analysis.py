@@ -1,3 +1,7 @@
+"""
+This script is to test trained rl agents that are saved in the same folder.
+"""
+
 import json
 import os
 
@@ -8,7 +12,7 @@ import argparse
 from functools import partial
 from pathos.multiprocessing import ProcessingPool as Pool
 
-from agent_evaluation import eval_single_agent
+from agent_evaluation import eval_single_rlagent
 from rl4pnc.grid2op_env.utils import load_actions
 
 
@@ -84,7 +88,7 @@ def eval_all_agents(env_name: str,
     if run_eval:
         print("Run evaluation episodes first... ")
         with Pool(nb_workers) as pool:
-            worker = partial(eval_single_agent,
+            worker = partial(eval_single_rlagent,
                              studie_path=path,
                              reset_topo_todefault=reset_topo,
                              lib_dir=lib_dir,
