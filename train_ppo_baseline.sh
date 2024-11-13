@@ -33,8 +33,8 @@ export PYTHONPATH=$PYTHONPATH:$PWD
 #Create output directory on scratch
 echo "Copy necessary files"
 mkdir $WORKDIR
-srun cp -r $HOME/rl4pnc/configs $WORKDIR/configs
-srun cp -r $HOME/rl4pnc/data $WORKDIR/data
+srun cp -r $HOME/Rl4Pnc/configs $WORKDIR/configs
+srun cp -r $HOME/Rl4Pnc/data $WORKDIR/data
 #mkdir $WORKDIR/data_grid2op/
 #srun find $HOME/data_grid2op -type d -name "${ENVNAME}*" -print0 | xargs -0 -I {} cp -r {} $WORKDIR/data_grid2op/
 

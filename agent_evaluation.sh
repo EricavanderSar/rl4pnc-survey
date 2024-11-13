@@ -10,7 +10,7 @@
 
 AGENT_TYPE="heur" # options "heur" or "rl"
 RESDIR=$HOME/HeuristicBaselines/
-LIBDIR=$HOME/rl4pnc/
+LIBDIR=$HOME/Rl4Pnc/
 CHRONICS="test"
 
 echo "Activate envirnonment"

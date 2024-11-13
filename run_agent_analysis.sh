@@ -11,7 +11,7 @@
 
 ENVNAME=l2rpn_case14_sandbox
 RESDIR=$HOME/ray_results/Case14_Sandbox_ActSpaces
-LIBDIR=$HOME/rl4pnc/
+LIBDIR=$HOME/Rl4Pnc/
 
 echo "Activate envirnonment"
 source activate rl4pnc

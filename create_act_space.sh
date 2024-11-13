@@ -10,7 +10,7 @@
 
 
 ENVNAME=l2rpn_icaps_2021_large #rte_case14_realistic #
-SAVE_PATH=$HOME/rl4pnc/data/action_spaces/
+SAVE_PATH=$HOME/Rl4Pnc/data/action_spaces/
 
 echo "Activate envirnonment"
 source activate rl4pnc
