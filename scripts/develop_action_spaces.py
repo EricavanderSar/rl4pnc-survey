@@ -93,7 +93,7 @@ if __name__ == "__main__":
         "--action_space",
         type=str,
         help="Action space to be used.",
-        default="assym",
+        default="tennet",
         choices=["assym", "medha", "tennet", "binbinchen", "curriculumagent", "alphazero"]
     )
     parser.add_argument(

@@ -204,7 +204,7 @@ def get_action_data(env, env_config, this_episode: EpisodeData, exec_times, inpu
     # agent step duration
     agent_execution_times = exec_times[ts_danger]
 
-    if input_data == None:
+    if input_data is None:
         data = {}
         data["chron_id"] = chron_id
         data["ts_danger"] = ts_danger
