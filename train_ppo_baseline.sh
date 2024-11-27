@@ -6,13 +6,13 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --partition=rome
 #SBATCH --time=16:00:00
-#SBATCH --output=Case14_RWLossNew_ppo_%j.out
+#SBATCH --output=Case14_Baseline_ppo_%j.out
 #SBATCH --array=1-5
 
 
 ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=Case14_Enhancements
+RESDIR=Case14_SurveyPaper
 
 # function to handle the SIGTERM signal
 function handle_interrupt {

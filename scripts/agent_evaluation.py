@@ -440,7 +440,7 @@ def eval_heuristic_agent(
         agent = HeuristicsAgent(env.action_space, config["rules"])
     elif config["agent_type"] == "RhoGreedy":
         topo_actions = True
-        res_path += f"/{config['action_space']}"
+        # res_path += f"/{config['action_space']}"
         print("Evaluate RhoGreedyAgent")
         actions_path = os.path.abspath(
             f"{lib_dir}/data/action_spaces/{config['env_name']}/{config['action_space']}.json",

@@ -5,8 +5,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_Enhancements"
-  experiment_name: "Case14_Enhancements"
+  folder_name: "Case14_SurveyPaper"
+  experiment_name: "Case14_SurveyPaper"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -68,25 +68,25 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_type: new_env #old_env
+    env_type: old_env #new_env #
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha_dn_rev
-    mask: 3
+    action_space: medha
+    mask: 3 # only used if action space is "masked" (as in SMAAC from Yoon et al. 2021)
     lib_dir: !workdir
     grid2op_kwargs:
       # general kwargs
       reward_class: !ScaledL2RPNReward #L2RPNReward #!LossRwRescaled2 #!LossRwNew #!AlphaZeroRW #!LinesCapacityReward #!LossReward #
     seed: *seed
-    rho_threshold: 0.975
+    rho_threshold: 0.95
     prio: False
     use_ffw: False # feed forward chronic when using prio
-    input: [ "p_i", "p_l", "r", "o", "d"]
+    input: [ "p_i", "p_l", "r", "o", "d"] # observation inputs NOTE: Topology is always included
     # Params below only used for new_env
-    n_history: 3
-    danger: 0.9
+    n_history: 1 # including history in observation only possible with new_env.
+    danger: 0.9 # used with
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: maxmin
-    reset_topo: 0.5
+    reset_topo: 2.0 # No reset topo aplied when = 2.0
 
 evaluation:
   evaluation_interval: 10
