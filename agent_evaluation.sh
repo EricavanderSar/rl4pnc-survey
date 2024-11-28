@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=rome
 #SBATCH --time=08:00:00
-#SBATCH --output=Eval_Agent_Gr_n-1_%j.out
+#SBATCH --output=Evaluation_Results_Case14/Eval_Agent_Gr_n-1_%j.out
 
 AGENT_TYPE="heur" # options "heur" or "rl"
 RESDIR=$HOME/HeuristicBaselines/

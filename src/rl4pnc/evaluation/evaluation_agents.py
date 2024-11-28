@@ -56,7 +56,7 @@ class HeuristicsAgent(BaseAgent):
         self.line_reco = rule_config.get("line_reco", False)
         self.line_disc = rule_config.get("line_disc", False)
         self.ts_overflow_lines = np.zeros(action_space.n_line)
-        self.reset_topo = rule_config.get("reset_topo", 2.0)
+        self.reset_topo = rule_config.get("reset_topo", 0)
         self.simulate = rule_config.get("simulate", False)
         self.rho_max = 0
 
@@ -68,7 +68,7 @@ class HeuristicsAgent(BaseAgent):
         self.rho_max = (observation.rho.max() if observation.rho.max() > 0 else 2)
         if self.line_reco:
             current_action = self.reconnection_rule(observation, current_action)
-        if self.reset_topo < 2.0:
+        if self.reset_topo:
             current_action = self.revert_to_reference_topo(observation, current_action)
         if self.line_disc:
             current_action = self.disconnection_rule(observation, current_action=current_action)

@@ -6,7 +6,7 @@
 #SBATCH --cpus-per-task=32
 #SBATCH --partition=rome
 #SBATCH --time=16:00:00
-#SBATCH --output=Case14_Baseline_ppo_%j.out
+#SBATCH --output=Train_Results_Case14/Case14_Baseline_ppo_%j.out
 #SBATCH --array=1-5
 
 
@@ -45,11 +45,11 @@ echo "Run code: Task id $i"
   time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s $i -j $j
 echo "Done"
 
-#Copy output directory from scratch to home
+# Synchronize results with WandB
 echo "sync with wandb..."
-cd $HOME/ray_results/$RESDIR
-for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
-
+  cd $HOME/ray_results/$RESDIR
+  for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
 echo "Update WandB"
+  cd $HOME/Rl4Pnc
   time srun python -u scripts/update_wandb.py -p $RESDIR
 echo "Finished update"

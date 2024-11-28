@@ -519,7 +519,7 @@ if __name__ == "__main__":
     parser.add_argument("-at", "--activation_threshold", type=float, default=0.95)
     parser.add_argument('-lr', '--line_reco', default=False, action='store_true')
     parser.add_argument('-ld', '--line_disc', default=False, action='store_true')
-    parser.add_argument("-rt", "--reset_topo", type=float, default=2.0,
+    parser.add_argument("-rt", "--reset_topo", type=float, default=0.0,
                         help="Threshold to revert to reference topology. If max_rho<RT revert to ref topo.")
     parser.add_argument("-s", "--simulate", default=False, action='store_true',
                         help="If simulate is True: Simulate the proposed topo action before executing it.")

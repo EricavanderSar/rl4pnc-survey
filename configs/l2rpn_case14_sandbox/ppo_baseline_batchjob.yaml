@@ -86,7 +86,7 @@ environment:
     danger: 0.9 # used with
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: maxmin
-    reset_topo: 2.0 # No reset topo aplied when = 2.0
+    reset_topo: 0 # No reset topo aplied when = 0
 
 evaluation:
   evaluation_interval: 10

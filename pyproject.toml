@@ -70,6 +70,7 @@ dependencies = [
   "typer",
   "ipykernel",
   "pathos",
+  "SciencePlots"
 ]
 
 [project.optional-dependencies]
