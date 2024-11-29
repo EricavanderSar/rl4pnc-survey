@@ -275,7 +275,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
 
             # reward the RL agent for this step, go back to HL agent
             rewards = {"choose_substation_agent": reward}
-            observations = {"high_level_agent": max(self.cur_obs["rho"]).flatten()}
+            observations = {"high_level_agent": max(self.cur_gym_obs["rho"]).flatten()}
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": g2op_obs.current_step == g2op_obs.max_step}
             infos = {}
@@ -291,7 +291,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
             g2op_obs, reward, terminated, infos = self.gym_act_in_g2op(action)
 
             # reward the RL agent for this step, go back to HL agent
-            observations = {"high_level_agent": max(self.cur_obs["rho"]).flatten()}
+            observations = {"high_level_agent": max(self.cur_gym_obs["rho"]).flatten()}
             rewards = self.assign_multi_agent_rewards(substation_id, reward)
             terminateds = {"__all__": terminated}
             truncateds = {"__all__": g2op_obs.current_step == g2op_obs.max_step}
@@ -320,7 +320,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
                     ] = self.reset_capa_idx
                     observations["choose_substation_agent"][
                         "previous_obs"
-                    ] = self.cur_obs
+                    ] = self.cur_gym_obs
                 else:
                     raise ValueError("Capa observations is not an OrderedDict.")
             # print('observation: ', observations)
@@ -441,7 +441,7 @@ class HierarchicalCustomizedGrid2OpEnvironment(CustomizedGrid2OpEnvironment):
         if action == 0:  # do something
             # add an observation key for all agents in self.rl_agent_ids
             for agent_id in self.rl_agent_ids:
-                observations[agent_id] = self.cur_obs
+                observations[agent_id] = self.cur_gym_obs
         elif action == 1:  # do nothing
             observations = {"do_nothing_agent": 0}
         else:

@@ -107,7 +107,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         # specific to rllib
         self.observation_space = self.define_obs_space(env_config)
 
-        self.cur_obs = None
+        self.cur_gym_obs = None
+        self.cur_g2op_obs = None
 
         # initialize training chronic sampling weights
         self.prio = env_config.get("prio", True)
@@ -177,9 +178,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.update_obs(g2op_obs)
         # reset episode metrics
         self.reset_metrics()
-        # reconnect lines if needed.
-        g2op_obs, _, _ = self.reconnect_lines(g2op_obs)
-
+        # Start with activation of the high level agent > decide to act or not to act.
         observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
         chron_id = self.env_g2op.chronics_handler.get_name()
         infos = {"time serie id": chron_id}
@@ -187,7 +186,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         return observations, infos
 
     def update_obs(self, g2op_obs):
-        self.cur_obs = dict(self.env_gym.observation_space.to_gym(g2op_obs))
+        self.cur_g2op_obs = g2op_obs
+        self.cur_gym_obs = dict(self.env_gym.observation_space.to_gym(g2op_obs))
 
     def prio_reset(self):
         # use chronic priority
@@ -234,7 +234,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             action = action_dict["high_level_agent"]
             if action == 0:
                 # do something
-                observations = {"reinforcement_learning_agent": self.cur_obs}
+                observations = {"reinforcement_learning_agent": self.cur_gym_obs}
             elif action == 1:
                 # do nothing
                 observations = {"do_nothing_agent": 0}
@@ -269,6 +269,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
     def gym_act_in_g2op(self, action) -> Tuple[BaseObservation, float, bool, dict]:
         g2op_act = self.env_gym.action_space.from_gym(action)
+        # reconnect lines if needed.
+        g2op_act = self.reconnect_lines(g2op_act)
+        if self.reset_topo:
+            # reset topo if needed.
+            g2op_act = self.reset_ref_topo(g2op_act)
         if self.activated:
             act_config = g2op_act.set_bus
             if np.all(self.env_g2op.current_obs.topo_vect[act_config!=0] == act_config[act_config!=0]):
@@ -279,18 +284,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             terminated,
             infos,
         ) = self.env_g2op.step(g2op_act)
-        self.update_obs(g2op_obs)
-        # reconnect lines if needed.
-        if not terminated:
-            g2op_obs, rw, terminated = self.reconnect_lines(g2op_obs)
-            reward += rw
-            if self.reset_topo and not terminated:
-                g2op_obs, rw, terminated = self.reset_ref_topo(g2op_obs)
-                reward += rw
         if self.prio:
             self.step_surv += 1
             if terminated:
                 self.chron_prios.update_prios(self.step_surv)
+        self.update_obs(g2op_obs)
         return g2op_obs, reward, terminated, infos
 
     def render(self) -> RENDERFRAME | list[RENDERFRAME] | None:
@@ -347,65 +345,58 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         return gym_obs
 
-    def reconnect_lines(self, g2op_obs: grid2op.Observation):
-        if False in g2op_obs.line_status:
-            disc_lines = np.where(g2op_obs.line_status == False)[0]
+    def reconnect_lines(self, g2op_action: grid2op.Action):
+        if False in self.cur_g2op_obs.line_status:
+            disc_lines = np.where(self.cur_g2op_obs.line_status == False)[0]
             for i in disc_lines:
                 act = None
                 # Reconnecting the line when cooldown and maintenance is over:
-                if (g2op_obs.time_next_maintenance[i] != 0) & (g2op_obs.time_before_cooldown_line[i] == 0):
+                if (self.cur_g2op_obs.time_next_maintenance[i] != 0) & (self.cur_g2op_obs.time_before_cooldown_line[i] == 0):
                     status = self.env_g2op.action_space.get_change_line_status_vect()
                     status[i] = True
                     act = self.env_g2op.action_space({"change_line_status": status})
                     if act is not None:
                         if self.prio:
                             self.step_surv += 1
-                        # Execute reconnection action
-                        (
-                            g2op_obs,
-                            rw,
-                            terminated,
-                            infos,
-                        ) = self.env_g2op.step(act)
                         self.reconnect_count += 1
-                        self.update_obs(g2op_obs)
-                        return g2op_obs, rw, terminated
-        return g2op_obs, 0, False
+                        # return original action + line reconnection action
+                        return g2op_action + act
+        # return original action
+        return g2op_action
 
-    def reset_ref_topo(self, g2op_obs: grid2op.Observation):
+    def reset_ref_topo(self, g2op_action: grid2op.Action):
         # The environment goes back to the reference topology when safe
-        if (g2op_obs.rho.max() < self.reset_topo) and (g2op_obs.current_step < g2op_obs.max_step-1):
+        if (self.cur_g2op_obs.rho.max() < self.reset_topo) and (self.cur_g2op_obs.current_step < self.cur_g2op_obs.max_step-1):
             # Get all subs that are not in default topology
-            subs_changed = np.unique(g2op_obs._topo_vect_to_sub[g2op_obs.topo_vect != 1])
+            subs_changed = np.unique(self.cur_g2op_obs._topo_vect_to_sub[self.cur_g2op_obs.topo_vect != 1])
             if len(subs_changed):
+                sim_obs, rw, done, info = self.cur_g2op_obs.simulate(g2op_action)
+                cur_max_rho = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
                 action_options = []
                 max_rhos = np.zeros(len(subs_changed))
                 rewards = np.zeros(len(subs_changed))
                 for i, sub in enumerate(subs_changed):
+                    # Simulate going back to reference topology for each substation that has changed
                     action = self.env_g2op.action_space(
                         {"set_bus": {
                             "substations_id":
-                                [(sub, np.ones(g2op_obs.sub_info[sub], dtype=int))]
+                                [(sub, np.ones(self.cur_g2op_obs.sub_info[sub], dtype=int))]
                         }
                         })
-                    action_options.append(action)
-                    sim_obs, rw, done, info = g2op_obs.simulate(action)
-                    max_rhos[i] = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
-                    rewards[i] = rw
-                if max_rhos[np.argmax(rewards)] < self.reset_topo:
+                    sim_obs, rw, done, info = self.cur_g2op_obs.simulate(action)
+                    max_rho = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
+                    if max_rho < cur_max_rho:
+                        # if result better than currently proposed (DN) action save action as option.
+                        action_options.append(action)
+                        max_rhos[i] = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
+                        rewards[i] = rw
+                if action_options:
+                    # use the best revert action.
                     act = action_options[np.argmax(rewards)]
-                    # Execute the topology reset action
-                    (
-                        g2op_obs,
-                        rw,
-                        terminated,
-                        infos,
-                    ) = self.env_g2op.step(act)
-                    self.update_obs(g2op_obs)
                     self.reset_count += 1
                     # print(act)
-                    return g2op_obs, rw, terminated
-        return g2op_obs, 0, False
+                    return act
+        return g2op_action
 
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)

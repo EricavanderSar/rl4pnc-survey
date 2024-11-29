@@ -57,7 +57,8 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
         )
 
     def update_obs(self, g2op_obs):
-        self.cur_obs = self.obs_converter.get_cur_obs(g2op_obs)
+        self.cur_g2op_obs = g2op_obs
+        self.cur_gym_obs = self.obs_converter.get_cur_obs(g2op_obs)
 
 
 register_env("RlGrid2OpEnv", RlGrid2OpEnv)
@@ -89,6 +90,6 @@ class RlGrid2OpEnv2(RlGrid2OpEnv):
 
         # TODO: create new obs converter
         self.obs_converter = ObsConverter(self.env_g2op, env_config.get("danger", 0.9), attr=obs_features, n_history=n_history, adj_mat=env_config.get("adj_matrix"))
-        self.cur_obs = None
+        self.cur_gym_obs = None
 
 register_env("RlGrid2OpEnv2", RlGrid2OpEnv2)
