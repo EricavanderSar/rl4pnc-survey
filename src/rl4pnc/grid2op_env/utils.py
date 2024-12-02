@@ -286,8 +286,12 @@ class ChronPrioMatrix(ChronPrioVect):
         pieces_played = int(np.ceil(steps_surv / self.ffw_size))
         max_steps = self.max_ep_dur - self.cur_ffw * self.ffw_size
         scores = torch.ones(pieces_played) * 2.0  # scale = 2.0
-        for p in range(pieces_played):
-            scores[p] *= 1 - np.sqrt((steps_surv - self.ffw_size * p) / (max_steps - self.ffw_size * p))
+        if max_steps != self.ffw_size * pieces_played:
+            for p in range(pieces_played):
+                scores[p] *= 1 - np.sqrt((steps_surv - self.ffw_size * p) / (max_steps - self.ffw_size * p))
+        # print("pieces played: ", pieces_played)
+        # print("self.cur_ffw: ", self.cur_ffw)
+        # print("steps surv: ", steps_surv)
         self.chron_scores[self.chronic_idx][self.cur_ffw: (self.cur_ffw + pieces_played)] = scores
 
 

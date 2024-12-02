@@ -39,7 +39,7 @@ ENV_TYPE = {
 }
 
 
-def setup_config(workdir_path: str, input_path: str, seed: int = None) -> (dict[str, Any], dict[str, Any]):
+def setup_config(workdir_path: str, input_path: str, seed: int = None, opponent=False) -> (dict[str, Any], dict[str, Any]):
     """
     Loads the json as config and sets it up for training.
     """
@@ -56,6 +56,11 @@ def setup_config(workdir_path: str, input_path: str, seed: int = None) -> (dict[
     for key in custom_config.keys():
         if key != "setup":
             ppo_config.update(custom_config[key])
+    if opponent:
+        print("Train with opponent.")
+        opponent_path = os.path.join(workdir_path, f"configs/{ppo_config['env_config']['env_name'].replace('_train', '')}/opponent.yaml")
+        ppo_config["env_config"]["grid2op_kwargs"].update(load_config(opponent_path))
+        ppo_config["evaluation_config"]["env_config"]["grid2op_kwargs"].update(load_config(opponent_path))
     # Set eval duration equal to N available validation episodes
     ppo_config["evaluation_duration"] = len(
         os.listdir(os.path.join(
@@ -155,12 +160,19 @@ if __name__ == "__main__":
         default="TEsTING",
         help="job_id of this trial, this way each trial gets an extra unique identifier.",
     )
+    parser.add_argument(
+        "-o",
+        "--opponent",
+        default=True,
+        action='store_true',
+        help="Train on environment with opponent.",
+    )
 
     # Parse the command-line arguments
     args = parser.parse_args()
 
     if args.file_path:
-        ppo_config, custom_config = setup_config(args.workdir, args.file_path, seed=args.seed)
+        ppo_config, custom_config = setup_config(args.workdir, args.file_path, seed=args.seed, opponent=args.opponent)
         result_grid = run_training(ppo_config, custom_config["setup"], args.job_id)
     else:
         parser.print_help()
