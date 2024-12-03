@@ -367,6 +367,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                     _,
                 ) = self.cur_g2op_obs.simulate(action)
                 if cur_max_rho > (sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2):
+                    self.reconnect_count += 1
                     g2op_action = action
         # return original action
         return g2op_action
