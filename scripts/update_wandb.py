@@ -16,7 +16,7 @@ def update_rw_config(run):
 
 
 def update_opponent_config(run):
-    run.config["opponent"] = "kwargs_opponent" in run.config["env_config"]["grid2op_kwargs"]
+    run.config["opponent"] = ("kwargs_opponent" in run.config["env_config"]["grid2op_kwargs"])
 
 
 def update_old_env_history(run):

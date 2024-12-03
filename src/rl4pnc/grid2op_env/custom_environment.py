@@ -346,21 +346,28 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         return gym_obs
 
     def reconnect_lines(self, g2op_action: grid2op.Action):
-        if False in self.cur_g2op_obs.line_status:
-            disc_lines = np.where(self.cur_g2op_obs.line_status == False)[0]
-            for i in disc_lines:
-                act = None
-                # Reconnecting the line when cooldown and maintenance is over:
-                if (self.cur_g2op_obs.time_next_maintenance[i] != 0) & (self.cur_g2op_obs.time_before_cooldown_line[i] == 0):
-                    status = self.env_g2op.action_space.get_change_line_status_vect()
-                    status[i] = True
-                    act = self.env_g2op.action_space({"change_line_status": status})
-                    if act is not None:
-                        if self.prio:
-                            self.step_surv += 1
-                        self.reconnect_count += 1
-                        # return original action + line reconnection action
-                        return g2op_action + act
+        line_stat_s = self.cur_g2op_obs.line_status
+        cooldown = self.cur_g2op_obs.time_before_cooldown_line
+        can_be_reco = ~line_stat_s & (cooldown == 0)
+        if can_be_reco.any():
+            (
+                sim_obs,
+                _,
+                _,
+                _,
+            ) = self.cur_g2op_obs.simulate(g2op_action)
+            cur_max_rho = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
+            for id_ in (can_be_reco).nonzero()[0]:
+                # reconnect all lines that improve the current action
+                action = g2op_action + self.env_g2op.action_space({"set_line_status": [(id_, +1)]})
+                (
+                    sim_obs,
+                    _,
+                    _,
+                    _,
+                ) = self.cur_g2op_obs.simulate(action)
+                if cur_max_rho > (sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2):
+                    g2op_action = action
         # return original action
         return g2op_action
 
