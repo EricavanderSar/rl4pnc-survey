@@ -1,12 +1,12 @@
 setup:
   max_ep_len: 8064
-  nb_timesteps: &nb_timesteps 100_000
+  nb_timesteps: &nb_timesteps 500_000
   checkpoint_freq: 10
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurveyPaper"
-  experiment_name: "Case14_SurveyPaper"
+  folder_name: "Case14_Opponent"
+  experiment_name: "Case14_Opponent"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -32,12 +32,12 @@ training:
   lr: 0.0001 #!qloguniform [0.0001, 0.005, 0.0001] #
 #  use_kl_loss: False # setting this similar to orig EVDS implementation
   kl_coeff: 0.2
-  entropy_coeff: 0.0
+  entropy_coeff: 0.01
   clip_param: 0.3 #!choice [0.2, 0.3] # epsilon
   lambda: 0.95
   vf_loss_coeff: 0.5
   vf_clip_param: 100
-  num_sgd_iter: 5 #!quniform [4, 16, 4] #
+  num_sgd_iter: 15 #!quniform [4, 16, 4] #
   sgd_minibatch_size: 256 #128 #!choice [32, 64, 128] #
   train_batch_size: 1024 #256 # 128 #!choice [128, 256, 512] #
   batch_mode: complete_episodes

@@ -12,7 +12,7 @@
 
 ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=Case14_SurveyPaper
+RESDIR=Case14_Opponent
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
@@ -48,7 +48,14 @@ echo "Done"
 # Synchronize results with WandB
 echo "sync with wandb..."
   cd $HOME/ray_results/$RESDIR
-  for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
+  today=$(date +%Y-%m-%d)
+  for d in $(ls -t -d */); do
+      if [[ $d == *$today* ]]; then
+          cd "$d"
+          wandb sync --sync-all
+          cd ..
+      fi
+  done
 echo "Update WandB"
   cd $HOME/Rl4Pnc
   time srun python -u scripts/update_wandb.py -p $RESDIR
