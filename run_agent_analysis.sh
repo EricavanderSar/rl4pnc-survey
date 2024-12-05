@@ -6,20 +6,29 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=rome
 #SBATCH --time=16:00:00
-#SBATCH --output=Evaluate_Agents_%j.out
+#SBATCH --output=Results_RL_Evaluations/Evaluate_Agents_%j.out
 
 
-ENVNAME=l2rpn_case14_sandbox
-RESDIR=$HOME/ray_results/Case14_Sandbox_ActSpaces
+RESDIR=$HOME/ray_results/Case14_SurveyPaper
 LIBDIR=$HOME/Rl4Pnc/
+CHRONICS="test"
+CASE=14
+MAXSTEPS=8064
 
 echo "Activate envirnonment"
 source activate rl4pnc
 export PYTHONPATH=$PYTHONPATH:$PWD
 
-echo "Run code:"
-time srun python -u scripts/multiple_agent_analysis.py -e $ENVNAME -p $RESDIR -l $LIBDIR -w 16
+j=${SLURM_JOB_ID}
+echo "Run multiple_agent_analysis.py..."
+time srun python -u scripts/multiple_agent_analysis.py -p $RESDIR -l $LIBDIR -w 16 -c $CHRONICS -j $j -at 0.95 -lr
+# -o (opponent) -ld (line_dics) -lr (line_reconnect) -rt (reset_topo) -s (simulate)
 echo "Done"
+
+echo "Run summarize_evaluation_data.py..."
+time srun python -u scripts/summarize_evaluation_data.py -p $RESDIR -c $CASE -m $MAXSTEPS
+echo "Done"
+
 
 
 

@@ -63,6 +63,10 @@ def get_env_config(studie_path, test_case, rules, libdir, opponent=False):
     # Add rule based part:
     env_config["rules"] = rules
     print("Rules used for env are: ", rules)
+    # Add agent_type:
+    env_config["agent_type"] = test_case.split("_")[0]
+    env_config["agent_id"] = "_".join(test_case.split("_")[:-2])
+    env_config["train_opponent"] = ("kwargs_opponent" in env_config["grid2op_kwargs"])
 
     return env_config, agent_path
 
@@ -81,7 +85,12 @@ def run_agent(agent,
     if opponent:
         print("Running with opponent.")
         opponent_path = os.path.join(libdir, f"configs/{env_config['env_name']}/opponent.yaml")
-        env_config["grid2op_kwargs"].update(load_config(opponent_path))
+        opponent_kwargs = load_config(opponent_path)
+    else:
+        # Get kwargs for no opponent
+        print("Running without opponent.")
+        opponent_kwargs = grid2op.Opponent.get_kwargs_no_opponent()
+    env_config["grid2op_kwargs"].update(opponent_kwargs)
     # save env_config to file
     with open(os.path.join(store_trajectories_folder, "env_config.json"), "w") as outfile:
         outfile.write(json.dumps(env_config, indent=4, default=default_serializer))
@@ -403,7 +412,7 @@ def eval_single_rlagent(test_case,
         gym_wrapper=ENV_TYPE(env_config),
     )
     # location of data to store:
-    folder_name = "evaluation_episodes" + f"_checkpoint{checkpoint_name}_{unique_id}"
+    folder_name = "evaluation_episodes" + f"_{checkpoint_name}_{unique_id}"
     store_trajectories_folder = os.path.join(agent_path, folder_name)
 
     run_agent(agent,
@@ -473,7 +482,7 @@ def eval_heuristic_agent(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process possible variables.")
 
-    parser.add_argument("-a", "--agent_type", default="heur", choices=["heur", "rl"],
+    parser.add_argument("-a", "--agent_type", default="rl", choices=["heur", "rl"],
                         help="Agent type can be either heuristic (heur) or RL-based (rl).")
 
     parser.add_argument("-o", "--opponent", default=False, action='store_true')
@@ -484,8 +493,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p",
         "--path",
-        default="/Users/ericavandersar/Documents/Python_Projects/Research/Rl4Pnc/results/",
-        # default="/Users/ericavandersar/surfdrive/Documents/Research/Result/Case14_Sandbox_ActSpaces/",
+        # default="/Users/ericavandersar/Documents/Python_Projects/Research/Rl4Pnc/results/",
+        default="/Users/ericavandersar/surfdrive/Documents/Research/Result/Case14_Sandbox_ActSpaces/",
         type=str,
         help="The path where the results will be stored AND in case of an RL-based agent "
              "the location of studied agent.",

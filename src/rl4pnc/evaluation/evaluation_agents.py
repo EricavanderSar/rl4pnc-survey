@@ -247,11 +247,11 @@ class RllibAgent(HeuristicsAgent):
 
         if HeuristicsAgent.activate_agent(self, observation):
             # Get action from trained RL-agent when in danger.
-            if not any(len(obs_el.shape) > 1 for obs_el in self.gym_wrapper.cur_obs.values()):
+            if not any(len(obs_el.shape) > 1 for obs_el in self.gym_wrapper.cur_gym_obs.values()):
                 # Convert the observation dictionary to a NumPy array
-                observation_array = np.concatenate([self.gym_wrapper.cur_obs[key] for key in self.gym_wrapper.cur_obs])
+                observation_array = np.concatenate([self.gym_wrapper.cur_gym_obs[key] for key in self.gym_wrapper.cur_gym_obs])
             else:
-                observation_array = self.gym_wrapper.cur_obs
+                observation_array = self.gym_wrapper.cur_gym_obs
             # print("current obs:", observation_array)
             # get action as int
             # compute_single_action returns:
@@ -269,7 +269,6 @@ class RllibAgent(HeuristicsAgent):
             action = rb_action
 
         return action
-
 
 
 class LargeTopologyGreedyAgent(GreedyAgent):

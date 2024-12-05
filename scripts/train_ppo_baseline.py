@@ -59,8 +59,13 @@ def setup_config(workdir_path: str, input_path: str, seed: int = None, opponent=
     if opponent:
         print("Train with opponent.")
         opponent_path = os.path.join(workdir_path, f"configs/{ppo_config['env_config']['env_name'].replace('_train', '')}/opponent.yaml")
-        ppo_config["env_config"]["grid2op_kwargs"].update(load_config(opponent_path))
-        ppo_config["evaluation_config"]["env_config"]["grid2op_kwargs"].update(load_config(opponent_path))
+        opponent_kwargs = load_config(opponent_path)
+    else:
+        # Get kwargs for no opponent
+        print("Train without opponent.")
+        opponent_kwargs = grid2op.Opponent.get_kwargs_no_opponent()
+    ppo_config["env_config"]["grid2op_kwargs"].update(opponent_kwargs)
+    ppo_config["evaluation_config"]["env_config"]["grid2op_kwargs"].update(opponent_kwargs)
     # Set eval duration equal to N available validation episodes
     ppo_config["evaluation_duration"] = len(
         os.listdir(os.path.join(

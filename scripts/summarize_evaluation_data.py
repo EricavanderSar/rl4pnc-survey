@@ -66,7 +66,7 @@ def extend_data(agent_dir, summarized_data, boxplot_data, size_case, max_env_ste
 
         # get data from action_data (which is all ts for which rho.max() > activation_threshold = 0.95)
         action_exec_time = action_data['agent_exec_time'].mean()
-        ts_overloaded = len(action_data[action_data['rho'] > 1.0]) / len(ep_data)  # mean ts_activated/episode
+        ts_overloaded = len(action_data[action_data['rho'] > 1.0]) / len(ep_data)  # mean ts_overloaded/episode
         unique_actions = len(action_data[['action_sub', 'action_topo']].drop_duplicates())
         unique_line_danger = len(action_data.line_danger.unique())
         subs_changed = action_data.action_sub.unique()
@@ -91,10 +91,10 @@ def extend_data(agent_dir, summarized_data, boxplot_data, size_case, max_env_ste
             'train line_reco': env_config.get('line_reco', True),
             'train line_disc': env_config.get('line_disc', False),
             'train reset_topo': env_config.get('reset_topo', 0),
-            'steps survived': (mean_ts_survived / max_env_steps * 100),
-            'steps overloaded': (ts_overloaded / mean_ts_survived * 100),
-            'execution time [ms]': (mean_exec_time * 1000),
-            'agent execution time [ms]': (action_exec_time * 1000),
+            'steps survived': round(mean_ts_survived / max_env_steps * 100, 2),
+            'steps overloaded': round(ts_overloaded / mean_ts_survived * 100, 3),
+            'execution time [ms]': round(mean_exec_time * 1000, 3),
+            'agent execution time [ms]': round(action_exec_time * 1000, 3),
             'maximum topology depth': max_topo_depth,
             'unique actions': unique_actions,
             'unique lines in danger': unique_line_danger,
