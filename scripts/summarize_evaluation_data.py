@@ -23,7 +23,7 @@ def get_summarized_data(path, size_case=14, max_env_steps=8064):
         agent_dir = os.path.join(path, dir)
         if os.path.isdir(agent_dir) and (not dir.startswith('.')):
             if len(os.listdir(agent_dir)) == 1:
-                agent_dir = os.path.join(agent_dir, os.listdir(eval_dir)[0])
+                agent_dir = os.path.join(agent_dir, os.listdir(agent_dir)[0])
             if dir.startswith("CustomPPO"):
                 # get the folder where the results of the evaluation are stored inside the agent folder
                 for sub_dir in os.listdir(agent_dir):

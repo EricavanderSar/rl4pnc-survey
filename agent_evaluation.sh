@@ -12,6 +12,8 @@ AGENT_TYPE="heur" # options "heur" or "rl"
 RESDIR=$HOME/HeuristicBaselines/
 LIBDIR=$HOME/Rl4Pnc/
 CHRONICS="test"
+CASE=14
+MAXSTEPS=8064
 
 echo "Activate envirnonment"
 source activate rl4pnc
