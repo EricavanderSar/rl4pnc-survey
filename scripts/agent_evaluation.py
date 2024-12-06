@@ -67,6 +67,9 @@ def get_env_config(studie_path, test_case, rules, libdir, opponent=False):
     env_config["agent_type"] = test_case.split("_")[0]
     env_config["agent_id"] = "_".join(test_case.split("_")[:-2])
     env_config["train_opponent"] = ("kwargs_opponent" in env_config["grid2op_kwargs"])
+    if env_config["train_opponent"]:
+        # Clean up opponent kwargs, keep only the reward class.
+        env_config["grid2op_kwargs"] = {"reward_class": env_config["grid2op_kwargs"]["reward_class"]}
 
     return env_config, agent_path
 
