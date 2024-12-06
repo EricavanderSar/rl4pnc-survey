@@ -1,12 +1,12 @@
 setup:
   max_ep_len: 8064
-  nb_timesteps: &nb_timesteps 500_000
+  nb_timesteps: &nb_timesteps 100_000 # 500.000 with opponent
   checkpoint_freq: 10
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_Opponent"
-  experiment_name: "Case14_Opponent"
+  folder_name: "Case14_SurveyPaper" # "Case14_Opponent"
+  experiment_name: "Case14_SurveyPaper"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
