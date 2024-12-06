@@ -21,7 +21,7 @@ export PYTHONPATH=$PYTHONPATH:$PWD
 
 j=${SLURM_JOB_ID}
 echo "Run agent_evaluation.py..."
-time srun python -u scripts/agent_evaluation.py -a $AGENT_TYPE -c $CHRONICS -p $RESDIR -l $LIBDIR -at 0.95 -j $j -o -lr
+time srun python -u scripts/agent_evaluation.py -a $AGENT_TYPE -c $CHRONICS -p $RESDIR -l $LIBDIR -at 0.95 -j $j -lr
 #-o -lr -ld -rt 0.8 -s
 echo "Done"
 

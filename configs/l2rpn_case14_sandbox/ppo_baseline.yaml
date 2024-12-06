@@ -65,7 +65,7 @@ environment:
     env_type: new_env #old_env #
 #    shuffle_scenarios: True # This is not used in my version of custom_env (since I use g2op direct instead of gymenv)
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha
+    action_space: d3qn2022
     mask: 5
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/rl4pnc/
     grid2op_kwargs:
