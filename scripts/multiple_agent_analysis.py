@@ -83,6 +83,7 @@ def eval_all_agents(path: str,
                     job_id: str,):
     # Get all agents in current directory
     agent_list = [name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
+    agent_list = [name for name in agent_list if "2024-12-06_15-38" in name]
     print("Run evaluation for the following agents: ", agent_list)
 
     # if run_eval:
