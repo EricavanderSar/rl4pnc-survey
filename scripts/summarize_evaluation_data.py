@@ -61,6 +61,7 @@ def extend_data(agent_dir, summarized_data, boxplot_data, size_case, max_env_ste
 
         # Compute mean values from episode data
         mean_ts_survived = ep_data['survived'].mean()
+        completed_ep = (ep_data['survived'] == max_env_steps).sum()/len(ep_data['survived'])
         mean_max_exec_time = ep_data['max exec time'].mean()
         mean_exec_time = ep_data['mean exec time'].mean()
 
@@ -92,6 +93,7 @@ def extend_data(agent_dir, summarized_data, boxplot_data, size_case, max_env_ste
             'train line_disc': env_config.get('line_disc', False),
             'train reset_topo': env_config.get('reset_topo', 0),
             'steps survived': round(mean_ts_survived / max_env_steps * 100, 2),
+            'completed episodes': round(completed_ep * 100, 2),
             'steps overloaded': round(ts_overloaded / mean_ts_survived * 100, 3),
             'execution time [ms]': round(mean_exec_time * 1000, 3),
             'agent execution time [ms]': round(action_exec_time * 1000, 3),

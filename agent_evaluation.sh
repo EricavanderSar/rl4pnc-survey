@@ -19,11 +19,11 @@ echo "Activate envirnonment"
 source activate rl4pnc
 export PYTHONPATH=$PYTHONPATH:$PWD
 
-#j=${SLURM_JOB_ID}
-#echo "Run agent_evaluation.py..."
-#time srun python -u scripts/agent_evaluation.py -a $AGENT_TYPE -c $CHRONICS -p $RESDIR -l $LIBDIR -at 0.95 -j $j -o -ld
-##-o -lr -ld -rt 0.8 -s
-#echo "Done"
+j=${SLURM_JOB_ID}
+echo "Run agent_evaluation.py..."
+time srun python -u scripts/agent_evaluation.py -a $AGENT_TYPE -c $CHRONICS -p $RESDIR -l $LIBDIR -at 0.95 -j $j -o -lr
+#-o -lr -ld -rt 0.8 -s
+echo "Done"
 
 echo "Run summarize_evaluation_data.py..."
 time srun python -u scripts/summarize_evaluation_data.py -p $RESDIR -c $CASE -m $MAXSTEPS
