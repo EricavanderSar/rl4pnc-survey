@@ -9,7 +9,7 @@
 #SBATCH --output=Results_RL_Evaluations/Evaluate_Agents_%j.out
 
 
-RESDIR=$HOME/ray_results/Case14_SurveyPaper
+RESDIR=$HOME/ray_results/Case14_Opponent
 LIBDIR=$HOME/Rl4Pnc/
 CHRONICS="test"
 CASE=14

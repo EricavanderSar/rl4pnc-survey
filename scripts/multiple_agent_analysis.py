@@ -80,10 +80,13 @@ def eval_all_agents(path: str,
                     lib_dir: str,
                     chronics: list,
                     nb_workers: int,
-                    job_id: str,):
+                    job_id: str,
+                    filter_name:str=""):
     # Get all agents in current directory
     agent_list = [name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
-    agent_list = [name for name in agent_list if "2024-12-06_15-38" in name]
+    if filter_name:
+        print(f"Filter only agents with *{filter_name}* in the name")
+        agent_list = [name for name in agent_list if filter_name in name]
     print("Run evaluation for the following agents: ", agent_list)
 
     # if run_eval:
@@ -141,7 +144,7 @@ if __name__ == "__main__":
         "-j",
         "--job_id",
         type=str,
-        default="Test_multiple",
+        default="Test_multiple2",
         help="job_id of this evaluation, this way each evaluation gets an extra unique identifier.",
     )
 
@@ -155,6 +158,9 @@ if __name__ == "__main__":
                         help="If simulate is True: Simulate the proposed topo action before executing it.")
 
     parser.add_argument("-o", "--opponent", default=False, action='store_true')
+    parser.add_argument("-f", "--filter_name", type=str, default="",
+                        help="optional filter for the agents, if *filter_name* is in agent folder name than "
+                             "this agent will be included in analysis.")
 
     args = parser.parse_args()
 
@@ -178,4 +184,5 @@ if __name__ == "__main__":
                     args.chronics,
                     args.nb_workers,
                     job_id=args.job_id,
+                    filter_name=args.filter_name,
                     )
