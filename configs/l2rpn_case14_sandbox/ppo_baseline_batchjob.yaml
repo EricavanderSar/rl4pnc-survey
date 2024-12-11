@@ -6,7 +6,7 @@ setup:
   my_log_level: 1
   storage_path: ./runs
   folder_name: "Case14_SurveyPaper" # "Case14_Opponent"
-  experiment_name: "Case14_SurveyPaper"
+  experiment_name: "Case14_SurveyPaper2"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -36,7 +36,7 @@ training:
   clip_param: 0.3 #!choice [0.2, 0.3] # epsilon
   lambda: 0.95
   vf_loss_coeff: 0.5
-  vf_clip_param: 100
+#  vf_clip_param: 100
   num_sgd_iter: 5 # with opponent: 15 #!quniform [4, 16, 4] #
   sgd_minibatch_size: 256 #128 #!choice [32, 64, 128] #
   train_batch_size: 1024 #256 # 128 #!choice [128, 256, 512] #
