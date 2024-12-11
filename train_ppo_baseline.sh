@@ -12,7 +12,7 @@
 
 ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=Case14_SurveyPaper2
+RESDIR=Case14_SurveyPaper
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
@@ -42,7 +42,7 @@ srun cp -r $HOME/Rl4Pnc/data $WORKDIR/data
 i=${SLURM_ARRAY_TASK_ID}
 j=${SLURM_JOB_ID}
 echo "Run code: Task id $i"
-  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s $i -j $j
+  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s $i -j $j -o
 echo "Done"
 
 # Synchronize results with WandB
