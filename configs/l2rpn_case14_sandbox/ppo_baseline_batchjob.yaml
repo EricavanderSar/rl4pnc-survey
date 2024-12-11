@@ -5,7 +5,7 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurveyPaper" # "Case14_Opponent"
+  folder_name: "Case14_SurveyPaper2" # "Case14_Opponent"
   experiment_name: "Case14_SurveyPaper2"
   optimize: False
   num_samples: 25
@@ -70,7 +70,7 @@ environment:
   env_config: &env_config_train
     env_type: old_env #new_env #
     env_name: l2rpn_case14_sandbox_train
-    action_space: d3qn2022
+    action_space: medha
     mask: 3 # only used if action space is "masked" (as in SMAAC from Yoon et al. 2021)
     lib_dir: !workdir
     grid2op_kwargs:
