@@ -116,6 +116,8 @@ if __name__ == "__main__":
     if args.test:
         env_name += "_test"
     env = grid2op.make(env_name, backend=LightSimBackend())
+    # Save the scaling arrays for gen_p (No need to collect data)
+    np.save(os.path.join(path_save, "gen_p.npy"), np.vstack([env.gen_pmax / 1.2, env.gen_pmin]))
 
     # Make the object to save all gathered data
     gathered_data = GatheredData()

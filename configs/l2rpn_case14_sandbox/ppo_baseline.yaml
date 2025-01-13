@@ -74,7 +74,8 @@ environment:
     seed: *seed
     rho_threshold: 0.90
     n_history: 6
-    input: "all" #["t", "p_i", "p_l", "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "d" ] # all options: ["t", "p_i", "p_l", "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "d" ]
+    g2op_input: ["r"] #"all" #["t", "p_i", "p_l", "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o" ] # all options: ["t", "p_i", "p_l", "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "d" ]
+    custom_input: ["d", "t"]
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     prio: False

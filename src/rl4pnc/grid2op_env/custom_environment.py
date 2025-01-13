@@ -39,6 +39,8 @@ from rl4pnc.grid2op_env.utils import (
     load_actions
 )
 
+from rl4pnc.grid2op_env.observation_converter import ObservationConverter
+
 from grid2op.gym_compat import ScalerAttrConverter
 from grid2op.Parameters import Parameters
 from grid2op.gym_compat.gym_obs_space import GymnasiumObservationSpace
@@ -100,13 +102,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.action_space = self.define_action_space(env_config)
 
         # 5. customize observation space
-        self.env_gym.observation_space = self.rescale_observation_space(
-            lib_dir,
-            env_config.get("input", ["p_i", "p_l", "r", "o"])
-        )
-        # specific to rllib
-        self.observation_space = self.define_obs_space(env_config)
-
+        self.observation_converter = self.setup_obs_converter(self.env_gym, env_config)
+        self.observation_space = self.observation_converter.observation_space
+        print("Observation space: ", self.observation_space)
         self.cur_gym_obs = None
         self.cur_g2op_obs = None
 
@@ -146,18 +144,34 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             }
         )
 
-    def define_obs_space(self, env_config: dict) -> gym.Space:
+    def setup_obs_converter(self, env_gym: GymEnv, env_config: dict) -> ObservationConverter:
         self._obs_space_in_preferred_format = True
-        return gym.spaces.Dict(
-            {
-                "high_level_agent": gym.spaces.Discrete(2),
-                "reinforcement_learning_agent":
-                    gym.spaces.Dict(
-                        dict(self.env_gym.observation_space.spaces.items())
-                    ),
-                "do_nothing_agent": gym.spaces.Discrete(1),
-            }
-        )
+        return ObservationConverter(env_gym, env_config)
+
+    # def define_obs_space(self, env_config: dict) -> gym.Space:
+    #     # Select attributes and normalize observation space
+    #     self.env_gym.observation_space = self.rescale_observation_space(
+    #         env_config["lib_dir"],
+    #         env_config.get("g2op_input", ["p_i", "p_l", "r", "o"])
+    #     )
+    #     # Standard attributes of g2op that are included:
+    #     attr = dict(self.env_gym.observation_space.spaces.items())
+    #     print("Used as RL obs: ", attr)
+    #     # Custom attributes added:
+    #     custom_attr = self.custom_observation_space(input_attr=env_config.get("custom_input"))
+    #     attr.update(custom_attr)
+    #     print("Updated RL obs: ", attr)
+    #     self._obs_space_in_preferred_format = True
+    #     return gym.spaces.Dict(
+    #         {
+    #             "high_level_agent": gym.spaces.Discrete(2),
+    #             "reinforcement_learning_agent":
+    #                 gym.spaces.Dict(
+    #                     dict(self.env_gym.observation_space.spaces.items())
+    #                 ),
+    #             "do_nothing_agent": gym.spaces.Discrete(1),
+    #         }
+    #     )
 
     def reset(
             self,
@@ -187,7 +201,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
     def update_obs(self, g2op_obs):
         self.cur_g2op_obs = g2op_obs
-        self.cur_gym_obs = dict(self.env_gym.observation_space.to_gym(g2op_obs))
+        self.cur_gym_obs = self.observation_converter.convert_obs(g2op_obs)
 
     def prio_reset(self):
         # use chronic priority
@@ -298,58 +312,87 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         raise NotImplementedError
 
     def observation_space_contains(self, x: MultiAgentDict) -> bool:
+        print(" HI!!! ")
+        print(all(self.observation_space.contains(val) for val in x.values()))
         if not isinstance(x, dict):
             return False
         return all(self.observation_space.contains(val) for val in x.values())
 
-    def rescale_observation_space(self, lib_dir: str,
-                                  input_attr: list = ["p_i", "p_l", "r", "o"]) -> GymnasiumObservationSpace:
-        """
-        Function that rescales the observation space.
-        """
-        # scale observations
-        attr_list = get_attr_list(input_attr)
-        print("Observation attributes used are: ", attr_list)
-        gym_obs = self.env_gym.observation_space
-        gym_obs = gym_obs.keep_only_attr(attr_list)
+    # def rescale_observation_space(self, lib_dir: str,
+    #                               input_attr: list = ["p_i", "p_l", "r", "o"]) -> GymnasiumObservationSpace:
+    #     """
+    #     Function that rescales the observation space.
+    #     """
+    #     # scale observations
+    #     attr_list = get_attr_list(input_attr)
+    #     print("Observation attributes used are: ", attr_list)
+    #     gym_obs = self.env_gym.observation_space
+    #     gym_obs = gym_obs.keep_only_attr(attr_list)
+    #
+    #     if "gen_p" in attr_list:
+    #         gym_obs = gym_obs.reencode_space(
+    #             "gen_p",
+    #             ScalerAttrConverter(substract=0.0, divide=self.env_g2op.gen_pmax),
+    #         )
+    #     if "timestep_overflow" in attr_list:
+    #         gym_obs = gym_obs.reencode_space(
+    #             "timestep_overflow",
+    #             ScalerAttrConverter(
+    #                 substract=0.0,
+    #                 divide=Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED,  # assuming no custom params
+    #             ),
+    #         )
+    #     path = os.path.join(lib_dir, f"data/scaling_arrays")
+    #     if self.env_g2op.env_name in os.listdir(path):
+    #         # underestimation_constant = 1.2  # constant to account that our max/min are underestimated
+    #         for attr in attr_list:
+    #             if os.path.exists(os.path.join(path, f"{self.env_g2op.env_name}/{attr}.npy")):
+    #                 max_arr, min_arr = np.load(os.path.join(path, f"{self.env_g2op.env_name}/{attr}.npy"))
+    #                 if np.all(max_arr - min_arr < 1e-5):
+    #                     # if max and min are almost the same, we cannot divide by 0
+    #                     print(f"Max and min are almost the same for {attr}. "
+    #                           f"Thus constant value and not relevant for training -> IGNORE.")
+    #                     gym_obs = gym_obs.reencode_space(attr, None)
+    #                 else:
+    #                     # values are multiplied with a constant to account that our max/min are underestimated
+    #                     gym_obs = gym_obs.reencode_space(
+    #                         attr,
+    #                         ScalerAttrConverter(
+    #                             substract=0.8 * min_arr,
+    #                             divide=np.where(1.2 * max_arr - 0.8 * min_arr == 0, 1.0, 1.2 * max_arr - 0.8 * min_arr),
+    #                         ),
+    #                     )
+    #     else:
+    #         raise ValueError("This scaling is not yet implemented for this environment.")
+    #
+    #     return gym_obs
 
-        if "gen_p" in attr_list:
-            gym_obs = gym_obs.reencode_space(
-                "gen_p",
-                ScalerAttrConverter(substract=0.0, divide=self.env_g2op.gen_pmax),
-            )
-        if "timestep_overflow" in attr_list:
-            gym_obs = gym_obs.reencode_space(
-                "timestep_overflow",
-                ScalerAttrConverter(
-                    substract=0.0,
-                    divide=Parameters().NB_TIMESTEP_OVERFLOW_ALLOWED,  # assuming no custom params
-                ),
-            )
-        path = os.path.join(lib_dir, f"data/scaling_arrays")
-        if self.env_g2op.env_name in os.listdir(path):
-            # underestimation_constant = 1.2  # constant to account that our max/min are underestimated
-            for attr in attr_list:
-                if os.path.exists(os.path.join(path, f"{self.env_g2op.env_name}/{attr}.npy")):
-                    max_arr, min_arr = np.load(os.path.join(path, f"{self.env_g2op.env_name}/{attr}.npy"))
-                    if np.all(max_arr - min_arr < 1e-5):
-                        # if max and min are almost the same, we cannot divide by 0
-                        print(f"Max and min are almost the same for {attr}. "
-                              f"Thus constant value and not relevant for training -> IGNORE.")
-                        gym_obs = gym_obs.reencode_space(attr, None)
-                    else:
-                        # values are multiplied with a constant to account that our max/min are underestimated
-                        gym_obs = gym_obs.reencode_space(
-                            attr,
-                            ScalerAttrConverter(
-                                substract=0.8 * min_arr,
-                                divide=np.where(1.2 * max_arr - 0.8 * min_arr == 0, 1.0, 1.2 * max_arr - 0.8 * min_arr),
-                            ),
-                        )
-        else:
-            raise ValueError("This scaling is not yet implemented for this environment.")
+    # def custom_observation_space(self, input_attr: list = ["d"]) -> dict:
+    #     custom_obs = {}
+    #     if "d" in input_attr:
+    #         # danger attribute
+    #         custom_obs["danger"] = gym.spaces.MultiBinary(self.env_g2op.n_line)
+    #     if "td" in input_attr:
+    #         # add time of day as attribute
+    #         custom_obs["day_time"] = gym.spaces.Box(-1, 1, shape=(1,))
+    #     return custom_obs
 
-        return gym_obs
+    # def convert_custom_obs(self,
+    #                        g2op_obs: BaseObservation,
+    #                        input_attr: list = ["d"]) -> dict:
+    #     custom_obs = {}
+    #     thermal_limit_under400 = (self.env_g2op.get_thermal_limit() < 400)
+    #     if "d" in input_attr:
+    #         # danger attribute
+    #         custom_obs["danger"] = ((g2op_obs.rho >= self.danger - 0.05) & thermal_limit_under400 ) | \
+    #                                (g2op_obs.rho >= self.danger)
+    #     if "td" in input_attr:
+    #         # time of day attribute
+    #         min_day = 60 * g2op_obs.hour_of_day + g2op_obs.minute_of_hour
+    #         max_val = 60*24
+    #         # translate to cyclic pattern between [-1, 1] of 24 * 60 minutes per day
+    #         custom_obs["time_of_day"] = np.cos(2*np.pi * min_day / max_val)
+    #     return custom_obs
 
     def reconnect_lines(self, g2op_action: grid2op.Action):
         line_stat_s = self.cur_g2op_obs.line_status
