@@ -296,16 +296,45 @@ class ChronPrioMatrix(ChronPrioVect):
 
 
 def get_attr_list(attr_abbreviated: list):
-    # always include the topology vector
-    attr = ["topo_vect"]
-    if "p_i" in attr_abbreviated:
-        attr.extend(["load_p", "gen_p"])
-    if "p_l" in attr_abbreviated:
-        attr.extend(["p_ex", "p_or"])
-    if "r" in attr_abbreviated:
-        attr.append("rho")
-    if "o" in attr_abbreviated:
-        attr.append("timestep_overflow")
-    if "m" in attr_abbreviated:
-        attr.append("time_next_maintenance")
+    if "all" in attr_abbreviated:
+        attr = ["topo_vect", "load_p", "gen_p", "p_ex", "p_or", "load_q", "gen_q", "q_ex", "q_or", "load_v", "gen_v", "v_ex", "v_or", "load_theta", "gen_theta", "theta_ex", "theta_or", "a_ex", "a_or", "rho", "timestep_overflow", "time_next_maintenance"]
+    else:
+        attr = []
+        if "t" in attr_abbreviated:
+            attr = ["topo_vect"]
+        if "p_i" in attr_abbreviated:
+            # include active power input
+            attr.extend(["load_p", "gen_p"])
+        if "p_l" in attr_abbreviated:
+            # include active power line flows
+            attr.extend(["p_ex", "p_or"])
+        if "q_i" in attr_abbreviated:
+            # include reactive power input
+            attr.extend(["load_q", "gen_q"])
+        if "q_l" in attr_abbreviated:
+            # include reactive power line flows
+            attr.extend(["q_ex", "q_or"])
+        if "v_i" in attr_abbreviated:
+            # include voltage input
+            attr.extend(["load_v", "gen_v"])
+        if "v_l" in attr_abbreviated:
+            # include voltage line flows
+            attr.extend(["v_ex", "v_or"])
+        if "theta_i" in attr_abbreviated:
+            # include voltage angle input
+            attr.extend(["load_theta", "gen_theta"])
+        if "theta_l" in attr_abbreviated:
+            # include voltage angle line flows
+            attr.extend(["theta_ex", "theta_or"])
+        if "a" in attr_abbreviated:
+            # include current line flows
+            attr.extend(["a_ex", "a_or"])
+        if "r" in attr_abbreviated:
+            # include rho (power flow / thermal limit lines)
+            attr.append("rho")
+        if "o" in attr_abbreviated:
+            # include ts since overflow
+            attr.append("timestep_overflow")
+        if "m" in attr_abbreviated:
+            attr.append("time_next_maintenance")
     return attr

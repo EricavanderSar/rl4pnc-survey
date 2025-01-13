@@ -80,7 +80,7 @@ environment:
     rho_threshold: 0.95
     prio: False
     use_ffw: False # feed forward chronic when using prio
-    input: [ "p_i", "p_l", "r", "o", "d"] # observation inputs NOTE: Topology is always included
+    input: ["t", "p_i", "p_l", "r", "m", "o", "d"] # observation inputs NOTE: "d" is only used for new_env
     # Params below only used for new_env
     n_history: 1 # including history in observation only possible with new_env.
     danger: 0.9 # used as binary value in observation of new_env

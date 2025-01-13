@@ -329,17 +329,23 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         path = os.path.join(lib_dir, f"data/scaling_arrays")
         if self.env_g2op.env_name in os.listdir(path):
             # underestimation_constant = 1.2  # constant to account that our max/min are underestimated
-            for attr in ["p_ex", "p_or", "load_p"]:
-                if attr in attr_list:
+            for attr in attr_list:
+                if os.path.exists(os.path.join(path, f"{self.env_g2op.env_name}/{attr}.npy")):
                     max_arr, min_arr = np.load(os.path.join(path, f"{self.env_g2op.env_name}/{attr}.npy"))
-                    # values are multiplied with a constant to account that our max/min are underestimated
-                    gym_obs = gym_obs.reencode_space(
-                        attr,
-                        ScalerAttrConverter(
-                            substract=0.8 * min_arr,
-                            divide=(1.2 * max_arr - 0.8 * min_arr),
-                        ),
-                    )
+                    if np.all(max_arr - min_arr < 1e-5):
+                        # if max and min are almost the same, we cannot divide by 0
+                        print(f"Max and min are almost the same for {attr}. "
+                              f"Thus constant value and not relevant for training -> IGNORE.")
+                        gym_obs = gym_obs.reencode_space(attr, None)
+                    else:
+                        # values are multiplied with a constant to account that our max/min are underestimated
+                        gym_obs = gym_obs.reencode_space(
+                            attr,
+                            ScalerAttrConverter(
+                                substract=0.8 * min_arr,
+                                divide=np.where(1.2 * max_arr - 0.8 * min_arr == 0, 1.0, 1.2 * max_arr - 0.8 * min_arr),
+                            ),
+                        )
         else:
             raise ValueError("This scaling is not yet implemented for this environment.")
 

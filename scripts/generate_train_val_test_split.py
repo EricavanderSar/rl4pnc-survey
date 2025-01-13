@@ -13,7 +13,7 @@ if __name__ == "__main__":
         "-e",
         "--env_name",
         type=str,
-        default="l2rpn_icaps_2021_small",
+        default="l2rpn_case14_sandbox",
         help="Environment name. Default in /home/data_grid2op.",
     )
 
