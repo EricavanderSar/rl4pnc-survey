@@ -297,11 +297,14 @@ class ChronPrioMatrix(ChronPrioVect):
 
 def get_attr_list(attr_abbreviated: list):
     if "all" in attr_abbreviated:
-        attr = ["topo_vect", "load_p", "gen_p", "p_ex", "p_or", "load_q", "gen_q", "q_ex", "q_or", "load_v", "gen_v", "v_ex", "v_or", "load_theta", "gen_theta", "theta_ex", "theta_or", "a_ex", "a_or", "rho", "timestep_overflow", "time_next_maintenance"]
+        attr = ["topo_vect", "line_status", "load_p", "gen_p", "p_ex", "p_or", "load_q", "gen_q", "q_ex", "q_or", "load_v", "gen_v", "v_ex", "v_or", "load_theta", "gen_theta", "theta_ex", "theta_or", "a_ex", "a_or", "rho", "timestep_overflow", "time_next_maintenance"]
     else:
         attr = []
         if "t" in attr_abbreviated:
             attr = ["topo_vect"]
+        if "l" in attr_abbreviated:
+            # include line status
+            attr.extend(["line_status"])
         if "p_i" in attr_abbreviated:
             # include active power input
             attr.extend(["load_p", "gen_p"])

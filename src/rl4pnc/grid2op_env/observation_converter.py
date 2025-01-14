@@ -128,6 +128,7 @@ class ObservationConverter:
             custom_obs["time_of_day"] = np.array([np.cos(2*np.pi * min_day / max_val)])
         return custom_obs
 
+
 class ObsConverter:
     def __init__(self,
                  env: Environment,

@@ -5,8 +5,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurveyPaper" # "Case14_Opponent"
-  experiment_name: "Case14_SurveyPaper"
+  folder_name: "Case14_SurveyPaperObs" # "Case14_Opponent"
+  experiment_name: "Case14_SurveyPaperObs"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -80,10 +80,11 @@ environment:
     rho_threshold: 0.95
     prio: False
     use_ffw: False # feed forward chronic when using prio
-    input: ["t", "p_i", "p_l", "r", "m", "o", "d"] # observation inputs NOTE: "d" is only used for new_env
+    g2op_input: ["p_i", "p_l", "r", "o", "t" ] #"all" #all options: ["t" (topo), "l" (line status), "p_i"(active power input), "p_l" (act power lines), "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "m" ]
+    custom_input:  #options: [ "d" (danger), "t" (time)] # time
+    danger: 0.9 # used when danger is in custom_input
     # Params below only used for new_env
     n_history: 1 # including history in observation only possible with new_env.
-    danger: 0.9 # used as binary value in observation of new_env
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: maxmin
     reset_topo: 0 # No reset topo aplied when = 0
