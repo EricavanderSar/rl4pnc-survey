@@ -70,7 +70,7 @@ environment:
   env_config: &env_config_train
     env_type: old_env #new_env #
     env_name: l2rpn_case14_sandbox_train
-    action_space: d3qn2022
+    action_space: medha # options: assym, medha, tennet, d3qn, masked
     mask: 3 # only used if action space is "masked" (as in SMAAC from Yoon et al. 2021)
     lib_dir: !workdir
     grid2op_kwargs:
