@@ -1,4 +1,5 @@
 import numpy as np
+from datetime import date
 import torch
 import os
 import gymnasium as gym
@@ -104,6 +105,9 @@ class ObservationConverter:
         if "t" in input_attr:
             # add time of day as attribute
             custom_obs["time_of_day"] = gym.spaces.Box(-1, 1, shape=(1,))
+        if "y" in input_attr:
+            # add time of day as attribute
+            custom_obs["day_of_year"] = gym.spaces.Box(-1, 1, shape=(1,))
         return custom_obs
 
     def convert_obs(self, g2op_obs: BaseObservation):
@@ -111,7 +115,7 @@ class ObservationConverter:
         # print("Current gym obs: ", cur_gym_obs)
         cur_gym_obs.update(self.convert_custom_obs(g2op_obs))
         # print("Updated gym obs: ", cur_gym_obs)
-        return  cur_gym_obs
+        return cur_gym_obs
 
     def convert_custom_obs(self,
                            g2op_obs: BaseObservation) -> dict:
@@ -126,6 +130,12 @@ class ObservationConverter:
             max_val = 60*24
             # translate to cyclic pattern between [-1, 1] of 24 * 60 minutes per day
             custom_obs["time_of_day"] = np.array([np.cos(2*np.pi * min_day / max_val)])
+        if "day_of_year" in self.custom_attr:
+            # day of year attribute
+            day = (date(g2op_obs.year, g2op_obs.month, g2op_obs.day) - date(g2op_obs.year, 1, 1)).days + 1
+            total_days = 365 if g2op_obs.year % 4 != 0 else 366
+            # translate to cyclic pattern between [-1, 1] of 365 days per year
+            custom_obs["day_of_year"] = np.array([np.cos(2*np.pi * day / total_days)])
         return custom_obs
 
 
