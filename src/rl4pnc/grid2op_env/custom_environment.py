@@ -176,9 +176,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
     def update_obs(self, g2op_obs):
         self.cur_g2op_obs = g2op_obs
-        print('gen_p: ', g2op_obs.gen_p)
+        # print('gen_p: ', g2op_obs.gen_p)
         self.cur_gym_obs = self.observation_converter.convert_obs(g2op_obs)
-        print('updated_obs: ', self.cur_gym_obs)
+        # print('updated_obs: ', self.cur_gym_obs)
 
     def prio_reset(self):
         # use chronic priority
