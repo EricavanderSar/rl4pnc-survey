@@ -125,6 +125,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.active_dn_count = 0
         self.reconnect_count = 0
         self.reset_count = 0
+        self.observation_converter.reset_obs()
 
     def define_agents(self, env_config: dict) -> list:
         return [
@@ -157,6 +158,8 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         """
         This function resets the environment.
         """
+        # reset episode metrics
+        self.reset_metrics()
         if self.prio:
             terminated = True
             while terminated:
@@ -165,8 +168,6 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         else:
             g2op_obs = self.env_g2op.reset()
         self.update_obs(g2op_obs)
-        # reset episode metrics
-        self.reset_metrics()
         # Start with activation of the high level agent > decide to act or not to act.
         observations = {"high_level_agent": g2op_obs.rho.max().flatten()}
         chron_id = self.env_g2op.chronics_handler.get_name()

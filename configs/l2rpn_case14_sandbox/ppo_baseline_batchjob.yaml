@@ -83,8 +83,8 @@ environment:
     g2op_input: ["p_i", "p_l", "r", "o", "t" ] #"all" #all options: ["t" (topo), "l" (line status), "p_i"(active power input), "p_l" (act power lines), "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "m" ]
     custom_input: [""] #options: [ "d" (danger), "t" (time of day), "y" (day of year)]
     danger: 0.9 # used when danger is in custom_input
+    n_history: 1 # If n_history > 1, the observation will be a list of previous observations
     # Params below only used for new_env
-    n_history: 1 # including history in observation only possible with new_env.
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: maxmin
     reset_topo: 0 # No reset topo aplied when = 0

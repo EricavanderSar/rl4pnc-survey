@@ -14,6 +14,22 @@ from grid2op.gym_compat import GymEnv
 from rl4pnc.grid2op_env.utils import get_attr_list
 
 
+def extend_with_history(obs_attributes: dict, history: int):
+    """
+    Function that extends the observation space with history.
+
+    The result will be that each attribute will be presented as attr_i with i in [0, history-1]
+    here attr_i is i time steps in the past
+    """
+    cur_keys = list(obs_attributes.keys())
+    hist_attr = {key + f"_{i}": value for i in range(1, history) for key, value in obs_attributes.items()}
+    obs_attributes.update(hist_attr)
+    for key in cur_keys:
+        obs_attributes[key + "_0"] = obs_attributes[key]
+        del obs_attributes[key]
+    return obs_attributes
+
+
 class ObservationConverter:
     def __init__(self,
                  gym_env: GymEnv,
@@ -21,7 +37,6 @@ class ObservationConverter:
                  ):
         self.env_gym = gym_env
         self.cur_gym_obs = None
-        self.cur_g2op_obs = None
         self.env_name = gym_env.init_env.env_name
         # Select attributes and normalize observation space
         self.env_gym.observation_space = self.rescale_observation_space(
@@ -35,10 +50,15 @@ class ObservationConverter:
         # Custom attributes added:
         custom_attr = self.custom_observation_space(input_attr=env_config.get("custom_input"))
         self.custom_attr = list(custom_attr.keys())
+        # update attribute list for observation space with custom attributes
+        attr.update(custom_attr)
         # initialize danger variable in case it is used.
         self.danger = env_config.get("danger", 0.9)
         self.thermal_limit_under400 = (gym_env.init_env.get_thermal_limit() < 400)
-        attr.update(custom_attr)
+        # update history variable and extend observation space
+        self.history = env_config.get("n_history", 1)
+        if self.history > 1:
+            attr = extend_with_history(attr, self.history)
         # print("Updated RL obs: ", attr)
 
         self._obs_space_in_preferred_format = True
@@ -110,10 +130,30 @@ class ObservationConverter:
             custom_obs["day_of_year"] = gym.spaces.Box(-1, 1, shape=(1,))
         return custom_obs
 
+    def reset_obs(self):
+        self.cur_gym_obs = None
+
     def convert_obs(self, g2op_obs: BaseObservation):
         cur_gym_obs = dict(self.env_gym.observation_space.to_gym(g2op_obs))
         # print("Current gym obs: ", cur_gym_obs)
         cur_gym_obs.update(self.convert_custom_obs(g2op_obs))
+        if self.history > 1:
+            cur_keys = list(cur_gym_obs.keys())
+            if self.cur_gym_obs is None:
+                # initialize history with current observation
+                hist_obs = {key + f"_{i}": value for key,value in cur_gym_obs.items() for i in range(1, self.history)}
+                cur_gym_obs.update(hist_obs)
+            else:
+                # add history
+                for i in range(self.history-1, 0, -1):
+                    for key in cur_keys:
+                        cur_gym_obs[key + f"_{i}"] = self.cur_gym_obs[key + f"_{i-1}"]
+            # Set the current observation as key_0
+            for key in cur_keys:
+                cur_gym_obs[key + "_0"] = cur_gym_obs[key]
+                del cur_gym_obs[key]
+            # Update self.cur_gym_obs
+            self.cur_gym_obs = cur_gym_obs
         # print("Updated gym obs: ", cur_gym_obs)
         return cur_gym_obs
 
