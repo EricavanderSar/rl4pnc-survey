@@ -9,7 +9,7 @@
 #SBATCH --output=Results_RL_Evaluations/Evaluate_Agents_%j.out
 
 
-RESDIR=$HOME/ray_results/Case14_SurveyPaper
+RESDIR=$HOME/ray_results/Case14_SurveyPaperObs
 LIBDIR=$HOME/Rl4Pnc/
 CHRONICS="test"
 CASE=14
@@ -21,7 +21,7 @@ export PYTHONPATH=$PYTHONPATH:$PWD
 
 j=${SLURM_JOB_ID}
 echo "Run multiple_agent_analysis.py..."
-time srun python -u scripts/multiple_agent_analysis.py -p $RESDIR -l $LIBDIR -w 16 -c $CHRONICS -j $j -at 0.95 -lr -f "2024-12-06"
+time srun python -u scripts/multiple_agent_analysis.py -p $RESDIR -l $LIBDIR -w 16 -c $CHRONICS -j $j -at 0.95 -lr
 # -o (opponent) -ld (line_dics) -lr (line_reconnect) -rt (reset_topo) -s (simulate)
 echo "Done"
 

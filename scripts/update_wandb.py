@@ -41,7 +41,7 @@ if __name__ == "__main__":
         "-p",
         "--project_id",
         type=str,
-        default="Case14_SurveyPaper",
+        default="Case14_SurveyPaperObs",
         help="Project name of the Weights and Biases project for which some parameters need to be adjusted.",
     )
 
