@@ -54,6 +54,7 @@ def extend_data(agent_dir, summarized_data, boxplot_data, size_case, max_env_ste
         # Extract relevant data from env_config
         agent_type = env_config.get('agent_type', "Unknown")
         agent_id = env_config.get('agent_id', "xxx")
+        checkpoint = env_config.get('checkpoint', "latest")
         action_space = env_config['action_space']
         rules = env_config['rules']
         opponent = ("kwargs_opponent" in env_config["grid2op_kwargs"])
@@ -79,10 +80,12 @@ def extend_data(agent_dir, summarized_data, boxplot_data, size_case, max_env_ste
         summarized_data.append({
             'agent_type': agent_type,
             'agent_id': agent_id,
+            'checkpoint': checkpoint,
             'opponent': opponent,
             'train_opponent': env_config.get("train_opponent", False),
             'action space': action_space,
-            'observation space': env_config.get('input', ""),
+            'g2op_input': env_config.get('g2op_input', ""),
+            'custom_input': env_config.get('custom_input', ""),
             'AT': rules['activation_threshold'],
             'line_reco': rules['line_reco'],
             'line_disc': rules['line_disc'],

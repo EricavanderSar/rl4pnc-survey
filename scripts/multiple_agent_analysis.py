@@ -81,7 +81,8 @@ def eval_all_agents(path: str,
                     chronics: list,
                     nb_workers: int,
                     job_id: str,
-                    filter_name:str=""):
+                    filter_name:str="",
+                    best_checkpoint: bool = True):
     # Get all agents in current directory
     agent_list = [name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
     if filter_name:
@@ -98,7 +99,8 @@ def eval_all_agents(path: str,
                          opponent=input_opponent,
                          lib_dir=lib_dir,
                          chronics=chronics,
-                         unique_id=job_id)
+                         unique_id=job_id,
+                         best_checkpoint=best_checkpoint)
         results = list(tqdm(pool.imap(worker, agent_list), total=len(agent_list), desc="Running evaluation for all agents"))
         for res in results:
             # Collect all data before continueing, hopefully avoiding error
@@ -130,6 +132,14 @@ if __name__ == "__main__":
         default="/Users/ericavandersar/Documents/Python_Projects/Research/Rl4Pnc/",
         type=str,
         help="The directory of the python libary - to find the action spaces etc.",
+    )
+
+    parser.add_argument(
+        "-b",
+        "--best_checkpoint",
+        default=False,
+        action='store_true',
+        help="If True the best checkpoint is used for evaluation, otherwise the latest checkpoint is used.",
     )
 
     parser.add_argument(
@@ -185,4 +195,5 @@ if __name__ == "__main__":
                     args.nb_workers,
                     job_id=args.job_id,
                     filter_name=args.filter_name,
+                    best_checkpoint=args.best_checkpoint
                     )

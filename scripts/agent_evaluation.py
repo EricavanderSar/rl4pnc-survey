@@ -29,7 +29,28 @@ def get_latest_checkpoint(agent_path):
         return (int(s[0]) if s else -1, f)
     # Get latest checkpoint:
     checkpoints = [name for name in os.listdir(agent_path) if name.startswith("checkpoint")]
-    return max(checkpoints, key=extract_number)
+    last_checkpoint = max(checkpoints, key=extract_number)
+    print("Last checkpoint: ", last_checkpoint)
+    return last_checkpoint
+
+
+def get_best_checkpoint(agent_path):
+    """
+    Get the best checkpoint based on the grid2op_end_mean value in the checkpoint_results.json file.
+    """
+    # Read the checkpoint_results.json file
+    with open(os.path.join(agent_path, "checkpoint_results.json")) as json_file:
+        results = json.load(json_file)
+    # First get the latest checkpoint
+    best_checkpoint = get_latest_checkpoint(agent_path)
+    best = results[best_checkpoint]["grid2op_end_mean"]
+    # Get the best checkpoint
+    for checkpoint, value in results.items():
+        if value["grid2op_end_mean"] > best:
+            best = value["grid2op_end_mean"]
+            best_checkpoint = checkpoint
+    print("Best checkpoint used: ", best_checkpoint)
+    return best_checkpoint
 
 
 # Custom function to handle non-serializable objects
@@ -395,11 +416,13 @@ def eval_single_rlagent(test_case,
                         lib_dir,
                         chronics,
                         unique_id,
+                        best_checkpoint=False,
                         ):
     # Get environment configuration from agent studied
     env_config, agent_path = get_env_config(studie_path, test_case, rules, lib_dir)
     ENV_TYPE = RlGrid2OpEnv if env_config["env_type"] == "new_env" else CustomizedGrid2OpEnvironment
-    checkpoint_name = get_latest_checkpoint(agent_path)
+    checkpoint_name = get_best_checkpoint(agent_path) if best_checkpoint else get_latest_checkpoint(agent_path)
+    env_config["checkpoint"] = "best" if best_checkpoint else "latest"
 
     print(f"Studying agent at {agent_path}")
     print(f"Environment configuration {env_config}")
@@ -496,7 +519,8 @@ if __name__ == "__main__":
         "-p",
         "--path",
         # default="/Users/ericavandersar/Documents/Python_Projects/Research/Rl4Pnc/results/",
-        default="/Users/ericavandersar/surfdrive/Documents/Research/Result/Case14_Sandbox_ActSpaces/",
+        # default="/Users/ericavandersar/surfdrive/Documents/Research/Result/Case14_Sandbox_ActSpaces/",
+        default="/Users/ericavandersar/surfdrive/Documents/Research/Results_SurveyPaper/TEST/",
         type=str,
         help="The path where the results will be stored AND in case of an RL-based agent "
              "the location of studied agent.",
@@ -513,16 +537,24 @@ if __name__ == "__main__":
     parser.add_argument(
         "-t",
         "--test_case",
-        default="CustomPPO_RlGrid2OpEnv_4e144_00000_0_2024-06-07_11-14-12",
+        default="CustomPPO_old_env_9405409_832ee_2025-01-15_10-02-57",
         type=str,
         help="Name of the agent you want to evaluate. N.A. when using a heuristic like Do Nothing or Greedy",
+    )
+
+    parser.add_argument(
+        "-b",
+        "--best_checkpoint",
+        default=False,
+        action='store_true',
+        help="If True the best checkpoint is used for evaluation, otherwise the latest checkpoint is used.",
     )
 
     parser.add_argument(
         "-j",
         "--job_id",
         type=str,
-        default="Test_Reset",
+        default="Test_DANGER_Best",
         help="job_id of this evaluation, this way each evaluation gets an extra unique identifier.",
     )
 
@@ -556,7 +588,9 @@ if __name__ == "__main__":
                                                 args.opponent,
                                                 lib_dir,
                                                 args.chronics,
-                                                args.job_id,)
+                                                args.job_id,
+                                                best_checkpoint=args.best_checkpoint,
+                                                )
     else:
         all_data, df, env = eval_heuristic_agent(studie_path,
                                                  lib_dir,

@@ -73,9 +73,9 @@ environment:
       reward_class: !AlphaZeroRW
     seed: *seed
     rho_threshold: 0.90
-    n_history: 3
-    g2op_input: ["r", "p_i"] #"all" #["t", "l", "p_i", "p_l", "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o" ] # all options: ["t", "p_i", "p_l", "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "d" ]
-    custom_input: ["d", "t"]
+    n_history: 1
+    g2op_input: ["r"] #"all" #["t", "l", "p_i", "p_l", "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o" ] # all options: ["t", "p_i", "p_l", "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "d" ]
+    custom_input: ["d"]
     danger: 0.9
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     prio: False

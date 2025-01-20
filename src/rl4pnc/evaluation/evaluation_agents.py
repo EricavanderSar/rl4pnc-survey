@@ -224,6 +224,8 @@ class RllibAgent(HeuristicsAgent):
                 pickle.dump(data, f)  # serialize the list
 
         self._rllib_agent = Policy.from_checkpoint(checkpoint_path)
+        self.obs_keys_order = [key for key in self._rllib_agent.observation_space.__dict__['original_space'].keys()]
+        print("Observations order: ", self.obs_keys_order)
         # print("agent observation space is : ", self._rllib_agent.observation_space)
         # self._rllib_agent.observation_space =
         # self._rllib_agent = algorithm.from_checkpoint(
@@ -249,7 +251,8 @@ class RllibAgent(HeuristicsAgent):
             # Get action from trained RL-agent when in danger.
             if not any(len(obs_el.shape) > 1 for obs_el in self.gym_wrapper.cur_gym_obs.values()):
                 # Convert the observation dictionary to a NumPy array
-                observation_array = np.concatenate([self.gym_wrapper.cur_gym_obs[key] for key in self.gym_wrapper.cur_gym_obs])
+                # print("gym wraper key order: ", [key for key in self.gym_wrapper.cur_gym_obs.keys()])
+                observation_array = np.concatenate([self.gym_wrapper.cur_gym_obs[key] for key in self.obs_keys_order])
             else:
                 observation_array = self.gym_wrapper.cur_gym_obs
             # print("current obs:", observation_array)
