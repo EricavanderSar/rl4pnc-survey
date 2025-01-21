@@ -295,7 +295,10 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], job_id: str) -> 
     # for d in $(ls -t -d */); do cd $d; wandb sync --sync-all; cd ..; done
     os.environ["WANDB_MODE"] = "offline"
     os.environ["WANDB_SILENT"] = "true"
+    tmp_dir = ray._private.utils.get_ray_temp_dir()
+    print(f"Ray's temporary directory: {tmp_dir}")
     ray.init()
+    print("Ray initialization succeeded.")
 
     # Get the hostname and port
     address = ray.worker._real_worker._global_node.address

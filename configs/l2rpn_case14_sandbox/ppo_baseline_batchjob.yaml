@@ -80,7 +80,7 @@ environment:
     rho_threshold: 0.95
     prio: False
     use_ffw: False # feed forward chronic when using prio
-    g2op_input: ["p_i", "p_l", "r", "o", "t" ] #"all" #all options: ["t" (topo), "l" (line status), "p_i"(active power input), "p_l" (act power lines), "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "m" ]
+    g2op_input: ['v_l', 'a', 'r', 't'] # ["p_i", "p_l", "r", "o", "t" ] #"all" #all options: ["t" (topo), "l" (line status), "p_i"(active power input), "p_l" (act power lines), "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "m" ]
     custom_input: [""] #options: [ "d" (danger), "t" (time of day), "y" (day of year)]
     danger: 0.9 # used when danger is in custom_input
     n_history: 1 # If n_history > 1, the observation will be a list of previous observations

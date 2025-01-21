@@ -42,7 +42,7 @@ srun cp -r $HOME/Rl4Pnc/data $WORKDIR/data
 i=${SLURM_ARRAY_TASK_ID}
 j=${SLURM_JOB_ID}
 echo "Run code: Task id $i"
-  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s $i -j $j
+  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s $i -j $j -o
 echo "Done"
 
 # Synchronize results with WandB
