@@ -7,6 +7,7 @@
 #SBATCH --partition=rome
 #SBATCH --time=01:00:00
 #SBATCH --output=Output_bug_test_%j.out
+#SBATCH --ear=off
 
 echo "Activate envirnonment"
 source activate rl4pnc

@@ -8,7 +8,7 @@
 #SBATCH --time=16:00:00
 #SBATCH --output=Train_Results_Case14/Case14_Baseline_ppo_%j.out
 #SBATCH --array=1-5
-
+#SBATCH --ear=off
 
 ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
 WORKDIR=$TMPDIR/evds_output_dir
