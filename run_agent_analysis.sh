@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --partition=rome
-#SBATCH --time=16:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=Results_RL_Evaluations/Evaluate_Agents_%j.out
 
 
