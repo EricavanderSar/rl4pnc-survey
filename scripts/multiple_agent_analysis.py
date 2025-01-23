@@ -85,12 +85,6 @@ def eval_all_agents(path: str,
                     best_checkpoint: bool = True):
     # Get all agents in current directory
     agent_list = [name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
-    # TODO REMOVE AFTER succesfully executed.
-    agent_list = [
-        agent for agent in agent_list
-        if "evaluation_episodes_checkpoint_000009_9546143" not in os.listdir(os.path.join(path, agent))
-    ]
-    ############################################
     if filter_name:
         print(f"Filter only agents with *{filter_name}* in the name")
         agent_list = [name for name in agent_list if filter_name in name]

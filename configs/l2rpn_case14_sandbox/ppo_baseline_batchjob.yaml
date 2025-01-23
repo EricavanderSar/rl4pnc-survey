@@ -5,8 +5,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurveyPaperRw" # "Case14_Opponent"
-  experiment_name: "Case14_SurveyPaperRw"
+  folder_name: "Case14_SurvPapAct" # "Case14_Opponent"
+  experiment_name: "Case14_SurvPapAct"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -88,8 +88,8 @@ environment:
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: maxmin
     reset_topo: 0 # No reset topo aplied when = 0
-    penalty_game_over: -300
-    reward_finish: 500
+    penalty_game_over: 0
+    reward_finish: 0
 
 evaluation:
   evaluation_interval: 10
