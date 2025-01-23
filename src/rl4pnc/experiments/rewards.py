@@ -207,6 +207,40 @@ class ScaledL2RPNReward(L2RPNReward):
         return lines_capacity_usage_score
 
 
+class RewardRho(BaseReward):
+    """
+    Reward function based on the line loadings in the network. Introduced by Binbinchen solution (2020)
+    """
+
+    def __init__(self, logger: Optional[logging.Logger] = None):
+        BaseReward.__init__(self, logger=None)
+        self.reward_min = -1.0
+        self.reward_illegal = -0.5
+        self.reward_max = 1.0
+
+    def __call__(
+            self,
+            action: BaseAction,
+            env: BaseEnv,
+            has_error: bool,
+            is_done: bool,
+            is_illegal: bool,
+            is_ambiguous: bool,
+    ) -> float:
+        """
+        Calls reward.
+        """
+        rho_max = np.max(env.current_obs.rho)
+        if is_illegal:
+            return self.reward_illegal
+        elif is_done:
+            return self.reward_min
+        elif rho_max <= 0.95:
+            return 2 - rho_max
+        else:
+            return 2 - 2*rho_max
+
+
 class AlphaZeroRW(BaseReward):
     """
         Implemented as described in M. Dorfer et al. (2022) - Power Grid Congestion Management via Topology

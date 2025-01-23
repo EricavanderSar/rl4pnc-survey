@@ -160,6 +160,7 @@ def make_g2op_env(env_config: dict[str, Any]) -> BaseEnv:
         **env_config["grid2op_kwargs"],
         backend=LightSimBackend(),
     )
+    print("Reward function used: ", env._rewardClass)
     env.chronics_handler.set_chunk_size(100)
 
     if "seed" in env_config:

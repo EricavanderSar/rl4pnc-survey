@@ -27,7 +27,14 @@ from yaml.nodes import MappingNode, ScalarNode, SequenceNode
 
 from rl4pnc.experiments.callback import CustomMetricsCallback
 from rl4pnc.experiments.opponent import ReconnectingOpponentSpace
-from rl4pnc.experiments.rewards import LossReward, ScaledL2RPNReward, AlphaZeroRW, LossRewardRescaled2, LossRewardNew
+from rl4pnc.experiments.rewards import (
+    LossReward,
+    ScaledL2RPNReward,
+    AlphaZeroRW,
+    LossRewardRescaled2,
+    LossRewardNew,
+    RewardRho
+)
 from grid2op.Reward import L2RPNReward,LinesCapacityReward
 from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from rl4pnc.multi_agent.policy import (
@@ -110,6 +117,13 @@ def linecap_reward_constructor(
 ) -> LinesCapacityReward:
     """Custom constructor for L2RPNReward"""
     return LinesCapacityReward()
+
+
+def binbin_reward_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> RewardRho:
+    """Custom constructor for L2RPNReward"""
+    return RewardRho()
 
 
 def alphazero_reward_constructor(
@@ -273,6 +287,7 @@ def add_constructors() -> None:
     yaml.FullLoader.add_constructor("!L2RPNReward", l2rpn_reward_constructor)
     yaml.FullLoader.add_constructor("!AlphaZeroRW", alphazero_reward_constructor)
     yaml.FullLoader.add_constructor("!LinesCapacityReward", linecap_reward_constructor)
+    yaml.FullLoader.add_constructor("!RewardRho", binbin_reward_constructor)
     yaml.FullLoader.add_constructor("!policy_mapping_fn", policy_mapping_fn_constructor)
     yaml.FullLoader.add_constructor(
         "!CustomMetricsCallback", custom_metrics_callback_constructor

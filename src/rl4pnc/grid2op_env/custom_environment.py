@@ -117,6 +117,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
         # reset topo option
         self.reset_topo = env_config.get("reset_topo", 0)
+        # penalty for game over
+        self.penalty_game_over = env_config.get("penalty_game_over", 0)
+        # reward for finishing complete episode
+        self.reward_finish = env_config.get("reward_finish", 0)
 
     def reset_metrics(self):
         # different metrics to keep track of episode performance
@@ -276,6 +280,12 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             terminated,
             infos,
         ) = self.env_g2op.step(g2op_act)
+        # Adjust reward when episode terminates or finishes
+        if self.penalty_game_over and terminated:
+            reward = self.penalty_game_over
+        if self.reward_finish and g2op_obs.current_step == g2op_obs.max_step:
+            reward = self.reward_finish
+            print("*** Episode finished *** extra reward: ", reward)
         if self.prio:
             self.step_surv += 1
             if terminated:

@@ -70,7 +70,7 @@ environment:
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/rl4pnc/
     grid2op_kwargs:
       # general kwargs
-      reward_class: !AlphaZeroRW
+      reward_class: !RewardRho
     seed: *seed
     rho_threshold: 0.90
     n_history: 1
@@ -82,6 +82,8 @@ environment:
     use_ffw: True
     normalize: maxmin
     reset_topo: 0.5
+    penalty_game_over: 0
+    reward_finish: 0
 
 evaluation:
   evaluation_interval: 1
