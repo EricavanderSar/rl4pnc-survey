@@ -5,8 +5,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurvPapAct" # "Case14_Opponent"
-  experiment_name: "Case14_SurvPapAct"
+  folder_name: "Case14_SurveyPaperRw" # "Case14_Opponent"
+  experiment_name: "Case14_SurveyPaperRw"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -70,7 +70,7 @@ environment:
   env_config: &env_config_train
     env_type: old_env #new_env #
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha # options: assym, medha, tennet, d3qn, masked
+    action_space: medha # options: assym, medha, tennet, d3qn2022, masked
     mask: 3 # only used if action space is "masked" (as in SMAAC from Yoon et al. 2021)
     lib_dir: !workdir
     grid2op_kwargs:
