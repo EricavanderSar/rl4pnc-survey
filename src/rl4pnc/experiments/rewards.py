@@ -213,7 +213,7 @@ class RewardRho(BaseReward):
     """
 
     def __init__(self, logger: Optional[logging.Logger] = None):
-        BaseReward.__init__(self, logger=None)
+        BaseReward.__init__(self, logger=logger)
         self.reward_min = -1.0
         self.reward_illegal = -0.5
         self.reward_max = 1.0
@@ -250,7 +250,7 @@ class AlphaZeroRW(BaseReward):
     """
 
     def __init__(self, logger: Optional[logging.Logger] = None):
-        BaseReward.__init__(self, logger=None)
+        BaseReward.__init__(self, logger=logger)
         self.reward_min = -1.0
         self.reward_illegal = -0.5
         self.reward_max = 1.0
@@ -285,3 +285,31 @@ class AlphaZeroRW(BaseReward):
         # a result of an overflow or agent’s actions
         reward = np.exp(-u - 0.5 * (env.n_line - np.sum(env.current_obs.line_status)) )
         return reward
+
+
+class ConstantReward(BaseReward):
+    """
+    This reward returns a fixed reward of 1 or 0 if there is a game over.
+    """
+    def __init__(self, logger=None):
+        BaseReward.__init__(self, logger=logger)
+        self.reward_min = 0.0
+        self.reward_illegal = 0.0
+        self.reward_max = 1.0
+
+    def __call__(
+            self,
+            action: BaseAction,
+            env: BaseEnv,
+            has_error: bool,
+            is_done: bool,
+            is_illegal: bool,
+            is_ambiguous: bool,
+    ) -> float:
+        """
+        Calls reward.
+        """
+        if is_done:
+            return self.reward_min
+        return self.reward_max
+

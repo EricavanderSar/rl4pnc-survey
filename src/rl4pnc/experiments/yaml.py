@@ -33,7 +33,8 @@ from rl4pnc.experiments.rewards import (
     AlphaZeroRW,
     LossRewardRescaled2,
     LossRewardNew,
-    RewardRho
+    RewardRho,
+    ConstantReward,
 )
 from grid2op.Reward import L2RPNReward,LinesCapacityReward
 from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
@@ -131,6 +132,13 @@ def alphazero_reward_constructor(
 ) -> AlphaZeroRW:
     """Custom constructor for L2RPNReward"""
     return AlphaZeroRW()
+
+
+def constant_reward_constructor(
+    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
+) -> ConstantReward:
+    """Custom constructor for L2RPNReward"""
+    return ConstantReward()
 
 
 def policy_mapping_fn_constructor(
@@ -288,6 +296,7 @@ def add_constructors() -> None:
     yaml.FullLoader.add_constructor("!AlphaZeroRW", alphazero_reward_constructor)
     yaml.FullLoader.add_constructor("!LinesCapacityReward", linecap_reward_constructor)
     yaml.FullLoader.add_constructor("!RewardRho", binbin_reward_constructor)
+    yaml.FullLoader.add_constructor("!ConstantReward", constant_reward_constructor)
     yaml.FullLoader.add_constructor("!policy_mapping_fn", policy_mapping_fn_constructor)
     yaml.FullLoader.add_constructor(
         "!CustomMetricsCallback", custom_metrics_callback_constructor
