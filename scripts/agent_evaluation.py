@@ -1,5 +1,7 @@
 import json
 import os
+from shutil import rmtree
+import zipfile
 import grid2op
 import numpy as np
 import argparse
@@ -335,8 +337,29 @@ def collect_episode_data(env, rules, store_trajectories_folder):
         df_sur = pd.DataFrame(chron_data)
     print(df_sur.head())
     df_sur.to_csv(os.path.join(store_trajectories_folder, "survival.csv"), index=False)
-
+    zip_episodes(store_trajectories_folder)
     return act_data, df_act
+
+
+def zip_episodes(path):
+    """
+    Function to zip all subdirectories in path into a single zip file "episode_data.zip" and consecutively
+    remove the subdirectories.
+    """
+    if os.path.exists(os.path.join(path, "survival.csv")) and os.path.exists(os.path.join(path, "line_action_topo_data.csv")):
+        print("All episode data is collected. Zipping and removing subdirectories...")
+        with zipfile.ZipFile(os.path.join(path, "episode_data.zip"), "w") as zipf:
+            for subdir in os.listdir(path):
+                subdir_path = os.path.join(path, subdir)
+                if os.path.isdir(subdir_path):
+                    for root, _, files in os.walk(subdir_path):
+                        for file in files:
+                            file_path = os.path.join(root, file)
+                            # Add file to the zip with a relative path to the subdirectory
+                            arcname = os.path.relpath(file_path, path)
+                            zipf.write(file_path, arcname)
+                    # remove subdirectory
+                    rmtree(subdir_path)
 
 
 def print_measures(df):
@@ -417,6 +440,8 @@ def eval_single_rlagent(test_case,
                         chronics,
                         unique_id,
                         best_checkpoint=False,
+                        plot_topo_actions: bool = False,
+                        make_quick_overview_plots: bool = False,
                         ):
     # Get environment configuration from agent studied
     env_config, agent_path = get_env_config(studie_path, test_case, rules, lib_dir)
@@ -448,7 +473,8 @@ def eval_single_rlagent(test_case,
               opponent=opponent)
 
     all_data, df = collect_episode_data(env, rules, store_trajectories_folder)
-    quick_overview(store_trajectories_folder)
+    if make_quick_overview_plots:
+        quick_overview(store_trajectories_folder, plot_topo_actions=plot_topo_actions)
     return all_data, df, env
 
 
@@ -459,8 +485,8 @@ def eval_heuristic_agent(
         rules: dict,
         opponent: bool,
         unique_id: str,
+        top_actions: bool = False,
 ):
-    topo_actions = False
     # Load config
     config = load_config(os.path.join(lib_dir, "configs/l2rpn_case14_sandbox/heuristics_configs.yaml"))
     res_path = os.path.join(res_path, f"{config['agent_type']}_{unique_id}")

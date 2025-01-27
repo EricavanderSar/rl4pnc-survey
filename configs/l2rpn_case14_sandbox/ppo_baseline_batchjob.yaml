@@ -77,7 +77,7 @@ environment:
       # general kwargs
       reward_class: !ScaledL2RPNReward #L2RPNReward #!LossRwRescaled2 #!LossRwNew #!AlphaZeroRW #!LinesCapacityReward #!LossReward #!RewardRho #!ConstantReward
     seed: *seed
-    rho_threshold: 0.99
+    rho_threshold: 0.95
     prio: False
     use_ffw: False # feed forward chronic when using prio
     g2op_input:  ["p_i", "p_l", "r", "o", "t" ] #['v_l', 'a', 'r', 't'] # #"all" #all options: ["t" (topo), "l" (line status), "p_i"(active power input), "p_l" (act power lines), "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "m" ]

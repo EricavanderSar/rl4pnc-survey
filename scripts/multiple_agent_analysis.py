@@ -82,7 +82,9 @@ def eval_all_agents(path: str,
                     nb_workers: int,
                     job_id: str,
                     filter_name:str="",
-                    best_checkpoint: bool = True):
+                    best_checkpoint: bool = True,
+                    overview_plots: bool = False,
+                    ):
     # Get all agents in current directory
     agent_list = [name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name))]
     if filter_name:
@@ -100,7 +102,8 @@ def eval_all_agents(path: str,
                          lib_dir=lib_dir,
                          chronics=chronics,
                          unique_id=job_id,
-                         best_checkpoint=best_checkpoint)
+                         best_checkpoint=best_checkpoint,
+                         make_quick_overview_plots=overview_plots)
         results = list(tqdm(pool.imap(worker, agent_list), total=len(agent_list), desc="Running evaluation for all agents"))
         for res in results:
             # Collect all data before continueing, hopefully avoiding error
@@ -140,6 +143,14 @@ if __name__ == "__main__":
         default=False,
         action='store_true',
         help="If True the best checkpoint is used for evaluation, otherwise the latest checkpoint is used.",
+    )
+
+    parser.add_argument(
+        "-q",
+        "--overview_plots",
+        default=False,
+        action='store_true',
+        help="If True quick overview plots are made for each agent.",
     )
 
     parser.add_argument(
@@ -195,5 +206,6 @@ if __name__ == "__main__":
                     args.nb_workers,
                     job_id=args.job_id,
                     filter_name=args.filter_name,
-                    best_checkpoint=args.best_checkpoint
+                    best_checkpoint=args.best_checkpoint,
+                    overview_plots=args.overview_plots,
                     )
