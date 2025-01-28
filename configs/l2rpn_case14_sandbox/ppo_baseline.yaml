@@ -82,6 +82,8 @@ environment:
     use_ffw: True
     normalize: maxmin
     reset_topo: 0.5
+    line_reco: True # Line reconnection when possible
+    line_disc: True # Line disconnection when overloaded for 2 consecutive time steps
     penalty_game_over: 0
     reward_finish: 0
 

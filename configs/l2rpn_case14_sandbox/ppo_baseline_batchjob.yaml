@@ -5,8 +5,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurveyPaperAT" # "Case14_Opponent"
-  experiment_name: "Case14_SurveyPaperAT"
+  folder_name: "Case14_SurveyPaperLine" # "Case14_Opponent"
+  experiment_name: "Case14_SurveyPaperLine"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -84,12 +84,14 @@ environment:
     custom_input: [""] #options: [ "d" (danger), "t" (time of day), "y" (day of year)]
     danger: 0.9 # used when danger is in custom_input
     n_history: 1 # If n_history > 1, the observation will be a list of previous observations
-    # Params below only used for new_env
-    adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
-    normalize: maxmin
     reset_topo: 0 # No reset topo aplied when = 0
+    line_reco: False # Line reconnection when possible
+    line_disc: False # Line disconnection when overloaded for >1 consecutive time steps
     penalty_game_over: 0
     reward_finish: 0
+    # Params below only used for new_env
+    adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
+    normalize: maxmin # options: maxmin, zscore, none
 
 evaluation:
   evaluation_interval: 10

@@ -95,11 +95,13 @@ class CustomMetricsCallback(DefaultCallbacks):
         interact_count = np.array([env.interact_count for env in envs]).mean()
         active_dn_count = np.array([env.active_dn_count for env in envs]).mean()
         reconnect_count = np.array([env.reconnect_count for env in envs]).mean()
+        disconnect_count = np.array([env.disconnect_count for env in envs]).mean()
         reset_count = np.array([env.reset_count for env in envs]).mean()
 
         episode.custom_metrics["interact_count"] = interact_count
         episode.custom_metrics["active_dn_count"] = active_dn_count
         episode.custom_metrics["reconnect_count"] = reconnect_count
+        episode.custom_metrics["disconnect_count"] = disconnect_count
         episode.custom_metrics["reset_count"] = reset_count
 
     def on_evaluate_end(
@@ -118,7 +120,8 @@ class CustomMetricsCallback(DefaultCallbacks):
         # Extra metrics:
         data["custom_metrics"]["interact_count"] = int(np.mean(data["custom_metrics"]["interact_count"])) 
         data["custom_metrics"]["active_dn_count"] = int(np.mean(data["custom_metrics"]["active_dn_count"]))  
-        data["custom_metrics"]["reconnect_count"] = int(np.mean(data["custom_metrics"]["reconnect_count"]))  
+        data["custom_metrics"]["reconnect_count"] = int(np.mean(data["custom_metrics"]["reconnect_count"]))
+        data["custom_metrics"]["disconnect_count"] = int(np.mean(data["custom_metrics"]["disconnect_count"]))
         data["custom_metrics"]["reset_count"] = int(np.mean(data["custom_metrics"]["reset_count"]))     
         
         # data["custom_metrics"]["mean_agent_interact"] = np.mean(data["custom_metrics"]["agent_interactions"])
@@ -150,6 +153,7 @@ class CustomMetricsCallback(DefaultCallbacks):
         del data["custom_metrics"]["interact_count"]
         del data["custom_metrics"]["active_dn_count"]
         del data["custom_metrics"]["reconnect_count"]
+        del data["custom_metrics"]["disconnect_count"]
         del data["custom_metrics"]["reset_count"]
         # del data["custom_metrics"]["agent_interactions"]
 
@@ -172,6 +176,7 @@ class CustomMetricsCallback(DefaultCallbacks):
         result["custom_metrics"]["mean_interact_count"] = int(np.mean(result["custom_metrics"]["interact_count"]))
         result["custom_metrics"]["mean_active_dn_count"] = int(np.mean(result["custom_metrics"]["active_dn_count"]))
         result["custom_metrics"]["mean_reconnect_count"] = int(np.mean(result["custom_metrics"]["reconnect_count"]))
+        result["custom_metrics"]["mean_disconnect_count"] = int(np.mean(result["custom_metrics"]["disconnect_count"]))
         result["custom_metrics"]["mean_reset_count"] = int(np.mean(result["custom_metrics"]["reset_count"]))
 
         # Delete irrelevant data
@@ -183,6 +188,7 @@ class CustomMetricsCallback(DefaultCallbacks):
         del result["custom_metrics"]["interact_count"]
         del result["custom_metrics"]["active_dn_count"]
         del result["custom_metrics"]["reconnect_count"]
+        del result["custom_metrics"]["disconnect_count"]
         del result["custom_metrics"]["reset_count"]
 
     # def on_learn_on_batch(

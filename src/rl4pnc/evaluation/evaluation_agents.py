@@ -55,7 +55,6 @@ class HeuristicsAgent(BaseAgent):
         self.activation_thresh = rule_config.get("activation_threshold", 0.95)
         self.line_reco = rule_config.get("line_reco", False)
         self.line_disc = rule_config.get("line_disc", False)
-        self.ts_overflow_lines = np.zeros(action_space.n_line)
         self.reset_topo = rule_config.get("reset_topo", 0)
         self.simulate = rule_config.get("simulate", False)
         self.rho_max = 0
@@ -139,18 +138,27 @@ class HeuristicsAgent(BaseAgent):
         # This method manually disconnect a line during sustained periods of overflow in order to avoid permanent
         # damage. Reconnect the line back soon after the cooldown period ends.
         # This can help when parameters.NB_TIMESTEP_RECONNECTION > parameters.NB_TIMESTEP_COOLDOWN_LINE
-        if any(observation.rho>1.0):
-            self.ts_overflow_lines= np.where(observation.rho>1.0, self.ts_overflow_lines + 1, 0)
-            # print("Testing disconnection rule, ts overflowlines: ", self.ts_overflow_lines)
-            # print("obs rho: ", observation.rho)
-            if any(self.ts_overflow_lines>1):
-                # Manually disconnet lines that are overflowed for more then 1 time step.
-                id_ = np.argmax(self.ts_overflow_lines)
-                current_action += self.action_space({"set_line_status": [(id_, -1)]})
-                # print(current_action)
-        else:
-            self.ts_overflow_lines = np.zeros(self.action_space.n_line)
-
+        if np.any(observation.timestep_overflow > 1):
+            (
+                sim_obs,
+                _,
+                _,
+                _,
+            ) = observation.simulate(current_action)
+            cur_max_rho = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
+            # Manually disconnect lines that are overflowed for more than 1 time step.
+            id_ = observation.timestep_overflow.argmax()
+            action = current_action + self.action_space({"set_line_status": [(id_, -1)]})
+            (
+                sim_obs,
+                _,
+                _,
+                _,
+            ) = observation.simulate(action)
+            if cur_max_rho > (sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2):
+                # only disconnect when this benefits the current action.
+                current_action = action
+            # print(current_action)
         return current_action
 
     def simulate_combinations(self,

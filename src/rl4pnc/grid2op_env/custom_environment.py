@@ -115,6 +115,11 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 else ChronPrioVect(self.env_g2op)
         self.step_surv = 0
 
+        # 6. environment settings
+        # reconnect lines when disconnected
+        self.line_reco = env_config.get("line_reco", True)
+        # disconnect lines when overloaded
+        self.line_disc = env_config.get("line_disc", False)
         # reset topo option
         self.reset_topo = env_config.get("reset_topo", 0)
         # penalty for game over
@@ -128,6 +133,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.activated = False
         self.active_dn_count = 0
         self.reconnect_count = 0
+        self.disconnect_count = 0
         self.reset_count = 0
         self.observation_converter.reset_obs()
 
@@ -265,8 +271,12 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
 
     def gym_act_in_g2op(self, action) -> Tuple[BaseObservation, float, bool, dict]:
         g2op_act = self.env_gym.action_space.from_gym(action)
-        # reconnect lines if needed.
-        g2op_act = self.reconnect_lines(g2op_act)
+        if self.line_reco:
+            # reconnect lines if needed.
+            g2op_act = self.reconnect_lines(g2op_act)
+        if self.line_disc:
+            # disconnect lines if needed.
+            g2op_act = self.disconnect_lines(g2op_act)
         if self.reset_topo:
             # reset topo if needed.
             g2op_act = self.reset_ref_topo(g2op_act)
@@ -326,9 +336,41 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                     _,
                 ) = self.cur_g2op_obs.simulate(action)
                 if cur_max_rho > (sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2):
+                    # print("Reconnecting line: ", id_)
                     self.reconnect_count += 1
                     g2op_action = action
         # return original action
+        return g2op_action
+
+    def disconnect_lines(self, g2op_action: grid2op.Action):
+        """
+         This method manually disconnect a line during sustained periods of overflow in order to avoid permanent
+          damage. Reconnect the line back soon after the cooldown period ends.
+          This can help when parameters.NB_TIMESTEP_RECONNECTION > parameters.NB_TIMESTEP_COOLDOWN_LINE
+        """
+        if np.any(self.cur_g2op_obs.timestep_overflow > 1):
+            # print("Test disconnecting lines")
+            (
+                sim_obs,
+                _,
+                _,
+                _,
+            ) = self.cur_g2op_obs.simulate(g2op_action)
+            cur_max_rho = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
+            # Manually disconnect lines that are overflowed for more than 1 time step.
+            id_ = self.cur_g2op_obs.timestep_overflow.argmax()
+            action = g2op_action + self.env_g2op.action_space({"set_line_status": [(id_, -1)]})
+            (
+                sim_obs,
+                _,
+                _,
+                _,
+            ) = self.cur_g2op_obs.simulate(action)
+            if cur_max_rho > (sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2):
+                # only disconnect when this benefits the current action.
+                # print("Disconnecting line: ", id_)
+                self.disconnect_count += 1
+                g2op_action = action
         return g2op_action
 
     def reset_ref_topo(self, g2op_action: grid2op.Action):

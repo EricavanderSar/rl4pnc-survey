@@ -28,7 +28,7 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
                                           n_history=n_history, adj_mat=env_config.get("adj_matrix"))
 
         # Normalize state observations:
-        if env_config.get("normalize", '') == "meanstd":
+        if env_config.get("normalize", '') == "zscore":
             load_path = os.path.join(
                 env_config["lib_dir"],
                 f"data/observations_dn/{self.env_g2op.env_name}",
