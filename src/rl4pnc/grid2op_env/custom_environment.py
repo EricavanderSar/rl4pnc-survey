@@ -393,13 +393,10 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                         }
                         })
                     sim_obs, rw, done, info = self.cur_g2op_obs.simulate(action)
-                    max_rho = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
-                    if max_rho < cur_max_rho:
-                        # if result better than currently proposed (DN) action save action as option.
-                        action_options.append(action)
-                        max_rhos[i] = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
-                        rewards[i] = rw
-                if action_options:
+                    action_options.append(action)
+                    max_rhos[i] = sim_obs.rho.max() if sim_obs.rho.max() > 0 else 2
+                    rewards[i] = rw
+                if max_rhos[np.argmax(rewards)] < cur_max_rho:
                     # use the best revert action.
                     act = action_options[np.argmax(rewards)]
                     self.reset_count += 1
