@@ -65,7 +65,7 @@ environment:
     env_type: old_env #new_env #
 #    shuffle_scenarios: True # This is not used in my version of custom_env (since I use g2op direct instead of gymenv)
     env_name: l2rpn_case14_sandbox_train
-    action_space: assym
+    action_space: medha
     mask: 5
     lib_dir: /Users/ericavandersar/Documents/Python_Projects/Research/rl4pnc/
     grid2op_kwargs:
@@ -83,7 +83,7 @@ environment:
     normalize: maxmin
     reset_topo: 0.9
     line_reco: True # Line reconnection when possible
-    line_disc: False # Line disconnection when overloaded for 2 consecutive time steps
+    line_disc: True # Line disconnection when overloaded for 2 consecutive time steps
     penalty_game_over: 0
     reward_finish: 0
 

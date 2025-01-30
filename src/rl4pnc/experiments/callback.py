@@ -97,6 +97,8 @@ class CustomMetricsCallback(DefaultCallbacks):
         reconnect_count = np.array([env.reconnect_count for env in envs]).mean()
         disconnect_count = np.array([env.disconnect_count for env in envs]).mean()
         reset_count = np.array([env.reset_count for env in envs]).mean()
+        # print("disconnect_count count: ", [env.disconnect_count for env in envs])
+        # print(f"interact_count: {interact_count}, active_dn_count: {active_dn_count}, reconnect_count: {reconnect_count}, disconnect_count: {disconnect_count}, reset_count: {reset_count}")
 
         episode.custom_metrics["interact_count"] = interact_count
         episode.custom_metrics["active_dn_count"] = active_dn_count
@@ -118,11 +120,11 @@ class CustomMetricsCallback(DefaultCallbacks):
         data["custom_metrics"]["grid2op_end_max"] = int(np.max(data["custom_metrics"]["grid2op_end"]))
         data["custom_metrics"]["grid2op_end_std"] = np.std(data["custom_metrics"]["grid2op_end"])
         # Extra metrics:
-        data["custom_metrics"]["interact_count"] = int(np.mean(data["custom_metrics"]["interact_count"])) 
-        data["custom_metrics"]["active_dn_count"] = int(np.mean(data["custom_metrics"]["active_dn_count"]))  
-        data["custom_metrics"]["reconnect_count"] = int(np.mean(data["custom_metrics"]["reconnect_count"]))
-        data["custom_metrics"]["disconnect_count"] = int(np.mean(data["custom_metrics"]["disconnect_count"]))
-        data["custom_metrics"]["reset_count"] = int(np.mean(data["custom_metrics"]["reset_count"]))     
+        data["custom_metrics"]["mean_interact_count"] = np.mean(data["custom_metrics"]["interact_count"])
+        data["custom_metrics"]["mean_active_dn_count"] = np.mean(data["custom_metrics"]["active_dn_count"])
+        data["custom_metrics"]["mean_reconnect_count"] = np.mean(data["custom_metrics"]["reconnect_count"])
+        data["custom_metrics"]["mean_disconnect_count"] = np.mean(data["custom_metrics"]["disconnect_count"])
+        data["custom_metrics"]["mean_reset_count"] = np.mean(data["custom_metrics"]["reset_count"])
         
         # data["custom_metrics"]["mean_agent_interact"] = np.mean(data["custom_metrics"]["agent_interactions"])
         # # Print specified logging level
@@ -155,7 +157,6 @@ class CustomMetricsCallback(DefaultCallbacks):
         del data["custom_metrics"]["reconnect_count"]
         del data["custom_metrics"]["disconnect_count"]
         del data["custom_metrics"]["reset_count"]
-        # del data["custom_metrics"]["agent_interactions"]
 
     def on_train_result(
         self,
@@ -173,11 +174,19 @@ class CustomMetricsCallback(DefaultCallbacks):
         result["custom_metrics"]["corrected_ep_len_mean"] = mean_episode_duration
         
         # Extra metrics:
-        result["custom_metrics"]["mean_interact_count"] = int(np.mean(result["custom_metrics"]["interact_count"]))
-        result["custom_metrics"]["mean_active_dn_count"] = int(np.mean(result["custom_metrics"]["active_dn_count"]))
-        result["custom_metrics"]["mean_reconnect_count"] = int(np.mean(result["custom_metrics"]["reconnect_count"]))
-        result["custom_metrics"]["mean_disconnect_count"] = int(np.mean(result["custom_metrics"]["disconnect_count"]))
-        result["custom_metrics"]["mean_reset_count"] = int(np.mean(result["custom_metrics"]["reset_count"]))
+        result["custom_metrics"]["mean_interact_count"] = np.mean(result["custom_metrics"]["interact_count"])
+        result["custom_metrics"]["mean_active_dn_count"] = np.mean(result["custom_metrics"]["active_dn_count"])
+        result["custom_metrics"]["mean_reconnect_count"] = np.mean(result["custom_metrics"]["reconnect_count"])
+        result["custom_metrics"]["mean_disconnect_count"] = np.mean(result["custom_metrics"]["disconnect_count"])
+        result["custom_metrics"]["mean_reset_count"] = np.mean(result["custom_metrics"]["reset_count"])
+
+        print(f"mean interact_count: "
+              f"{result['custom_metrics']['mean_interact_count']}, "
+              f"mean active_dn_count: {result['custom_metrics']['mean_active_dn_count']}, "
+              f"mean reconnect_count: {result['custom_metrics']['mean_reconnect_count']}, "
+              f"mean disconnect_count: {result['custom_metrics']['mean_disconnect_count']}, "
+              f"mean reset_count: {result['custom_metrics']['mean_reset_count']}"
+              )
 
         # Delete irrelevant data
         del result["custom_metrics"]["grid2op_end"]

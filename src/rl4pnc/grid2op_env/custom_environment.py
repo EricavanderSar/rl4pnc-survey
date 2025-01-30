@@ -127,6 +127,14 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         # reward for finishing complete episode
         self.reward_finish = env_config.get("reward_finish", 0)
 
+        # ininitalize metrics
+        self.interact_count = 0
+        self.activated = False
+        self.active_dn_count = 0
+        self.reconnect_count = 0
+        self.disconnect_count = 0
+        self.reset_count = 0
+
     def reset_metrics(self):
         # different metrics to keep track of episode performance
         self.interact_count = 0
@@ -370,6 +378,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                 # only disconnect when this benefits the current action.
                 # print("Disconnecting line: ", id_)
                 self.disconnect_count += 1
+                # print("Current disc count: ", self.disconnect_count)
                 g2op_action = action
         return g2op_action
 

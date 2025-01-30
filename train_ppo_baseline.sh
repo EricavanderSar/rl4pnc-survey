@@ -5,14 +5,14 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=32
 #SBATCH --partition=rome
-#SBATCH --time=20:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=Train_Results_Case14/Case14_Baseline_ppo_%j.out
 #SBATCH --array=1-5
 #SBATCH --ear=off
 
 ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=Case14_SurveyPaperReset
+RESDIR=Case14_SurveyPaperLine1
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
