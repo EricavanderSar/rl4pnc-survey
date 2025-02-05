@@ -48,6 +48,24 @@ from grid2op.gym_compat.gym_obs_space import GymnasiumObservationSpace
 OBSTYPE = TypeVar("OBSTYPE")
 ACTTYPE = TypeVar("ACTTYPE")
 RENDERFRAME = TypeVar("RENDERFRAME")
+# Environment configuration per curriculum level:
+ENV_CUR_MAP = [
+    {
+        # Easiest level
+        "NO_OVERFLOW_DISCONNECTION": True,
+        "SOFT_OVERFLOW_THRESHOLD": 99,
+        "HARD_OVERFLOW_THRESHOLD": 999,
+        "NB_TIMESTEP_OVERFLOW_ALLOWED": 99,
+    },
+    {
+        # Mid level
+        "SOFT_OVERFLOW_THRESHOLD": 2,
+        "HARD_OVERFLOW_THRESHOLD": 99,
+        "NB_TIMESTEP_OVERFLOW_ALLOWED": 15,
+    },
+    # None means no adjustments > using default values
+    None
+]
 
 
 class CustomizedGrid2OpEnvironment(MultiAgentEnv):
@@ -134,6 +152,9 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
         self.reconnect_count = 0
         self.disconnect_count = 0
         self.reset_count = 0
+        # initialize curriculum level:
+        if env_config.get("curriculum_training", False):
+            self.set_curriculum(level=0)
 
     def reset_metrics(self):
         # different metrics to keep track of episode performance
@@ -412,6 +433,22 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
                     # print(act)
                     return act
         return g2op_action
+
+    def set_curriculum(self, level: int):
+        print("Change curriculum to level: ", level)
+        new_params = ENV_CUR_MAP[level]
+        if new_params is not None:
+            p = self.env_g2op.parameters
+            p.init_from_dict(new_params)
+            self.env_g2op.change_parameters(p)
+            _ = self.env_g2op.reset()
+            print("Parameters used: \n", self.env_g2op.parameters.to_dict())
+        else:
+            # use default parameters
+            print("Using default parameters.")
+            env_default = grid2op.make(self.env_g2op.env_name)
+            default_par = env_default.parameters
+            self.env_g2op.change_parameters(default_par)
 
 
 register_env("CustomizedGrid2OpEnvironment", CustomizedGrid2OpEnvironment)

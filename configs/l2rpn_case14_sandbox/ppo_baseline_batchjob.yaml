@@ -5,8 +5,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurveyPaperLine1" # "Case14_Opponent"
-  experiment_name: "Case14_SurveyPaperLine1"
+  folder_name: "Case14_SurveyPaperCurr" # "Case14_Opponent"
+  experiment_name: "Case14_SurveyPaperCurr"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -92,6 +92,8 @@ environment:
     # Params below only used for new_env
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: maxmin # options: maxmin, zscore, none
+    curriculum_training: True
+    curriculum_thresholds: [30_000,60_000] # used if curriculum_training is True
 
 evaluation:
   evaluation_interval: 10

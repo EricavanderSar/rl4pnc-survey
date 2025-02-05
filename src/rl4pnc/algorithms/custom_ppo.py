@@ -63,6 +63,11 @@ class CustomPPO(PPO):
     ):
         print("my_log_level: ", config["my_log_level"])
         self.my_log_level = config["my_log_level"]
+        self.curriculum_training = config.get("env_config", {}).get("curriculum_training", False)
+        self.curriculum_threshold = config.get("env_config", {}).get("curriculum_thresholds", [])
+        if self.curriculum_training:
+            print("Curriculum training is enabled.")
+            print("Curriculum thresholds: ", self.curriculum_threshold)
         super().__init__(config, env, logger_creator, **kwargs)
 
     def training_step(self) -> ResultDict:

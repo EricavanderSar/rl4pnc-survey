@@ -3,6 +3,7 @@ Implements callbacks.
 """
 
 from typing import Any, Dict, Optional, List, Union, Tuple
+from functools import partial
 from tabulate import tabulate
 import numpy as np
 import time
@@ -16,6 +17,7 @@ from ray.tune.experimental.output import (
 )
 from ray._private.dict import unflattened_lookup
 from ray.tune.experiment import Trial
+from ray.rllib.algorithms.algorithm import Algorithm
 
 from ray.rllib.env import BaseEnv
 from ray.rllib.algorithms.callbacks import DefaultCallbacks
@@ -46,10 +48,14 @@ class CustomMetricsCallback(DefaultCallbacks):
     def on_algorithm_init(
         self,
         *,
-        algorithm: "Algorithm",
+        algorithm: Algorithm,
         **kwargs,
     ) -> None:
+        print("Algorithm initialized. Setup Callbacks...")
         self.log_level = algorithm.my_log_level
+        self.curr_level = 0
+        if algorithm.curriculum_training:
+            print(f"Start with curriculum level {self.curr_level}")
 
     # def on_episode_start(self,
     #     *,
@@ -180,13 +186,13 @@ class CustomMetricsCallback(DefaultCallbacks):
         result["custom_metrics"]["mean_disconnect_count"] = np.mean(result["custom_metrics"]["disconnect_count"])
         result["custom_metrics"]["mean_reset_count"] = np.mean(result["custom_metrics"]["reset_count"])
 
-        print(f"mean interact_count: "
-              f"{result['custom_metrics']['mean_interact_count']}, "
-              f"mean active_dn_count: {result['custom_metrics']['mean_active_dn_count']}, "
-              f"mean reconnect_count: {result['custom_metrics']['mean_reconnect_count']}, "
-              f"mean disconnect_count: {result['custom_metrics']['mean_disconnect_count']}, "
-              f"mean reset_count: {result['custom_metrics']['mean_reset_count']}"
-              )
+        # print(f"mean interact_count: "
+        #       f"{result['custom_metrics']['mean_interact_count']}, "
+        #       f"mean active_dn_count: {result['custom_metrics']['mean_active_dn_count']}, "
+        #       f"mean reconnect_count: {result['custom_metrics']['mean_reconnect_count']}, "
+        #       f"mean disconnect_count: {result['custom_metrics']['mean_disconnect_count']}, "
+        #       f"mean reset_count: {result['custom_metrics']['mean_reset_count']}"
+        #       )
 
         # Delete irrelevant data
         del result["custom_metrics"]["grid2op_end"]
@@ -199,6 +205,18 @@ class CustomMetricsCallback(DefaultCallbacks):
         del result["custom_metrics"]["reconnect_count"]
         del result["custom_metrics"]["disconnect_count"]
         del result["custom_metrics"]["reset_count"]
+
+        if algorithm.curriculum_training:
+            if self.curr_level < len(algorithm.curriculum_threshold) - 1 and \
+                    result['timesteps_total'] > algorithm.curriculum_threshold[self.curr_level]:
+                self.curr_level += 1
+                algorithm.workers.foreach_worker(
+                    lambda ev: ev.foreach_env(
+                        lambda env: env.set_curriculum(self.curr_level)
+                    )
+                )
+                print(f"Curriculum level increased to {self.curr_level}")
+
 
     # def on_learn_on_batch(
     #     self, *, policy: Policy, train_batch: SampleBatch, result: dict, **kwargs
