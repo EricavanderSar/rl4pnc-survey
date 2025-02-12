@@ -12,7 +12,7 @@
 
 ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=Case14_SurveyPaperComb_TunnePPO
+RESDIR=Case14_SurveyPaperComb_TunnePPO_OPP
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
