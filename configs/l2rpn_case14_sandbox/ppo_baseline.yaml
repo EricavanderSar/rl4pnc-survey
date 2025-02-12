@@ -1,6 +1,7 @@
 setup:
   max_ep_len: 8064
-  nb_timesteps: &nb_timesteps 500
+  duration: 0 # HH:MM or minutes of training before stopping, used if value > 0
+  nb_timesteps: 500
   checkpoint_freq: 2
   verbose: 0
   my_log_level: 1
@@ -86,7 +87,7 @@ environment:
     line_disc: True # Line disconnection when overloaded for 2 consecutive time steps
     penalty_game_over: 0
     reward_finish: 0
-    curriculum_training: True
+    curriculum_training: False
     curriculum_thresholds: [150,300] # used if curriculum_training is True
 
 evaluation:

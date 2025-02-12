@@ -1,12 +1,13 @@
 setup:
   max_ep_len: 8064
+  duration: 12:00 # HH:MM or minutes of training before stopping, overwrites nb_timesteps limit if value > 0
   nb_timesteps: &nb_timesteps 100_000 # 500.000 with opponent
   checkpoint_freq: 10
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurveyPaperBase" # "Case14_Opponent"
-  experiment_name: "Case14_SurveyPaperBase"
+  folder_name: "Case14_SurveyPaperATLong" # "Case14_Opponent"
+  experiment_name: "Case14_SurveyPaperATLong"
   optimize: False
   num_samples: 25
   score_metric: evaluation/custom_metrics/grid2op_end_mean

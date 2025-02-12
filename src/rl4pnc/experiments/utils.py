@@ -9,6 +9,7 @@ from tabulate import tabulate
 import json
 import numpy as np
 from datetime import datetime
+from time import time
 
 from grid2op.Environment import BaseEnv
 import ray
@@ -266,6 +267,37 @@ class MaxCustomMetricStopper(Stopper):
         return False
 
 
+class TimeStopper(Stopper):
+    def __init__(self, deadline):
+        self._start = time()
+        if isinstance(deadline, str):
+            self._deadline = int(deadline.split(":")[0]) * 3600 + int(deadline.split(":")[1]) * 60
+            print("Run training for ", deadline, " hours.")
+        else:
+            self._deadline = deadline * 60  # Stop all trials after deadline minutes
+            print("Run training for ", deadline, " minutes.")
+
+    def __call__(self, trial_id, result):
+        return False
+
+    def stop_all(self):
+        return time() - self._start > self._deadline
+
+
+def get_duration(setup):
+    deadline = setup.get("duration", 0)
+    # convert deadline to seconds
+    if deadline == 0:
+        print(f"Run until {setup['nb_timesteps']} agent time steps.")
+        return deadline
+    if isinstance(deadline, str):
+        deadline = int(deadline.split(":")[0]) * 3600 + int(deadline.split(":")[1]) * 60
+    else:
+        deadline = deadline * 60  # Stop all trials after deadline minutes
+    print("Run training for ", deadline, " seconds.")
+    return deadline
+
+
 def trial_str_creator(trial: Trial, job_id=""):
     trial.trial_id = trial.trial_id.split("_")[0]
     if job_id:
@@ -331,7 +363,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], job_id: str) -> 
         #     min_time_slice=10_000,
         #     hard_stop=False,
         # )
-
+    dur = get_duration(setup)
     # Create tuner
     tuner = tune.Tuner(
         trainable=CustomPPO,
@@ -339,7 +371,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], job_id: str) -> 
         run_config=air.RunConfig(
             name=setup["folder_name"],
             # storage_path=os.path.join(workdir, os.path.join(setup["storage_path"], config["env_config"]["env_name"])),
-            stop={"timesteps_total": setup["nb_timesteps"]}, #MaxCustomMetricStopper("total_agent_interact", setup["nb_timesteps"]), #
+            stop={"time_total_s": dur} if dur else {"timesteps_total": setup["nb_timesteps"]}, # MaxCustomMetricStopper("total_agent_interact", setup["nb_timesteps"]), #
             # "custom_metrics/grid2op_end_mean": setup["max_ep_len"]},
             callbacks=[
                 WandbLoggerCallback(
