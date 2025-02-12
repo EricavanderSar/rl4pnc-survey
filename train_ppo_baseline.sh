@@ -3,16 +3,16 @@
 #SBATCH --job-name="marl_ppo_agents"
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=128
+#SBATCH --cpus-per-task=32
 #SBATCH --partition=rome
-#SBATCH --time=100:00:00
+#SBATCH --time=24:00:00
 #SBATCH --output=Train_Results_Case14/Case14_Baseline_ppo_%j.out
-#SBATCH --array=1
+#SBATCH --array=1-5
 #SBATCH --ear=off
 
 ENVNAME=l2rpn_case14_sandbox #rte_case14_realistic #l2rpn_icaps_2021_large #
 WORKDIR=$TMPDIR/evds_output_dir
-RESDIR=Case14_SurveyPaperComb_TunnePPO_OPP
+RESDIR=Case14_SurveyPaperComb_OPP
 
 # function to handle the SIGTERM signal
 function handle_interrupt {
@@ -42,7 +42,7 @@ srun cp -r $HOME/Rl4Pnc/data $WORKDIR/data
 i=${SLURM_ARRAY_TASK_ID}
 j=${SLURM_JOB_ID}
 echo "Run code: Task id $i"
-  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s $i -j $j
+  time srun python -u scripts/train_ppo_baseline.py -f configs/$ENVNAME/ppo_baseline_batchjob.yaml -wd $WORKDIR -s $i -j $j -o
 echo "Done"
 
 # Synchronize results with WandB
