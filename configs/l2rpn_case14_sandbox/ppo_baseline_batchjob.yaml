@@ -44,9 +44,9 @@ training:
   batch_mode: complete_episodes
   model:
 #    custom_model : linfcn
-    fcnet_hiddens: !choice [[128,128,128], [256,256,256], [256, 128, 256]]  # [128,128,128] # [256,256,256] #
+    fcnet_hiddens: !choice [(128,128,128), (256,256,256), (256, 128, 256)]  # [128,128,128] # [256,256,256] #
     fcnet_activation: relu #!choice [relu, tanh] #
-    post_fcnet_hiddens: !choice [[],[128], [256]] #[256] #
+    post_fcnet_hiddens: !choice [(),(128), (256)] #[256] #
   _enable_learner_api: False
 
 rl_module:
