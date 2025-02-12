@@ -324,7 +324,7 @@ class CustomizedGrid2OpEnvironment(MultiAgentEnv):
             reward = self.penalty_game_over
         if self.reward_finish and g2op_obs.current_step == g2op_obs.max_step:
             reward = self.reward_finish
-            print("*** Episode finished *** extra reward: ", reward)
+            # print("*** Episode finished *** extra reward: ", reward)
         if self.prio:
             self.step_surv += 1
             if terminated:
