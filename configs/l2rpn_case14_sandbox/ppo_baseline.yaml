@@ -1,14 +1,14 @@
 setup:
   max_ep_len: 8064
   duration: 0 # HH:MM or minutes of training before stopping, used if value > 0
-  nb_timesteps: 500
+  nb_timesteps: 1_000
   checkpoint_freq: 2
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
   folder_name: "TestSandbox14"
   experiment_name: "TestSb14"
-  optimize: False
+  optimize: True
   num_samples: 3
   score_metric: evaluation/custom_metrics/grid2op_end_mean
   grace_period: 500
@@ -24,8 +24,8 @@ debugging:
 training:
   checkpoint_trainable_policies_only: True
   # tunable parameters
-  gamma: 0.99 #!quniform [0.95, 0.99, 0.01] #
-  lr: 0.0001 # !qloguniform [0.0005, 0.005, 0.0001] #
+  gamma: !quniform [0.95, 0.99, 0.01] #0.99 #
+  lr: !qloguniform [0.0005, 0.005, 0.0001] #0.0001 #
   vf_loss_coeff: 0.5
   entropy_coeff: 0.05
   clip_param: 0.3 # epsilon

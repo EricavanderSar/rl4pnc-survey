@@ -343,7 +343,7 @@ def run_training(config: dict[str, Any], setup: dict[str, Any], job_id: str) -> 
         algo = MyOptunaSearch(
             metric=setup["score_metric"],
             mode="max",
-            points_to_evaluate=[setup['points_to_evaluate']] if 'points_to_evaluate' in setup else None,
+            points_to_evaluate=[setup.get('points_to_evaluate', None)],
         )
         if 'result_dir' in setup.keys():
             print("Retrieving data old experiment from : ", setup['result_dir'])
