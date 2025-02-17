@@ -143,6 +143,8 @@ def run_agent(agent,
     li_episode = EpisodeData.list_episode(store_trajectories_folder) if \
         os.path.exists(store_trajectories_folder) else []
 
+    # Use the same seed for each experiment
+    env.seed(0)
     if len(li_episode) < nb_episodes:
         print(f">> Start running evaluation of {nb_episodes-len(li_episode)} episodes")
         runner = Runner(

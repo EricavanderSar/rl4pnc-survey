@@ -6,8 +6,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurveyPaperComb_OPP" # "Case14_Opponent"
-  experiment_name: "Case14_SurveyPaperComb_OPP"
+  folder_name: "Case14_SurveyPaperCurr1" # "Case14_Opponent"
+  experiment_name: "Case14_SurveyPaperCurr1"
   optimize: False
   num_samples: 32
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -33,12 +33,12 @@ training:
   lr: 0.0001 #!qloguniform [0.0001, 0.005, 0.0001] #
 #  use_kl_loss: False # setting this similar to orig EVDS implementation
   kl_coeff: 0.2
-  entropy_coeff: 0.01 # 0.0 # with opponent: 0.01 #!choice [0.1, 0.0] #
+  entropy_coeff: 0.0 # 0.0 # with opponent: 0.01 #!choice [0.1, 0.0] #
   clip_param:  0.3 # !choice [0.2, 0.3] # epsilon
   lambda: 0.95
   vf_loss_coeff: 0.5
   vf_clip_param: 100
-  num_sgd_iter: 15 # 5 # with opponent: 15 #!quniform [4, 16, 4] #
+  num_sgd_iter: 5 # 5 # with opponent: 15 #!quniform [4, 16, 4] #
   sgd_minibatch_size: 256 #128 #!choice [64, 128, 256] #
   train_batch_size: 1024 #256 # 128 #!choice [256, 512, 1024] #
   batch_mode: complete_episodes
@@ -71,21 +71,21 @@ environment:
   env_config: &env_config_train
     env_type: old_env #new_env #
     env_name: l2rpn_case14_sandbox_train
-    action_space: d3qn2022 # options: assym, medha, tennet, d3qn2022, masked
+    action_space: medha # options: assym, medha, tennet, d3qn2022, masked
     mask: 3 # only used if action space is "masked" (as in SMAAC from Yoon et al. 2021)
     lib_dir: !workdir
     grid2op_kwargs:
       # general kwargs
       reward_class: !ScaledL2RPNReward #L2RPNReward #!LossRwRescaled2 #!LossRwNew #!AlphaZeroRW #!LinesCapacityReward #!LossReward #!RewardRho #!ConstantReward
     seed: *seed
-    rho_threshold: 0.99
+    rho_threshold: 0.95
     prio: False
     use_ffw: False # feed forward chronic when using prio
     g2op_input: ["p_i", "p_l", "r", "o", "t" ] #['v_l', 'a', 'r', 't'] # #"all" #all options: ["t" (topo), "l" (line status), "p_i"(active power input), "p_l" (act power lines), "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "m" ]
     custom_input: [""] #options: [ "d" (danger), "t" (time of day), "y" (day of year)]
     danger: 0.9 # used when danger is in custom_input
     n_history: 1 # If n_history > 1, the observation will be a list of previous observations
-    reset_topo: 0.8 # No reset topo aplied when = 0
+    reset_topo: 0 # No reset topo aplied when = 0
     line_reco: True # Line reconnection when possible
     line_disc: False # Line disconnection when overloaded for >1 consecutive time steps
     penalty_game_over: 0
@@ -93,7 +93,7 @@ environment:
     # Params below only used for new_env
     adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     normalize: maxmin # options: maxmin, zscore, none
-    curriculum_training: False
+    curriculum_training: True
     curriculum_thresholds: [20_000,46_667] # used if curriculum_training is True
 
 evaluation:
@@ -111,6 +111,7 @@ evaluation:
       env_name: l2rpn_case14_sandbox_val # use the validation environment
       shuffle_scenarios: False
       prio: False # should always be False
+      curriculum_training: False
 
 reporting:
   keep_per_episode_custom_metrics: True

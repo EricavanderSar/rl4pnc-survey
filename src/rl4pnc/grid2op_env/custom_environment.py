@@ -59,6 +59,7 @@ ENV_CUR_MAP = [
     },
     {
         # Mid level
+        "NO_OVERFLOW_DISCONNECTION": False,
         "SOFT_OVERFLOW_THRESHOLD": 2,
         "HARD_OVERFLOW_THRESHOLD": 99,
         "NB_TIMESTEP_OVERFLOW_ALLOWED": 15,

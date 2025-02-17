@@ -207,7 +207,7 @@ class CustomMetricsCallback(DefaultCallbacks):
         del result["custom_metrics"]["reset_count"]
 
         if algorithm.curriculum_training:
-            if self.curr_level < len(algorithm.curriculum_threshold) - 1 and \
+            if self.curr_level < len(algorithm.curriculum_threshold) and \
                     result['timesteps_total'] > algorithm.curriculum_threshold[self.curr_level]:
                 self.curr_level += 1
                 algorithm.workers.foreach_worker(
