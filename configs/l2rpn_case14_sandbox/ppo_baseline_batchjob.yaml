@@ -6,8 +6,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurveyPaperBase_Opp" # "Case14_Opponent"
-  experiment_name: "Case14_SurveyPaperBase_Opp"
+  folder_name: "Case14_SurveyPaperRainbow" # "Case14_Opponent"
+  experiment_name: "Case14_SurveyPaperRainbow"
   optimize: False
   num_samples: 32
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -71,17 +71,17 @@ environment:
   env_config: &env_config_train
     env_type: old_env #new_env #
     env_name: l2rpn_case14_sandbox_train
-    action_space: medha # options: assym, medha, tennet, d3qn2022, masked
+    action_space: tennet # options: assym, medha, tennet, d3qn2022, masked
     mask: 3 # only used if action space is "masked" (as in SMAAC from Yoon et al. 2021)
     lib_dir: !workdir
     grid2op_kwargs:
       # general kwargs
-      reward_class: !ScaledL2RPNReward #L2RPNReward #!LossRwRescaled2 #!LossRwNew #!AlphaZeroRW #!LinesCapacityReward #!LossReward #!RewardRho #!ConstantReward
+      reward_class: !AlphaZeroRW #!ScaledL2RPNReward #L2RPNReward #!LossRwRescaled2 #!LossRwNew #!AlphaZeroRW #!LinesCapacityReward #!LossReward #!RewardRho #!ConstantReward
     seed: *seed
     rho_threshold: 0.95
     prio: False
     use_ffw: False # feed forward chronic when using prio
-    g2op_input: ["p_i", "p_l", "r", "o", "t" ] #['v_l', 'a', 'r', 't'] # #"all" #all options: ["t" (topo), "l" (line status), "p_i"(active power input), "p_l" (act power lines), "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "m" ]
+    g2op_input: ['v_l', 'a', 'r', 't'] # ["p_i", "p_l", "r", "o", "t" ] #['v_l', 'a', 'r', 't'] # #"all" #all options: ["t" (topo), "l" (line status), "p_i"(active power input), "p_l" (act power lines), "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "m" ]
     custom_input: [""] #options: [ "d" (danger), "t" (time of day), "y" (day of year)]
     danger: 0.9 # used when danger is in custom_input
     n_history: 1 # If n_history > 1, the observation will be a list of previous observations
