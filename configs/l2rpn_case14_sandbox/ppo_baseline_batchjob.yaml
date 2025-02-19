@@ -6,8 +6,8 @@ setup:
   verbose: 0
   my_log_level: 1
   storage_path: ./runs
-  folder_name: "Case14_SurveyPaperRainbow_Opp" # "Case14_Opponent"
-  experiment_name: "Case14_SurveyPaperRainbow_Opp"
+  folder_name: "Case14_SurveyPaperBase_Opp" # "Case14_Opponent"
+  experiment_name: "Case14_SurveyPaperBase_Opp"
   optimize: False
   num_samples: 32
   score_metric: evaluation/custom_metrics/grid2op_end_mean
@@ -71,25 +71,25 @@ environment:
   env_config: &env_config_train
     env_type: old_env #new_env #
     env_name: l2rpn_case14_sandbox_train
-    action_space: d3qn2022 # options: assym, medha, tennet, d3qn2022, masked
+    action_space: medha # options: assym, medha, tennet, d3qn2022, masked
     mask: 3 # only used if action space is "masked" (as in SMAAC from Yoon et al. 2021)
     lib_dir: !workdir
     grid2op_kwargs:
       # general kwargs
-      reward_class: !AlphaZeroRW #!ScaledL2RPNReward #L2RPNReward #!LossRwRescaled2 #!LossRwNew #!AlphaZeroRW #!LinesCapacityReward #!LossReward #!RewardRho #!ConstantReward
+      reward_class: !ScaledL2RPNReward #L2RPNReward #!LossRwRescaled2 #!LossRwNew #!AlphaZeroRW #!LinesCapacityReward #!LossReward #!RewardRho #!ConstantReward
     seed: *seed
-    rho_threshold: 0.99
+    rho_threshold: 0.95
     prio: False
     use_ffw: False # feed forward chronic when using prio
     g2op_input: ["p_i", "p_l", "r", "o", "t" ] #['v_l', 'a', 'r', 't'] # #"all" #all options: ["t" (topo), "l" (line status), "p_i"(active power input), "p_l" (act power lines), "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "m" ]
     custom_input: [""] #options: [ "d" (danger), "t" (time of day), "y" (day of year)]
     danger: 0.9 # used when danger is in custom_input
     n_history: 1 # If n_history > 1, the observation will be a list of previous observations
-    reset_topo: 0.8 # No reset topo applied when = 0
+    reset_topo: 0 # No reset topo applied when = 0
     line_reco: True # Line reconnection when possible
-    line_disc: True # Line disconnection when overloaded for >1 consecutive time steps
-    penalty_game_over: -300
-    reward_finish: 500
+    line_disc: False # Line disconnection when overloaded for >1 consecutive time steps
+    penalty_game_over: 0
+    reward_finish: 0
     curriculum_training: False
     curriculum_thresholds: [20_000,46_667] # used if curriculum_training is True
     # Params below only used for new_env
