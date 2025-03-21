@@ -51,7 +51,7 @@ dependencies = [
   "scikit-learn==1.2.2",
   "scikit-network==0.30.0",
   "scipy==1.8",
-  "seaborn==0.12.2",
+  "seaborn==0.13.2",
   "gym==0.26.2",
   "gymnasium==0.29.1",
   "protobuf==3.20.3",

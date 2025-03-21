@@ -7,6 +7,7 @@ import numpy as np
 import argparse
 import re
 import json
+from time import sleep
 from grid2op.PlotGrid import PlotMatplot
 from lightsim2grid import LightSimBackend
 from grid2op.Agent import DoNothingAgent, RecoPowerlineAgent
@@ -68,6 +69,15 @@ def get_env_config(studie_path, test_case, rules, libdir, opponent=False):
     # load config
     config_path = os.path.join(agent_path, "params.json")
     config = load_config(config_path)
+    if config is None:
+        print(f"Config file not found at {config_path}. Try again in a few sec...")
+        # wait few sec
+        sleep(5)
+        config_path = os.path.join(agent_path, "params.json")
+        config = load_config(config_path)
+        if config is None:
+            print(f"Config file still not found at {config_path}. Skip this agent")
+            return None, None
     env_config: dict = config["env_config"]
     # adjust lib_dir:
     env_config["lib_dir"] = libdir
@@ -447,6 +457,8 @@ def eval_single_rlagent(test_case,
                         ):
     # Get environment configuration from agent studied
     env_config, agent_path = get_env_config(studie_path, test_case, rules, lib_dir)
+    if env_config is None:
+        return None, None, None
     ENV_TYPE = RlGrid2OpEnv if env_config["env_type"] == "new_env" else CustomizedGrid2OpEnvironment
     checkpoint_name = get_best_checkpoint(agent_path) if best_checkpoint else get_latest_checkpoint(agent_path)
     env_config["checkpoint"] = "best" if best_checkpoint else "latest"
