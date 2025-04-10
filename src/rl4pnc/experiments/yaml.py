@@ -26,7 +26,6 @@ from yaml.loader import FullLoader, Loader, UnsafeLoader
 from yaml.nodes import MappingNode, ScalarNode, SequenceNode
 
 from rl4pnc.experiments.callback import CustomMetricsCallback
-from rl4pnc.experiments.opponent import ReconnectingOpponentSpace
 from rl4pnc.experiments.rewards import (
     LossReward,
     ScaledL2RPNReward,
@@ -223,13 +222,6 @@ def baseaction_budget_constructor(
     return BaseActionBudget
 
 
-def reconnecting_opponent_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
-) -> OpponentSpace:
-    """Custom constructor for ReconnectingOpponentSpace"""
-    return ReconnectingOpponentSpace
-
-
 def path_workdir_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> str:
@@ -266,9 +258,6 @@ def add_constructors() -> None:
         "!RandomLineOpponent", randomline_opponent_constructor
     )
     yaml.FullLoader.add_constructor("!BaseActionBudget", baseaction_budget_constructor)
-    yaml.FullLoader.add_constructor(
-        "!ReconnectingOpponentSpace", reconnecting_opponent_constructor
-    )
     yaml.FullLoader.add_constructor(
         "!workdir", path_workdir_constructor
     )

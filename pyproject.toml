@@ -24,12 +24,12 @@ authors = [
 description = "Implementing RL for Grid2Op topology control."
 readme = "README.md"
 
-keywords = ["rl", "hrl", "marl", "grid2op"]
+keywords = ["rl", "grid2op", "ppo", "reinforcement-learning", "power-grid", "topology-control"]
 
-license = {text = "BSD-3-Clause"}
+license = "MIT"
 
 classifiers = [
-    "License :: OSI Approved :: BSD License",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10"
 ]
@@ -40,7 +40,7 @@ requires-python = ">=3.10"
 
 dependencies = [
   "Grid2Op==1.10.5",
-  "pandapower>=2.2.2",
+  "pandapower==2.14.11",
   "numba>=0.56.4",
   "numpy>=1.24",
   "ray==2.10.0",
