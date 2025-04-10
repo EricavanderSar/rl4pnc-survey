@@ -1,0 +1,16 @@
+  # kwargs specific to opponents
+  opponent_attack_cooldown: 144 # = 12 * 12 -> max 2 attacks per day (1 hour being 12 time steps)
+  opponent_attack_duration: 48 # = 12 * 4 -> 4 hours
+  opponent_budget_per_ts: 0.333343333333 # (opponent_attack_duration / opponent_attack_cooldown) + eps, eps = 1e-5
+  opponent_init_budget: 144 # no need to attack directly, it can attack starting at midday the first day
+  opponent_action_class: !PowerlineSetAction
+  opponent_class: !RandomLineOpponent
+  opponent_budget_class: !BaseActionBudget
+#  opponent_space_type: !ReconnectingOpponentSpace (Extra Impl of TenneT. Default is OpponentSpace that only disconnects)
+  kwargs_opponent:
+    lines_attacked:
+      - '3_4_6'
+      - '11_12_13'
+      - '3_6_15'
+      - '3_8_16'
+      - '6_8_19'

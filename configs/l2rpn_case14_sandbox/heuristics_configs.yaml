@@ -1,0 +1,7 @@
+agent_type: RhoGreedy # Options: RhoGreedy, DoNothing
+env_name: l2rpn_case14_sandbox
+action_space: d3qn2022
+grid2op_kwargs:
+  # general kwargs
+  reward_class: !LossReward
+seed: 14
