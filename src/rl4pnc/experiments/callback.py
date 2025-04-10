@@ -57,20 +57,6 @@ class CustomMetricsCallback(DefaultCallbacks):
         if algorithm.curriculum_training:
             print(f"Start with curriculum level {self.curr_level}")
 
-    # def on_episode_start(self,
-    #     *,
-    #     worker: "RolloutWorker",
-    #     base_env: BaseEnv,
-    #     policies: Dict[str, Policy],
-    #     episode: EpisodeV2,
-    #     env_index: Optional[int] = None,
-    #     **kwargs,
-    # ) -> None:
-    #     print('sub env [0]', base_env.get_sub_environments()[0])
-    #     print('len sub envs: ', len(base_env.get_sub_environments()))
-    #     env = base_env.get_sub_environments()[0]
-    #     print('current start step is :', env.env_glop.current_obs.current_step)
-    #     episode.custom_metrics["start_step"] = env.env_glop.current_obs.current_step
 
     def on_episode_end(
         self,
@@ -131,7 +117,7 @@ class CustomMetricsCallback(DefaultCallbacks):
         data["custom_metrics"]["mean_reconnect_count"] = np.mean(data["custom_metrics"]["reconnect_count"])
         data["custom_metrics"]["mean_disconnect_count"] = np.mean(data["custom_metrics"]["disconnect_count"])
         data["custom_metrics"]["mean_reset_count"] = np.mean(data["custom_metrics"]["reset_count"])
-        
+
         # data["custom_metrics"]["mean_agent_interact"] = np.mean(data["custom_metrics"]["agent_interactions"])
         # # Print specified logging level
         # if self.log_level:
@@ -216,29 +202,6 @@ class CustomMetricsCallback(DefaultCallbacks):
                     )
                 )
                 print(f"Curriculum level increased to {self.curr_level}")
-
-
-    # def on_learn_on_batch(
-    #     self, *, policy: Policy, train_batch: SampleBatch, result: dict, **kwargs
-    # ) -> None:
-    #     print(f"Policy {train_batch.as_multi_agent().policy_batches.keys()} batch size: {train_batch.count}")
-
-    # def on_postprocess_trajectory(
-    #         self,
-    #         *,
-    #         worker: "EnvRunner",
-    #         episode: EpisodeV2,
-    #         agent_id: "AgentID",
-    #         policy_id: "PolicyID",
-    #         policies: Dict["PolicyID", Policy],
-    #         postprocessed_batch: SampleBatch,
-    #         original_batches: Dict["AgentID", Tuple["PolicyID", Policy, SampleBatch]],
-    #         **kwargs,
-    # ) -> None:
-    #     if "rein" in policy_id:
-    #         print(f'agent id {agent_id}')
-    #         pid, policy, batch = original_batches[agent_id]
-    #         print(f'batch size : {batch.count}')
 
 
 class TuneCallback(TuneReporterBase):

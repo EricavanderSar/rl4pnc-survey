@@ -621,19 +621,3 @@ def save_to_json(
     # Save to json
     with open(json_file_path, "wt", encoding="utf-8") as file:
         json.dump(actions_to_json, file)
-
-
-# if __name__ == "__main__":
-#     # envs = ["rte_case5_example", "rte_case14_realistic", "l2rpn_wcci_2022"]
-#     envs = ["rte_case5_example", "rte_case14_realistic"]
-#     for env_name in envs:
-#         environment = grid2op.make(env_name, test=True)
-#
-#         file_path = f"/Users/barberademol/Documents/GitHub/rl4pnc/experiments/action_spaces/{env_name}/asymmetry.json"
-#         save_to_json(get_asymmetrical_action_space(environment), file_path)
-#
-#         file_path = f"/Users/barberademol/Documents/GitHub/rl4pnc/experiments/action_spaces/{env_name}/medha.json"
-#         save_to_json(get_medha_action_space(environment), file_path)
-#
-#         file_path = f"/Users/barberademol/Documents/GitHub/rl4pnc/experiments/action_spaces/{env_name}/tennet.json"
-#         save_to_json(get_tennet_action_space(environment), file_path)

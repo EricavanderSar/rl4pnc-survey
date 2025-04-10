@@ -62,34 +62,3 @@ class RlGrid2OpEnv(CustomizedGrid2OpEnvironment):
 
 
 register_env("RlGrid2OpEnv", RlGrid2OpEnv)
-
-
-class RlGrid2OpEnv2(RlGrid2OpEnv):
-    def __init__(self, env_config: dict[str, Any]):
-        super().__init__(env_config)
-
-        # re-define RLlib observationspace:
-        dim_topo = self.env_g2op.observation_space.dim_topo
-        obs_features = env_config.get("input", ["p_i", "p_l", "r", "o", "d"])
-        n_history = env_config.get("n_history", 6)
-        obs_dict = {}
-        if "p_i" in obs_features:
-            obs_dict["p_gen"] = gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_history))
-            obs_dict["p_load"] = gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_history))
-        if "p_l" in obs_features:
-            obs_dict["p_line"] = gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_history))
-        if "r" in obs_features:
-            obs_dict["rho"] = gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_history))
-        if "o" in obs_features:
-            obs_dict["timestep_overflow"] = gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_history))
-        if "d" in obs_features:
-            obs_dict["danger"] = gym.spaces.Box(-np.inf, np.inf, shape=(dim_topo, n_history))
-        obs_dict["topology"] = gym.spaces.Box(0, 2, shape=(dim_topo, dim_topo)) if env_config.get("adj_matrix") else gym.spaces.Box(-1, 1, shape=(dim_topo,))
-
-        self.observation_space = gym.spaces.Dict(obs_dict)
-
-        # TODO: create new obs converter
-        self.obs_converter = ObsConverter(self.env_g2op, env_config.get("danger", 0.9), attr=obs_features, n_history=n_history, adj_mat=env_config.get("adj_matrix"))
-        self.cur_gym_obs = None
-
-register_env("RlGrid2OpEnv2", RlGrid2OpEnv2)

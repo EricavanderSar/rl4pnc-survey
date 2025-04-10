@@ -1,6 +1,15 @@
 # Reinforcement Learning for Power Network Control
 
-## Getting started
+This repository contains the code for the paper "Optimizing Power Grid Topologies with Reinforcement Learning: A Survey 
+of Methods and Challenges" by E. van der Sar et al. 
+
+If you use this repository in your research, please cite the following paper:
+
+```bibtex TOOD
+```
+
+
+## Setup
 ### Create conda environment
 ```sh
 conda env create -n rl4pnc python=3.10  
@@ -22,3 +31,6 @@ make
 pip install -U pybind11
 pip install -U .
 ```
+
+## Getting Started
+TO DO.

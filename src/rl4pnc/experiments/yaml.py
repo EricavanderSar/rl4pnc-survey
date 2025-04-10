@@ -31,18 +31,12 @@ from rl4pnc.experiments.rewards import (
     LossReward,
     ScaledL2RPNReward,
     AlphaZeroRW,
-    LossRewardRescaled2,
-    LossRewardNew,
     RewardRho,
     ConstantReward,
 )
 from grid2op.Reward import L2RPNReward,LinesCapacityReward
 from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from rl4pnc.multi_agent.policy import (
-    DoNothingPolicy,
-    SelectAgentPolicy,
-    policy_mapping_fn,
-)
+from rl4pnc.multi_agent.policy import policy_mapping_fn
 
 
 def discrete_constructor(
@@ -60,14 +54,6 @@ def algorithm_config_constructor(
     return AlgorithmConfig()
 
 
-def policy_spec_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
-) -> PolicySpec:
-    """Custom constructor for PolicySpec"""
-    loader.construct_mapping(node)
-    return PolicySpec()
-
-
 def customized_environment_constructor(
     loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
 ) -> CustomizedGrid2OpEnvironment:
@@ -83,20 +69,6 @@ def loss_reward_constructor(
 ) -> LossReward:
     """Custom constructor for LossReward"""
     return LossReward()
-
-
-def loss_rw_rescaled_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
-) -> LossRewardRescaled2:
-    """Custom constructor for LossReward"""
-    return LossRewardRescaled2()
-
-
-def loss_rw_new_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
-) -> LossRewardNew:
-    """Custom constructor for LossReward"""
-    return LossRewardNew()
 
 
 def scaled_reward_constructor(
@@ -153,22 +125,6 @@ def custom_metrics_callback_constructor(
 ) -> DefaultCallbacks:
     """Custom constructor for CustomMetricsCallback"""
     return CustomMetricsCallback
-
-
-def select_agent_policy_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
-) -> SelectAgentPolicy:
-    """Custom constructor for SelectAgentPolicy"""
-    fields = {str(k): v for k, v in loader.construct_mapping(node).items()}
-    return SelectAgentPolicy(**fields)
-
-
-def do_nothing_policy_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
-) -> DoNothingPolicy:
-    """Custom constructor for DoNothingPolicy"""
-    fields = {str(k): v for k, v in loader.construct_mapping(node).items()}
-    return DoNothingPolicy(**fields)
 
 
 def float_to_integer(float_value: float) -> Union[int, float]:
@@ -289,8 +245,6 @@ def add_constructors() -> None:
         "!CustomizedGrid2OpEnvironment", customized_environment_constructor
     )
     yaml.FullLoader.add_constructor("!LossReward", loss_reward_constructor)
-    yaml.FullLoader.add_constructor("!LossRwRescaled2", loss_rw_rescaled_constructor)
-    yaml.FullLoader.add_constructor("!LossRwNew", loss_rw_new_constructor)
     yaml.FullLoader.add_constructor("!ScaledL2RPNReward", scaled_reward_constructor)
     yaml.FullLoader.add_constructor("!L2RPNReward", l2rpn_reward_constructor)
     yaml.FullLoader.add_constructor("!AlphaZeroRW", alphazero_reward_constructor)
@@ -301,13 +255,8 @@ def add_constructors() -> None:
     yaml.FullLoader.add_constructor(
         "!CustomMetricsCallback", custom_metrics_callback_constructor
     )
-    yaml.FullLoader.add_constructor(
-        "!SelectAgentPolicy", select_agent_policy_constructor
-    )
-    yaml.FullLoader.add_constructor("!DoNothingPolicy", do_nothing_policy_constructor)
     yaml.FullLoader.add_constructor("!Discrete", discrete_constructor)
     yaml.FullLoader.add_constructor("!AlgorithmConfig", algorithm_config_constructor)
-    yaml.FullLoader.add_constructor("!PolicySpec", policy_spec_constructor)
     yaml.FullLoader.add_constructor("!quniform", tune_search_quniform_constructor)
     yaml.FullLoader.add_constructor("!qloguniform", tune_search_qloguniform_constructor)
     yaml.FullLoader.add_constructor("!grid_search", tune_search_grid_search_constructor)

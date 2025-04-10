@@ -25,11 +25,8 @@ from rl4pnc.grid2op_env.custom_env2 import RlGrid2OpEnv
 from rl4pnc.multi_agent.policy import (
     DoNothingPolicy,
     SelectAgentPolicy,
-    DoNothingPolicy2,
-    SelectAgentPolicy2
 )
 from rl4pnc.experiments.utils import run_training
-from rl4pnc.models.linear_model import LinFCN
 
 REPORT_END = False
 
@@ -77,7 +74,7 @@ def setup_config(workdir_path: str, input_path: str, seed: int = None, opponent=
     # ppo_config["env_config"]["lib_dir"] = os.path.join(workdir_path, ppo_config["env_config"]["lib_dir"])
     policies = {
         "high_level_policy": PolicySpec(  # chooses RL or do-nothing agent
-            policy_class=SelectAgentPolicy2,
+            policy_class=SelectAgentPolicy,
             config=(
                 AlgorithmConfig()
                 .training(
@@ -99,7 +96,7 @@ def setup_config(workdir_path: str, input_path: str, seed: int = None, opponent=
             config=None,
         ),
         "do_nothing_policy": PolicySpec(  # performs do-nothing action
-            policy_class=DoNothingPolicy2,
+            policy_class=DoNothingPolicy,
             config=(
                 AlgorithmConfig()
                 # .training(_enable_learner_api=False)
@@ -132,10 +129,6 @@ def change_workdir(workdir: str, env_name: str) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process possible variables.")
-    ModelCatalog.register_custom_model(
-        "linfcn",
-        LinFCN
-    )
 
     parser.add_argument(
         "-f",
