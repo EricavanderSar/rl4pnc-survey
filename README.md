@@ -1,13 +1,19 @@
 # Reinforcement Learning for Power Network Control
 
-This repository contains the code for the paper "Optimizing Power Grid Topologies with Reinforcement Learning: A Survey 
-of Methods and Challenges" by E. van der Sar et al. 
+This repository contains the code for the paper "[Optimizing Power Grid Topologies with Reinforcement Learning: A Survey 
+of Methods and Challenges](https://arxiv.org/abs/2504.08210)" by E. van der Sar et al. 
 
 If you use this repository in your research, please cite the following paper:
 
 ```bibtex TOOD
+@article{van2025optimizing,
+  title={Optimizing Power Grid Topologies with Reinforcement Learning: A Survey of Methods and Challenges},
+  author={van der Sar, Erica and Zocca, Alessandro and Bhulai, Sandjai},
+  journal={arXiv preprint arXiv:2504.08210},
+  year={2025}
+}
 ```
-
+Feel free to reach out if you have any questions or suggestions.
 
 ## Setup
 ### Installation

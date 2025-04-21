@@ -9,19 +9,12 @@ from typing import Any
 
 import grid2op
 
-import ray
-import gymnasium as gym
-from ray import air, tune, train
-# from ray.air.integrations.mlflow import MLflowLoggerCallback
-from ray.air.integrations.wandb import WandbLoggerCallback
 from ray.rllib.algorithms import ppo  # import the type of agents
 from ray.rllib.algorithms.algorithm_config import AlgorithmConfig
 from ray.rllib.policy.policy import PolicySpec
-from ray.rllib.models import ModelCatalog
 
 from rl4pnc.experiments.yaml import load_config
 from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from rl4pnc.grid2op_env.custom_env2 import RlGrid2OpEnv
 from rl4pnc.multi_agent.policy import (
     DoNothingPolicy,
     SelectAgentPolicy,
@@ -29,11 +22,6 @@ from rl4pnc.multi_agent.policy import (
 from rl4pnc.experiments.utils import run_training
 
 REPORT_END = False
-
-ENV_TYPE = {
-    "old_env": CustomizedGrid2OpEnvironment,
-    "new_env": RlGrid2OpEnv,
-}
 
 
 def setup_config(workdir_path: str, input_path: str, seed: int = None, opponent=False) -> (dict[str, Any], dict[str, Any]):
@@ -107,7 +95,7 @@ def setup_config(workdir_path: str, input_path: str, seed: int = None, opponent=
 
     # load environment and agents manually
     ppo_config.update({"policies": policies})
-    ppo_config.update({"env": ENV_TYPE[custom_config["environment"]["env_config"]["env_type"]]})
+    ppo_config.update({"env": CustomizedGrid2OpEnvironment})
     ppo_config.update({"trial_info": "trial_id"})
     ppo_config.update({"my_log_level": custom_config["setup"]["my_log_level"]})
 
@@ -161,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-o",
         "--opponent",
-        # default=True,
+        default=True,
         action='store_true',
         help="Train on environment with opponent.",
     )

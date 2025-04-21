@@ -20,7 +20,6 @@ from grid2op.Episode import EpisodeData
 from ray.rllib.algorithms import ppo
 from rl4pnc.evaluation.evaluation_agents import RllibAgent, RhoGreedyAgent, HeuristicsAgent
 from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
-from rl4pnc.grid2op_env.custom_env2 import RlGrid2OpEnv
 from rl4pnc.grid2op_env.utils import load_actions
 from rl4pnc.experiments.yaml import load_config
 from rl4pnc.evaluation.utils import instantiate_reward_class
@@ -459,7 +458,6 @@ def eval_single_rlagent(test_case,
     env_config, agent_path = get_env_config(studie_path, test_case, rules, lib_dir)
     if env_config is None:
         return None, None, None
-    ENV_TYPE = RlGrid2OpEnv if env_config["env_type"] == "new_env" else CustomizedGrid2OpEnvironment
     checkpoint_name = get_best_checkpoint(agent_path) if best_checkpoint else get_latest_checkpoint(agent_path)
     env_config["checkpoint"] = "best" if best_checkpoint else "latest"
 
@@ -473,7 +471,7 @@ def eval_single_rlagent(test_case,
         file_path=agent_path,
         policy_name="reinforcement_learning_policy",
         checkpoint_name=checkpoint_name,
-        gym_wrapper=ENV_TYPE(env_config),
+        gym_wrapper=CustomizedGrid2OpEnvironment(env_config),
     )
     # location of data to store:
     folder_name = "evaluation_episodes" + f"_{checkpoint_name}_{unique_id}"

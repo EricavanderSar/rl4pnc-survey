@@ -34,7 +34,6 @@ from rl4pnc.experiments.rewards import (
     ConstantReward,
 )
 from grid2op.Reward import L2RPNReward,LinesCapacityReward
-from rl4pnc.grid2op_env.custom_environment import CustomizedGrid2OpEnvironment
 from rl4pnc.multi_agent.policy import policy_mapping_fn
 
 
@@ -51,16 +50,6 @@ def algorithm_config_constructor(
     """Custom constructor for AlgorithmConfig"""
     loader.construct_mapping(node)
     return AlgorithmConfig()
-
-
-def customized_environment_constructor(
-    loader: Union[Loader, FullLoader, UnsafeLoader], node: MappingNode
-) -> CustomizedGrid2OpEnvironment:
-    """Custom constructor for CustomizedGrid2OpEnvironment"""
-    fields = {str(k): v for k, v in loader.construct_mapping(node).items()}
-    env_config = fields.get("env_config", {})  # Extract env_config explicitly
-    fields["env_config"] = env_config
-    return CustomizedGrid2OpEnvironment(**fields)
 
 
 def loss_reward_constructor(
@@ -233,9 +222,6 @@ def path_workdir_constructor(
 
 def add_constructors() -> None:
     """Add the constructors to the yaml loader"""
-    yaml.FullLoader.add_constructor(
-        "!CustomizedGrid2OpEnvironment", customized_environment_constructor
-    )
     yaml.FullLoader.add_constructor("!LossReward", loss_reward_constructor)
     yaml.FullLoader.add_constructor("!ScaledL2RPNReward", scaled_reward_constructor)
     yaml.FullLoader.add_constructor("!L2RPNReward", l2rpn_reward_constructor)

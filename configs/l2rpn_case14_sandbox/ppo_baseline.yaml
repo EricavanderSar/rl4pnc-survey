@@ -63,8 +63,6 @@ multi_agent:
 
 environment:
   env_config: &env_config_train
-    env_type: old_env #new_env #
-#    shuffle_scenarios: True # This is not used in my version of custom_env (since I use g2op direct instead of gymenv)
     env_name: l2rpn_case14_sandbox_train
     action_space: medha
     mask: 5
@@ -78,10 +76,8 @@ environment:
     g2op_input: ["r"] #"all" #["t", "l", "p_i", "p_l", "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o" ] # all options: ["t", "p_i", "p_l", "q_i", "q_l", "v_i", "v_l", "theta_i", "theta_l", "a", "r", "o", "d" ]
     custom_input: ["d"]
     danger: 0.9
-    adj_matrix: False #use adjacency matrix instead of topology vector (is adj matrix useful for lin NN??)
     prio: False
     use_ffw: True
-    normalize: maxmin
     reset_topo: 0.9
     line_reco: True # Line reconnection when possible
     line_disc: True # Line disconnection when overloaded for 2 consecutive time steps
