@@ -149,7 +149,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-o",
         "--opponent",
-        default=True,
+        # default=True,
         action='store_true',
         help="Train on environment with opponent.",
     )
